@@ -1,0 +1,56 @@
+:root {
+  --bg: #ebfcf3; /* Very light mint background */
+  --text: #064e3b; /* Deep green for text */
+  --muted: #4b5563;
+  --danger: rgb(239, 68, 68);
+  --primary-light: #6ee7b7; /* Light mint */
+  --primary-dark: #10b981; /* Primary mint */
+  --accent: var(--primary-dark);
+  --accent-bg: rgba(16, 185, 129, 0.12);
+  --accent-border: rgba(16, 185, 129, 0.3);
+  --border: rgba(0, 0, 0, 0.1);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+
+  --color-primary: var(--primary-dark);
+  --color-danger: var(--danger);
+  --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, 'Apple Color Emoji',
+    'Segoe UI Emoji';
+
+  font: 16px/1.45 var(--sans);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(900px 500px at 50% -100px, rgba(167, 243, 208, 0.7), transparent 65%),
+    radial-gradient(800px 500px at 100% 0, rgba(52, 211, 153, 0.4), transparent 60%),
+    var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(16, 185, 129, 0.22);
+}

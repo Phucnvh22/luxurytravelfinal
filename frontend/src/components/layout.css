@@ -1,0 +1,178 @@
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: rgba(235, 252, 243, 0.85); /* Brand mint background with transparency */
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(52, 211, 153, 0.15); /* Subtle mint divider */
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.nav {
+  display: flex;
+  gap: 14px;
+}
+
+.nav a {
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.nav a:hover {
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--primary-dark);
+}
+
+.nav a.active {
+  color: var(--primary-dark);
+  background: rgba(52, 211, 153, 0.15);
+}
+
+@media (max-width: 768px) {
+  /* Mobile layout */
+  .header-inner {
+    padding: 10px 0;
+  }
+  
+  .app-header.hide-on-mobile {
+    display: none;
+  }
+  
+  .app-header .nav {
+    display: none;
+  }
+
+  .app-header .nav.mobile-open {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    border-bottom: 1px solid rgba(52, 211, 153, 0.2);
+    align-items: flex-start;
+  }
+
+  .app-header .nav.mobile-open .nav-main-link {
+    display: none;
+  }
+
+  .app-header .nav.mobile-open .auth-section {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 10px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(0,0,0,0.05);
+  }
+
+  .app-header .nav.mobile-open .user-menu {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .app-shell {
+    padding-bottom: 70px;
+  }
+  
+  .app-footer {
+    margin-bottom: 70px;
+  }
+}
+
+.hamburger-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: var(--text);
+}
+
+.hamburger-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+@media (max-width: 768px) {
+  .hamburger-btn {
+    display: block;
+  }
+}
+
+.app-main {
+  flex: 1;
+}
+
+.app-footer {
+  border-top: 1px solid rgba(52, 211, 153, 0.15);
+  background: rgba(52, 211, 153, 0.05);
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 0;
+  font-size: 13px;
+}
+
+.copy-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.copy-dialog {
+  width: min(520px, 100%);
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+  padding: 16px;
+}
+
+.copy-title {
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.copy-sub {
+  margin-top: 6px;
+  font-size: 13px;
+}
