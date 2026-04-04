@@ -22,21 +22,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
+      - name: Set GHCR owner lowercase
+        run: |
+          echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
       - uses: docker/build-push-action@v6
         with:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/${{ toLower(github.repository_owner) }}/luxury-travel-backend:latest
-            ghcr.io/${{ toLower(github.repository_owner) }}/luxury-travel-backend:${{ github.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/luxury-travel-backend:latest
+            ghcr.io/${{ env.OWNER_LC }}/luxury-travel-backend:${{ github.sha }}
 
       - uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
           tags: |
-            ghcr.io/${{ toLower(github.repository_owner) }}/luxury-travel-frontend:latest
-            ghcr.io/${{ toLower(github.repository_owner) }}/luxury-travel-frontend:${{ github.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/luxury-travel-frontend:latest
+            ghcr.io/${{ env.OWNER_LC }}/luxury-travel-frontend:${{ github.sha }}
 
   deploy:
     runs-on: ubuntu-latest
