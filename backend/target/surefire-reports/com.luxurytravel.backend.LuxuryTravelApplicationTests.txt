@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.luxurytravel.backend.LuxuryTravelApplicationTests
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.919 s -- in com.luxurytravel.backend.LuxuryTravelApplicationTests
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.044 s -- in com.luxurytravel.backend.LuxuryTravelApplicationTests
