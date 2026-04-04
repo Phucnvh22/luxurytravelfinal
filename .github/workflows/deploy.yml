@@ -73,7 +73,7 @@ jobs:
             export GHCR_OWNER='${{ github.repository_owner }}'; \
             export GHCR_OWNER=\$(echo \"\$GHCR_OWNER\" | tr '[:upper:]' '[:lower:]'); \
             export IMAGE_TAG=latest; \
-            if [ -n '${{ secrets.GHCR_TOKEN }}' ]; then docker login ghcr.io -u '${{ github.actor }}' -p '${{ secrets.GHCR_TOKEN }}'; fi; \
+            if [ -n '${{ secrets.GHCR_TOKEN }}' ]; then docker login ghcr.io -u \"\$GHCR_OWNER\" -p '${{ secrets.GHCR_TOKEN }}'; fi; \
             docker compose pull; \
             docker compose up -d; \
             docker image prune -f \
