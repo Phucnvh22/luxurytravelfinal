@@ -56,18 +56,14 @@ jobs:
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
-      - name: Add known_hosts
-        run: |
-          ssh-keyscan -p "${{ secrets.VPS_SSH_PORT }}" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
-
       - name: Upload docker-compose.yml
         run: |
-          ssh -p "${{ secrets.VPS_SSH_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.VPS_APP_DIR }}'"
-          scp -P "${{ secrets.VPS_SSH_PORT }}" docker-compose.yml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_APP_DIR }}/docker-compose.yml"
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${{ secrets.VPS_SSH_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.VPS_APP_DIR }}'"
+          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "${{ secrets.VPS_SSH_PORT }}" docker-compose.yml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_APP_DIR }}/docker-compose.yml"
 
       - name: Deploy
         run: |
-          ssh -p "${{ secrets.VPS_SSH_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "\
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${{ secrets.VPS_SSH_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "\
             set -e; \
             cd '${{ secrets.VPS_APP_DIR }}'; \
             export GHCR_OWNER='${{ github.repository_owner }}'; \
