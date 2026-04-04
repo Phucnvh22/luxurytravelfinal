@@ -50,6 +50,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate VPS secrets
+        run: |
+          if [ -z '${{ secrets.VPS_HOST }}' ]; then echo 'Missing secret VPS_HOST'; exit 1; fi
+          if [ -z '${{ secrets.VPS_USER }}' ]; then echo 'Missing secret VPS_USER'; exit 1; fi
+          if [ -z '${{ secrets.VPS_APP_DIR }}' ]; then echo 'Missing secret VPS_APP_DIR'; exit 1; fi
+          if [ -z '${{ secrets.VPS_SSH_KEY }}' ]; then echo 'Missing secret VPS_SSH_KEY'; exit 1; fi
+
       - name: Write SSH key
         run: |
           install -m 700 -d ~/.ssh
