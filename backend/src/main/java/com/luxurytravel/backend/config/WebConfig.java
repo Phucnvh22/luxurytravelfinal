@@ -14,9 +14,25 @@ public class WebConfig implements WebMvcConfigurer {
 
     public WebConfig(@Value("${application.cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
         this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
+                .map(WebConfig::normalizeOrigin)
                 .filter(s -> !s.isEmpty())
                 .toArray(String[]::new);
+    }
+
+    private static String normalizeOrigin(String origin) {
+        if (origin == null) {
+            return "";
+        }
+        String s = origin.trim();
+        if (s.length() >= 2) {
+            char first = s.charAt(0);
+            char last = s.charAt(s.length() - 1);
+            if ((first == '`' && last == '`') || (first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                s = s.substring(1, s.length() - 1).trim();
+            }
+        }
+        s = s.replace("`", "").trim();
+        return s;
     }
 
     @Override
