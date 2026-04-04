@@ -58,12 +58,16 @@ jobs:
 
       - name: Upload docker-compose.yml
         run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${{ secrets.VPS_SSH_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.VPS_APP_DIR }}'"
-          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "${{ secrets.VPS_SSH_PORT }}" docker-compose.yml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_APP_DIR }}/docker-compose.yml"
+          PORT="${{ secrets.VPS_SSH_PORT }}"
+          if [ -z "$PORT" ]; then PORT=22; fi
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$PORT" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p '${{ secrets.VPS_APP_DIR }}'"
+          scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "$PORT" docker-compose.yml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${{ secrets.VPS_APP_DIR }}/docker-compose.yml"
 
       - name: Deploy
         run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${{ secrets.VPS_SSH_PORT }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "\
+          PORT="${{ secrets.VPS_SSH_PORT }}"
+          if [ -z "$PORT" ]; then PORT=22; fi
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$PORT" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "\
             set -e; \
             cd '${{ secrets.VPS_APP_DIR }}'; \
             export GHCR_OWNER='${{ github.repository_owner }}'; \
