@@ -64,6 +64,9 @@ public class Booking {
     @Column(name = "commission_amount")
     private Double commissionAmount;
 
+    @Column(name = "commission_credited", nullable = false)
+    private boolean commissionCredited = false;
+
     public Long getId() {
         return id;
     }
@@ -174,5 +177,13 @@ public class Booking {
 
     public void setCommissionAmount(Double commissionAmount) {
         this.commissionAmount = commissionAmount;
+    }
+
+    public boolean isCommissionCredited() {
+        return commissionCredited;
+    }
+
+    public void setCommissionCredited(boolean commissionCredited) {
+        this.commissionCredited = commissionCredited;
     }
 }

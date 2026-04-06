@@ -2,6 +2,7 @@ package com.luxurytravel.backend.booking;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,5 +30,10 @@ public class BookingController {
     @GetMapping("/bookings")
     public List<BookingResponse> list() {
         return bookingService.list();
+    }
+
+    @PostMapping("/admin/bookings/{id}/approve")
+    public BookingResponse approve(@PathVariable Long id) {
+        return bookingService.approve(id);
     }
 }

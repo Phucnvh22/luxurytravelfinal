@@ -21,6 +21,17 @@ export default function AdminBookingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const approve = async (booking: BookingResponse) => {
+    if (booking.status !== 'PENDING') return
+    if (!confirm(`Approve request #${booking.id}?`)) return
+    try {
+      await apiFetch(`/api/admin/bookings/${booking.id}/approve`, { method: 'POST' })
+      await load()
+    } catch (e: unknown) {
+      alert(e instanceof HttpError ? e.message : 'Could not approve booking')
+    }
+  }
+
   async function load() {
     setLoading(true)
     setError(null)
@@ -108,6 +119,7 @@ export default function AdminBookingsPage() {
                   <th style={{ width: 120 }}>Commission</th>
                   <th style={{ width: 120 }}>Status</th>
                   <th style={{ width: 90 }}>Seller Ref</th>
+                  <th style={{ width: 120 }}>Actions</th>
                   <th style={{ width: 170 }}>Created</th>
                 </tr>
               </thead>
@@ -147,6 +159,11 @@ export default function AdminBookingsPage() {
                           ? sellerNameById[b.sellerId]
                           : `Seller #${b.sellerId}`
                         : 'None'}
+                    </td>
+                    <td>
+                      <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => void approve(b)} disabled={b.status !== 'PENDING'}>
+                        Approve
+                      </button>
                     </td>
                     <td>{formatDate(b.createdAt)}</td>
                   </tr>

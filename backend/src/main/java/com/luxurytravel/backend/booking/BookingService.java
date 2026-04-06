@@ -70,24 +70,50 @@ public class BookingService {
         Double totalPrice = priceFrom * request.getTravelers();
         booking.setTotalPrice(totalPrice);
 
-        // Calculate commission if seller exists
         Double commissionAmount = 0.0;
         if (request.getSellerId() != null) {
             User seller = userRepository.findById(request.getSellerId()).orElse(null);
             if (seller != null) {
                 Double rate = seller.getCommissionRate() != null ? seller.getCommissionRate() : 0.0;
                 commissionAmount = totalPrice * rate / 100.0;
-                Double currentBalance = seller.getCommissionBalance() != null ? seller.getCommissionBalance() : 0.0;
-                seller.setCommissionBalance(currentBalance + commissionAmount);
-                userRepository.save(seller);
             }
         }
         booking.setCommissionAmount(commissionAmount);
+        booking.setCommissionCredited(false);
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
             String username = auth.getName();
             userRepository.findByUsername(username).ifPresent(user -> booking.setUserId(user.getId()));
+        }
+
+        return BookingResponse.from(bookingRepository.save(booking));
+    }
+
+    @Transactional
+    public BookingResponse approve(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new RuntimeException("Booking is cancelled");
+        }
+
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            return BookingResponse.from(booking);
+        }
+
+        booking.setStatus(BookingStatus.CONFIRMED);
+
+        if (!booking.isCommissionCredited() && booking.getSellerId() != null) {
+            User seller = userRepository.findById(booking.getSellerId()).orElse(null);
+            if (seller != null) {
+                Double commissionAmount = booking.getCommissionAmount() != null ? booking.getCommissionAmount() : 0.0;
+                Double currentBalance = seller.getCommissionBalance() != null ? seller.getCommissionBalance() : 0.0;
+                seller.setCommissionBalance(currentBalance + commissionAmount);
+                userRepository.save(seller);
+            }
+            booking.setCommissionCredited(true);
         }
 
         return BookingResponse.from(bookingRepository.save(booking));

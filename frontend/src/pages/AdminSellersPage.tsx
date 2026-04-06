@@ -1,6 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createPortal } from 'react-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import type { User, UserCreateRequest } from '../types'
 import './pages.css'
@@ -25,28 +24,6 @@ export default function AdminSellersPage() {
     role: 'SELLER',
     commissionRate: 0,
   })
-
-  const [qrSeller, setQrSeller] = useState<User | null>(null)
-  const qrInputRef = useRef<HTMLInputElement | null>(null)
-
-  const handleCopyLink = async (text: string) => {
-    try {
-      if (window.isSecureContext && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        alert('Copied to clipboard!')
-        return
-      }
-      const el = qrInputRef.current
-      if (el) {
-        el.focus()
-        el.select()
-        document.execCommand('copy')
-        alert('Copied to clipboard!')
-      }
-    } catch {
-      alert('Could not copy automatically. Please copy manually.')
-    }
-  }
 
   async function load() {
     setLoading(true)
@@ -270,9 +247,6 @@ export default function AdminSellersPage() {
                     </td>
                     <td>
                       <div className="row" style={{ gap: 8 }}>
-                        <button className="btn" style={{ padding: '4px 8px', fontSize: 12, borderColor: 'var(--primary-dark)', color: 'var(--primary-dark)' }} onClick={() => setQrSeller(s)}>
-                          QR Refer
-                        </button>
                         <button
                           className="btn"
                           style={{ padding: '4px 8px', fontSize: 12, borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
@@ -295,59 +269,6 @@ export default function AdminSellersPage() {
             </table>
           </div>
         )}
-
-        {qrSeller
-          ? createPortal(
-              <div
-                className="copy-overlay"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Referral Info"
-                onClick={() => setQrSeller(null)}
-              >
-                <div className="copy-dialog" onClick={(e) => e.stopPropagation()}>
-                  <div className="copy-title">Referral Info: {qrSeller.fullName}</div>
-                  <div className="copy-sub muted">Scan the QR code or copy the link below.</div>
-
-                  <div style={{ display: 'flex', justifyContent: 'center', margin: '20px 0' }}>
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                        `${window.location.origin}/?ref=${qrSeller.id}`
-                      )}`}
-                      alt="Referral QR Code"
-                      style={{
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        borderRadius: '12px',
-                        padding: '8px',
-                        background: '#fff',
-                      }}
-                    />
-                  </div>
-
-                  <input
-                    ref={qrInputRef}
-                    className="input"
-                    value={`${window.location.origin}/?ref=${qrSeller.id}`}
-                    readOnly
-                    onFocus={(e) => e.currentTarget.select()}
-                  />
-                  <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12, gap: 10 }}>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() => handleCopyLink(`${window.location.origin}/?ref=${qrSeller.id}`)}
-                    >
-                      Copy Link
-                    </button>
-                    <button className="btn primary" type="button" onClick={() => setQrSeller(null)}>
-                      Close
-                    </button>
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )
-          : null}
       </div>
     </section>
   )
