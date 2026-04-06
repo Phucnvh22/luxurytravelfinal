@@ -1,6 +1,8 @@
 services:
   mysql:
     image: mysql:8.4
+    ports:
+      - "3306:3306"
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-travel-luxury}
       MYSQL_USER: ${MYSQL_USER:-app}
