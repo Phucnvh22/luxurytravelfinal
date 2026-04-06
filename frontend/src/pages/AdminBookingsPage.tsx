@@ -107,86 +107,88 @@ export default function AdminBookingsPage() {
           <div className="card detail-card muted">No bookings yet.</div>
         ) : (
           <div className="card detail-card">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 70 }}>ID</th>
-                  <th>Destination</th>
-                  <th>Customer</th>
-                  <th style={{ width: 120 }}>Travel date</th>
-                  <th style={{ width: 90 }}>Guests</th>
-                  <th style={{ width: 120 }}>Total Price</th>
-                  <th style={{ width: 120 }}>Commission</th>
-                  <th style={{ width: 120 }}>Status</th>
-                  <th style={{ width: 90 }}>Seller Ref</th>
-                  <th style={{ width: 120 }}>Actions</th>
-                  <th style={{ width: 170 }}>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => (
-                  <tr key={b.id}>
-                    <td>{b.id}</td>
-                    <td>
-                      <Link to={`/destinations/${b.destinationId}`} style={{ color: 'inherit' }}>
-                        {b.destinationName}
-                      </Link>
-                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                        #{b.destinationId}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700 }}>{b.customerName}</div>
-                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                        {b.email} • {b.phone}
-                      </div>
-                      {b.notes ? (
-                        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                          {b.notes}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td>{b.travelDate}</td>
-                    <td>{b.travelers}</td>
-                    <td style={{ fontWeight: 600 }}>{formatMoney(b.totalPrice)}</td>
-                    <td style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
-                      {formatMoney(b.commissionAmount)}
-                    </td>
-                    <td>{b.status}</td>
-                    <td>
-                      {b.sellerId
-                        ? sellerNameById[b.sellerId]
-                          ? sellerNameById[b.sellerId]
-                          : `Seller #${b.sellerId}`
-                        : 'None'}
-                    </td>
-                    <td>
-                      {b.status === 'PENDING' ? (
-                        <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => void approve(b)}>
-                          Approve
-                        </button>
-                      ) : (
-                        <button
-                          className="btn"
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: 12,
-                            backgroundColor: 'var(--color-primary)',
-                            borderColor: 'var(--color-primary)',
-                            color: '#fff',
-                          }}
-                          type="button"
-                          disabled
-                        >
-                          Approved
-                        </button>
-                      )}
-                    </td>
-                    <td>{formatDate(b.createdAt)}</td>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 70 }}>ID</th>
+                    <th>Destination</th>
+                    <th>Customer</th>
+                    <th style={{ width: 120 }}>Travel date</th>
+                    <th style={{ width: 90 }}>Guests</th>
+                    <th style={{ width: 120 }}>Total Price</th>
+                    <th style={{ width: 120 }}>Commission</th>
+                    <th style={{ width: 120 }}>Status</th>
+                    <th style={{ width: 90 }}>Seller Ref</th>
+                    <th style={{ width: 120 }}>Actions</th>
+                    <th style={{ width: 170 }}>Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {bookings.map((b) => (
+                    <tr key={b.id}>
+                      <td>{b.id}</td>
+                      <td>
+                        <Link to={`/destinations/${b.destinationId}`} style={{ color: 'inherit' }}>
+                          {b.destinationName}
+                        </Link>
+                        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                          #{b.destinationId}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 700 }}>{b.customerName}</div>
+                        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                          {b.email} • {b.phone}
+                        </div>
+                        {b.notes ? (
+                          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                            {b.notes}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>{b.travelDate}</td>
+                      <td>{b.travelers}</td>
+                      <td style={{ fontWeight: 600 }}>{formatMoney(b.totalPrice)}</td>
+                      <td style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
+                        {formatMoney(b.commissionAmount)}
+                      </td>
+                      <td>{b.status}</td>
+                      <td>
+                        {b.sellerId
+                          ? sellerNameById[b.sellerId]
+                            ? sellerNameById[b.sellerId]
+                            : `Seller #${b.sellerId}`
+                          : 'None'}
+                      </td>
+                      <td>
+                        {b.status === 'PENDING' ? (
+                          <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => void approve(b)}>
+                            Approve
+                          </button>
+                        ) : (
+                          <button
+                            className="btn"
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: 12,
+                              backgroundColor: 'var(--color-primary)',
+                              borderColor: 'var(--color-primary)',
+                              color: '#fff',
+                            }}
+                            type="button"
+                            disabled
+                          >
+                            Approved
+                          </button>
+                        )}
+                      </td>
+                      <td>{formatDate(b.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

@@ -222,51 +222,53 @@ export default function AdminSellersPage() {
           <div className="card detail-card muted">No sellers yet.</div>
         ) : (
           <div className="card detail-card">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 70 }}>ID</th>
-                  <th>Name</th>
-                  <th>Username</th>
-                  <th>Email</th>
-                  <th style={{ width: 140 }}>Commission (%)</th>
-                  <th style={{ width: 140 }}>Balance</th>
-                  <th style={{ width: 160 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sellers.map((s) => (
-                  <tr key={s.id}>
-                    <td>{s.id}</td>
-                    <td>{s.fullName}</td>
-                    <td>{s.username}</td>
-                    <td>{s.email || '-'}</td>
-                    <td>{s.commissionRate || 0}%</td>
-                    <td style={{ fontWeight: 600, color: (s.commissionBalance ?? 0) > 0 ? 'var(--color-primary)' : undefined }}>
-                      {formatMoney(s.commissionBalance)}
-                    </td>
-                    <td>
-                      <div className="row" style={{ gap: 8 }}>
-                        <button
-                          className="btn"
-                          style={{ padding: '4px 8px', fontSize: 12, borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
-                          onClick={() => void handlePay(s)}
-                          disabled={(s.commissionBalance ?? 0) <= 0}
-                        >
-                          Pay
-                        </button>
-                        <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => handleEdit(s)}>
-                          Edit
-                        </button>
-                        <button className="btn" style={{ padding: '4px 8px', fontSize: 12, color: 'var(--color-danger)' }} onClick={() => handleDelete(s.id)}>
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 70 }}>ID</th>
+                    <th>Name</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th style={{ width: 140 }}>Commission (%)</th>
+                    <th style={{ width: 140 }}>Balance</th>
+                    <th style={{ width: 160 }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sellers.map((s) => (
+                    <tr key={s.id}>
+                      <td>{s.id}</td>
+                      <td>{s.fullName}</td>
+                      <td>{s.username}</td>
+                      <td>{s.email || '-'}</td>
+                      <td>{s.commissionRate || 0}%</td>
+                      <td style={{ fontWeight: 600, color: (s.commissionBalance ?? 0) > 0 ? 'var(--color-primary)' : undefined }}>
+                        {formatMoney(s.commissionBalance)}
+                      </td>
+                      <td>
+                        <div className="row" style={{ gap: 8 }}>
+                          <button
+                            className="btn"
+                            style={{ padding: '4px 8px', fontSize: 12, borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                            onClick={() => void handlePay(s)}
+                            disabled={(s.commissionBalance ?? 0) <= 0}
+                          >
+                            Pay
+                          </button>
+                          <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => handleEdit(s)}>
+                            Edit
+                          </button>
+                          <button className="btn" style={{ padding: '4px 8px', fontSize: 12, color: 'var(--color-danger)' }} onClick={() => handleDelete(s.id)}>
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

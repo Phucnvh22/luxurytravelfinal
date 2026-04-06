@@ -279,61 +279,63 @@ export default function AdminDestinationsPage() {
         ) : (
           <div className="card detail-card">
             <div style={{ fontWeight: 800, marginBottom: 10 }}>List</div>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 70 }}>ID</th>
-                  <th>Name</th>
-                  <th style={{ width: 160 }}>Location</th>
-                  <th style={{ width: 120 }}>Days</th>
-                  <th>Videos</th>
-                  <th style={{ width: 160 }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((d) => (
-                  <tr key={d.id}>
-                    <td>{d.id}</td>
-                    <td>
-                      <Link to={`/destinations/${d.id}`} style={{ color: 'inherit' }}>
-                        {d.name}
-                      </Link>
-                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                        {d.priceFrom}+
-                      </div>
-                    </td>
-                    <td>{d.location}</td>
-                    <td>{d.durationDays}</td>
-                    <td>
-                      <div style={{ fontSize: 12, wordBreak: 'break-all', maxWidth: 200 }}>
-                        {d.videoUrls?.map((url, i) => (
-                          <div key={i}><a href={url} target="_blank" rel="noreferrer">Video {i+1}</a></div>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <button
-                        className="btn"
-                        style={{ padding: '4px 8px', fontSize: 12, marginRight: 8 }}
-                        onClick={() => handleEdit(d)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="btn danger"
-                        style={{ padding: '4px 8px', fontSize: 12 }}
-                        onClick={() => {
-                          if (confirm('Delete this destination?')) remove(d.id)
-                        }}
-                        disabled={busyId === d.id}
-                      >
-                        {busyId === d.id ? '...' : 'Delete'}
-                      </button>
-                    </td>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 70 }}>ID</th>
+                    <th>Name</th>
+                    <th style={{ width: 160 }}>Location</th>
+                    <th style={{ width: 120 }}>Days</th>
+                    <th>Videos</th>
+                    <th style={{ width: 160 }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sorted.map((d) => (
+                    <tr key={d.id}>
+                      <td>{d.id}</td>
+                      <td>
+                        <Link to={`/destinations/${d.id}`} style={{ color: 'inherit' }}>
+                          {d.name}
+                        </Link>
+                        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                          {d.priceFrom}+
+                        </div>
+                      </td>
+                      <td>{d.location}</td>
+                      <td>{d.durationDays}</td>
+                      <td>
+                        <div style={{ fontSize: 12, wordBreak: 'break-all', maxWidth: 200 }}>
+                          {d.videoUrls?.map((url, i) => (
+                            <div key={i}><a href={url} target="_blank" rel="noreferrer">Video {i+1}</a></div>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          className="btn"
+                          style={{ padding: '4px 8px', fontSize: 12, marginRight: 8 }}
+                          onClick={() => handleEdit(d)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn danger"
+                          style={{ padding: '4px 8px', fontSize: 12 }}
+                          onClick={() => {
+                            if (confirm('Delete this destination?')) remove(d.id)
+                          }}
+                          disabled={busyId === d.id}
+                        >
+                          {busyId === d.id ? '...' : 'Delete'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
