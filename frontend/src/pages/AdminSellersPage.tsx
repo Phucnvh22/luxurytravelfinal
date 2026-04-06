@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import type { User, UserCreateRequest } from '../types'
@@ -13,6 +13,7 @@ export default function AdminSellersPage() {
   const [sellers, setSellers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadingRef = useRef(false)
   
   const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -25,22 +26,44 @@ export default function AdminSellersPage() {
     commissionRate: 0,
   })
 
-  async function load() {
-    setLoading(true)
-    setError(null)
+  async function load(opts?: { silent?: boolean }) {
+    if (loadingRef.current) return
+    loadingRef.current = true
+    if (!opts?.silent) {
+      setLoading(true)
+      setError(null)
+    }
     try {
       const data = await apiFetch<User[]>('/api/admin/users/sellers')
       setSellers(data)
+      setError(null)
     } catch (e: unknown) {
-      setError(e instanceof HttpError ? e.message : 'Could not load sellers')
+      if (!opts?.silent) {
+        setError(e instanceof HttpError ? e.message : 'Could not load sellers')
+      }
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
+      loadingRef.current = false
     }
   }
 
   useEffect(() => {
     void load()
   }, [])
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return
+      if (isCreating || editingId) return
+      void load({ silent: true })
+    }
+    const intervalId = window.setInterval(tick, 5000)
+    window.addEventListener('focus', tick)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', tick)
+    }
+  }, [isCreating, editingId])
 
   const resetForm = () => {
     setForm({

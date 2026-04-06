@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import type { BookingResponse, User } from '../types'
@@ -20,6 +20,7 @@ export default function AdminBookingsPage() {
   const [sellerNameById, setSellerNameById] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadingRef = useRef(false)
 
   const approve = async (booking: BookingResponse) => {
     if (booking.status !== 'PENDING') return
@@ -32,15 +33,20 @@ export default function AdminBookingsPage() {
     }
   }
 
-  async function load() {
-    setLoading(true)
-    setError(null)
+  async function load(opts?: { silent?: boolean }) {
+    if (loadingRef.current) return
+    loadingRef.current = true
+    if (!opts?.silent) {
+      setLoading(true)
+      setError(null)
+    }
     try {
       const [bookingsData, sellersData] = await Promise.all([
         apiFetch<BookingResponse[]>('/api/bookings'),
         apiFetch<User[]>('/api/admin/users/sellers').catch(() => null),
       ])
       setBookings(bookingsData)
+      setError(null)
 
       if (sellersData) {
         const next: Record<number, string> = {}
@@ -52,24 +58,40 @@ export default function AdminBookingsPage() {
         setSellerNameById({})
       }
     } catch (e: unknown) {
-      if (e instanceof HttpError) {
-        if (e.status === 403) {
-          setError('You do not have permission to view this page. Try logging in again.')
-        } else if (e.status === 401) {
-          setError('Please log in to view this page.')
+      if (!opts?.silent) {
+        if (e instanceof HttpError) {
+          if (e.status === 403) {
+            setError('You do not have permission to view this page. Try logging in again.')
+          } else if (e.status === 401) {
+            setError('Please log in to view this page.')
+          } else {
+            setError(e.message)
+          }
         } else {
-          setError(e.message)
+          setError('Could not load bookings')
         }
-      } else {
-        setError('Could not load bookings')
       }
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
+      loadingRef.current = false
     }
   }
 
   useEffect(() => {
     void load()
+  }, [])
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return
+      void load({ silent: true })
+    }
+    const intervalId = window.setInterval(tick, 5000)
+    window.addEventListener('focus', tick)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', tick)
+    }
   }, [])
 
   return (

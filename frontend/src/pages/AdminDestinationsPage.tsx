@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import type { Destination } from '../types'
@@ -18,6 +18,7 @@ export default function AdminDestinationsPage() {
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadingRef = useRef(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
 
@@ -39,22 +40,44 @@ export default function AdminDestinationsPage() {
     return [...destinations].sort((a, b) => b.id - a.id)
   }, [destinations])
 
-  async function load() {
-    setLoading(true)
-    setError(null)
+  async function load(opts?: { silent?: boolean }) {
+    if (loadingRef.current) return
+    loadingRef.current = true
+    if (!opts?.silent) {
+      setLoading(true)
+      setError(null)
+    }
     try {
       const data = await apiFetch<Destination[]>('/api/destinations')
       setDestinations(data)
+      setError(null)
     } catch (e: unknown) {
-      setError(e instanceof HttpError ? e.message : 'Could not load data')
+      if (!opts?.silent) {
+        setError(e instanceof HttpError ? e.message : 'Could not load data')
+      }
     } finally {
-      setLoading(false)
+      if (!opts?.silent) setLoading(false)
+      loadingRef.current = false
     }
   }
 
   useEffect(() => {
     void load()
   }, [])
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return
+      if (creating || editingId || busyId) return
+      void load({ silent: true })
+    }
+    const intervalId = window.setInterval(tick, 8000)
+    window.addEventListener('focus', tick)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', tick)
+    }
+  }, [creating, editingId, busyId])
 
   async function create() {
     setCreating(true)
