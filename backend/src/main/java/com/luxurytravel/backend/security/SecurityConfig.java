@@ -60,6 +60,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/register", "/api/auth/register/", "/api/auth/login", "/api/auth/login/").permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api-docs",
+                                "/api-docs/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/api/destinations/**",

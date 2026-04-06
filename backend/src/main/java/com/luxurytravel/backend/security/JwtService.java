@@ -10,6 +10,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -82,7 +84,73 @@ public class JwtService {
     }
 
     private Key getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        byte[] keyBytes = resolveKeyBytes(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private static byte[] resolveKeyBytes(String configuredSecret) {
+        String secret = configuredSecret == null ? "" : configuredSecret.trim();
+
+        byte[] base64 = tryDecodeBase64(secret);
+        if (base64 != null && base64.length >= 32) {
+            return base64;
+        }
+
+        byte[] hex = tryDecodeHex(secret);
+        if (hex != null && hex.length >= 32) {
+            return hex;
+        }
+
+        byte[] raw = secret.getBytes(StandardCharsets.UTF_8);
+        if (raw.length >= 32) {
+            return raw;
+        }
+
+        return sha256(raw);
+    }
+
+    private static byte[] tryDecodeBase64(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return null;
+        }
+        try {
+            return Decoders.BASE64.decode(secret);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private static byte[] tryDecodeHex(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return null;
+        }
+        if ((secret.length() % 2) != 0) {
+            return null;
+        }
+        for (int i = 0; i < secret.length(); i++) {
+            char c = secret.charAt(i);
+            boolean isHexDigit = (c >= '0' && c <= '9')
+                    || (c >= 'a' && c <= 'f')
+                    || (c >= 'A' && c <= 'F');
+            if (!isHexDigit) {
+                return null;
+            }
+        }
+
+        byte[] out = new byte[secret.length() / 2];
+        for (int i = 0; i < out.length; i++) {
+            int hi = Character.digit(secret.charAt(i * 2), 16);
+            int lo = Character.digit(secret.charAt(i * 2 + 1), 16);
+            out[i] = (byte) ((hi << 4) + lo);
+        }
+        return out;
+    }
+
+    private static byte[] sha256(byte[] input) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(input);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to derive JWT key bytes", e);
+        }
     }
 }
