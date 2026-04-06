@@ -59,7 +59,7 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="/admin/bookings" element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole="ADMIN">
               <AdminBookingsPage />
             </ProtectedRoute>
           } />
