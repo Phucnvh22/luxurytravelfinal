@@ -75,8 +75,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
+                        // Cho phép tất cả OPTIONS (Preflight)
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/bookings").permitAll() // Allow unauthenticated bookings
+                        // Rõ ràng cho phép các endpoint Auth
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/register", "/api/auth/register/", "/api/auth/login", "/api/auth/login/").permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/v3/api-docs/**",
@@ -85,6 +87,7 @@ public class SecurityConfig {
                                 "/api/categories/**",
                                 "/h2-console/**"
                         ).permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/bookings").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/seller/**").hasAnyRole("ADMIN", "SELLER")
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings").authenticated()

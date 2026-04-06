@@ -42,6 +42,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Bỏ qua filter cho các endpoint public (ví dụ /api/auth/**)
+        if (request.getServletPath().startsWith("/api/auth/") || request.getServletPath().startsWith("/swagger-ui/") || request.getServletPath().startsWith("/v3/api-docs/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         jwt = authHeader.substring(7);
 
         try {
