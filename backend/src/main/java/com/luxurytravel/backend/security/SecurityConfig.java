@@ -40,11 +40,13 @@ public class SecurityConfig {
                 .toList();
 
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(allowedOrigins);
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        // Cấu hình "cực mạnh" để bỏ qua mọi lỗi CORS
+        config.setAllowedOriginPatterns(List.of("*")); 
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
-        config.setMaxAge(1800L);
+        config.setExposedHeaders(List.of("Authorization", "Content-Type"));
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
