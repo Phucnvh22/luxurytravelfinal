@@ -96,6 +96,11 @@ public class JwtService {
             return base64;
         }
 
+        byte[] base64Url = tryDecodeBase64Url(secret);
+        if (base64Url != null && base64Url.length >= 32) {
+            return base64Url;
+        }
+
         byte[] hex = tryDecodeHex(secret);
         if (hex != null && hex.length >= 32) {
             return hex;
@@ -115,6 +120,17 @@ public class JwtService {
         }
         try {
             return Decoders.BASE64.decode(secret);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private static byte[] tryDecodeBase64Url(String secret) {
+        if (secret == null || secret.isBlank()) {
+            return null;
+        }
+        try {
+            return Decoders.BASE64URL.decode(secret);
         } catch (IllegalArgumentException ignored) {
             return null;
         }
