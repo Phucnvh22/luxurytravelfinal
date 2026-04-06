@@ -10,6 +10,18 @@ function formatMoney(value: string) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
+function getYouTubeId(u: string) {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
+  const match = u.match(regExp)
+  return match && match[2]?.length === 11 ? match[2] : null
+}
+
+function getYouTubeThumbUrl(videoUrl: string) {
+  const id = getYouTubeId(videoUrl)
+  if (!id) return null
+  return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
+}
+
 export default function HomePage() {
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [query, setQuery] = useState('')
@@ -125,27 +137,12 @@ export default function HomePage() {
                     <div className="card-media-carousel">
                       {d.videoUrls && d.videoUrls.length > 0 ? (
                         d.videoUrls.map((url, idx) => {
-                          const getYouTubeId = (u: string) => {
-                            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-                            const match = u.match(regExp);
-                            return (match && match[2].length === 11) ? match[2] : null;
-                          };
-                          const videoId = getYouTubeId(url);
-                          return videoId ? (
+                          const thumb = getYouTubeThumbUrl(url) ?? d.imageUrl
+                          return (
                             <div className="carousel-item" key={idx}>
-                              <iframe
-                                src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}`}
-                                className="carousel-video"
-                                frameBorder="0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                              ></iframe>
+                              <div className="thumb" style={{ backgroundImage: `url(${thumb})` }} />
                             </div>
-                          ) : (
-                            <div className="carousel-item" key={idx}>
-                              <div className="thumb" style={{ backgroundImage: `url(${d.imageUrl})` }} />
-                            </div>
-                          );
+                          )
                         })
                       ) : (
                         <div className="carousel-item">

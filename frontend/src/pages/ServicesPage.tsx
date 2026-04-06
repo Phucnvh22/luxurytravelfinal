@@ -7,6 +7,7 @@ type ServiceItem = {
   name: string
   description: string
   priceFrom: number
+  youtubeUrl?: string
   imageUrl: string
   badge: string
 }
@@ -17,6 +18,7 @@ const SERVICES: ServiceItem[] = [
     name: 'Private Car',
     description: 'Door-to-door transfers with a professional driver. Flexible pick-up times and premium vehicles.',
     priceFrom: 79,
+    youtubeUrl: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
     imageUrl: 'https://images.unsplash.com/photo-1550353127-b0da3aeaa0ca?auto=format&fit=crop&w=1400&q=80',
     badge: 'Transfer',
   },
@@ -25,6 +27,7 @@ const SERVICES: ServiceItem[] = [
     name: 'Breakfast',
     description: 'Daily breakfast add-on with dietary options. Great for early departures and relaxed mornings.',
     priceFrom: 15,
+    youtubeUrl: 'https://www.youtube.com/watch?v=ysz5S6PUM-U',
     imageUrl: 'https://images.unsplash.com/photo-1495214783159-3503fd1b572d?auto=format&fit=crop&w=1400&q=80',
     badge: 'Meal',
   },
@@ -33,6 +36,7 @@ const SERVICES: ServiceItem[] = [
     name: 'Tour Guide',
     description: 'Local experts for private city tours, cultural experiences, and tailored itineraries.',
     priceFrom: 120,
+    youtubeUrl: 'https://www.youtube.com/watch?v=YE7VzlLtp-4',
     imageUrl: 'https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1400&q=80',
     badge: 'Experience',
   },
@@ -40,6 +44,18 @@ const SERVICES: ServiceItem[] = [
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+}
+
+function getYouTubeId(u: string) {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
+  const match = u.match(regExp)
+  return match && match[2]?.length === 11 ? match[2] : null
+}
+
+function getYouTubeThumbUrl(videoUrl: string) {
+  const id = getYouTubeId(videoUrl)
+  if (!id) return null
+  return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
 }
 
 export default function ServicesPage() {
@@ -102,7 +118,12 @@ export default function ServicesPage() {
                 <div key={s.id} className="card destination-card" role="article" aria-label={s.name}>
                   <div className="card-media-carousel">
                     <div className="carousel-item">
-                      <div className="thumb" style={{ backgroundImage: `url(${s.imageUrl})` }} />
+                      <div
+                        className="thumb"
+                        style={{
+                          backgroundImage: `url(${(s.youtubeUrl ? getYouTubeThumbUrl(s.youtubeUrl) : null) ?? s.imageUrl})`,
+                        }}
+                      />
                     </div>
                   </div>
                   <div className="card-body">
