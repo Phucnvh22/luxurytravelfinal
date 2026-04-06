@@ -31,6 +31,16 @@ public class UserService {
     }
 
     @Transactional
+    public User paySeller(Long id) {
+        User user = findById(id);
+        if (user.getRole() != Role.SELLER) {
+            throw new RuntimeException("User is not a seller");
+        }
+        user.setCommissionBalance(0.0);
+        return userRepository.save(user);
+    }
+
+    @Transactional
     public User create(UserCreateRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new RuntimeException("Username already exists");

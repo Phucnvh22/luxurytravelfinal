@@ -26,6 +26,11 @@ public class UserController {
         return userService.findSellers();
     }
 
+    @PostMapping("/sellers/{id}/pay")
+    public User paySeller(@PathVariable Long id) {
+        return userService.paySeller(id);
+    }
+
     @GetMapping("/{id}")
     public User getById(@PathVariable Long id) {
         return userService.findById(id);

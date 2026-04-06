@@ -35,6 +35,9 @@ public class User implements UserDetails {
     @Column(name = "commission_rate")
     private Double commissionRate = 0.0;
 
+    @Column(name = "commission_balance")
+    private Double commissionBalance = 0.0;
+
     public User() {
     }
 
@@ -134,5 +137,13 @@ public class User implements UserDetails {
 
     public void setCommissionRate(Double commissionRate) {
         this.commissionRate = commissionRate;
+    }
+
+    public Double getCommissionBalance() {
+        return commissionBalance;
+    }
+
+    public void setCommissionBalance(Double commissionBalance) {
+        this.commissionBalance = commissionBalance;
     }
 }

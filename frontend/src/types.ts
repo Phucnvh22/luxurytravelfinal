@@ -18,6 +18,7 @@ export interface User {
   fullName: string
   role: 'ADMIN' | 'SELLER' | 'USER'
   commissionRate?: number
+  commissionBalance?: number
 }
 
 export interface UserUpdateRequest {

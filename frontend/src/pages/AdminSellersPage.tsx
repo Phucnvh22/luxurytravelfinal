@@ -5,6 +5,11 @@ import { apiFetch, HttpError } from '../lib/api'
 import type { User, UserCreateRequest } from '../types'
 import './pages.css'
 
+function formatMoney(val: number | undefined) {
+  const n = val ?? 0
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
 export default function AdminSellersPage() {
   const [sellers, setSellers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,6 +102,18 @@ export default function AdminSellersPage() {
       await load()
     } catch (e: unknown) {
       alert(e instanceof HttpError ? e.message : 'Could not delete seller')
+    }
+  }
+
+  const handlePay = async (seller: User) => {
+    const balance = seller.commissionBalance ?? 0
+    if (balance <= 0) return
+    if (!confirm(`Pay ${formatMoney(balance)} to ${seller.fullName}?`)) return
+    try {
+      await apiFetch(`/api/admin/users/sellers/${seller.id}/pay`, { method: 'POST' })
+      await load()
+    } catch (e: unknown) {
+      alert(e instanceof HttpError ? e.message : 'Could not pay seller')
     }
   }
 
@@ -236,6 +253,7 @@ export default function AdminSellersPage() {
                   <th>Username</th>
                   <th>Email</th>
                   <th style={{ width: 140 }}>Commission (%)</th>
+                  <th style={{ width: 140 }}>Balance</th>
                   <th style={{ width: 160 }}>Actions</th>
                 </tr>
               </thead>
@@ -247,10 +265,21 @@ export default function AdminSellersPage() {
                     <td>{s.username}</td>
                     <td>{s.email || '-'}</td>
                     <td>{s.commissionRate || 0}%</td>
+                    <td style={{ fontWeight: 600, color: (s.commissionBalance ?? 0) > 0 ? 'var(--color-primary)' : undefined }}>
+                      {formatMoney(s.commissionBalance)}
+                    </td>
                     <td>
                       <div className="row" style={{ gap: 8 }}>
                         <button className="btn" style={{ padding: '4px 8px', fontSize: 12, borderColor: 'var(--primary-dark)', color: 'var(--primary-dark)' }} onClick={() => setQrSeller(s)}>
                           QR Refer
+                        </button>
+                        <button
+                          className="btn"
+                          style={{ padding: '4px 8px', fontSize: 12, borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+                          onClick={() => void handlePay(s)}
+                          disabled={(s.commissionBalance ?? 0) <= 0}
+                        >
+                          Pay
                         </button>
                         <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => handleEdit(s)}>
                           Edit

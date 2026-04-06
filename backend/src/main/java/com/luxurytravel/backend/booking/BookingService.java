@@ -71,14 +71,18 @@ public class BookingService {
         booking.setTotalPrice(totalPrice);
 
         // Calculate commission if seller exists
+        Double commissionAmount = 0.0;
         if (request.getSellerId() != null) {
-            userRepository.findById(request.getSellerId()).ifPresent(seller -> {
+            User seller = userRepository.findById(request.getSellerId()).orElse(null);
+            if (seller != null) {
                 Double rate = seller.getCommissionRate() != null ? seller.getCommissionRate() : 0.0;
-                booking.setCommissionAmount(totalPrice * rate / 100.0);
-            });
-        } else {
-            booking.setCommissionAmount(0.0);
+                commissionAmount = totalPrice * rate / 100.0;
+                Double currentBalance = seller.getCommissionBalance() != null ? seller.getCommissionBalance() : 0.0;
+                seller.setCommissionBalance(currentBalance + commissionAmount);
+                userRepository.save(seller);
+            }
         }
+        booking.setCommissionAmount(commissionAmount);
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {

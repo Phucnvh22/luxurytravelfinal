@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import TopNav from './TopNav'
 import BottomNav from './BottomNav'
 import { useAuth } from '../contexts/AuthContext'
+import { apiFetch } from '../lib/api'
+import type { BookingResponse } from '../types'
 import './layout.css'
 
 export default function Layout() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
+  const location = useLocation()
   const isSeller = user?.role === 'SELLER'
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -15,6 +18,8 @@ export default function Layout() {
   const [copyValue, setCopyValue] = useState('')
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const copyInputRef = useRef<HTMLInputElement | null>(null)
+
+  const [newRequests, setNewRequests] = useState<{ count: number; latestId: number } | null>(null)
 
   const toggleMenu = () => setMobileMenuOpen(!mobileMenuOpen)
   const closeMenu = () => setMobileMenuOpen(false)
@@ -63,6 +68,45 @@ export default function Layout() {
     el.focus()
     el.select()
   }, [copyOpen])
+
+  useEffect(() => {
+    if (!isAdmin || !isAuthenticated) return
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const data = await apiFetch<BookingResponse[]>('/api/bookings')
+        if (cancelled) return
+        if (!Array.isArray(data) || data.length === 0) return
+
+        const maxId = data.reduce((m, b) => (b.id > m ? b.id : m), 0)
+        if (!Number.isFinite(maxId) || maxId <= 0) return
+
+        const stored = localStorage.getItem('adminLastBookingId')
+        const lastSeen = stored ? Number(stored) : 0
+
+        if (!lastSeen) {
+          localStorage.setItem('adminLastBookingId', String(maxId))
+          return
+        }
+
+        if (maxId > lastSeen) {
+          const count = data.reduce((acc, b) => (b.id > lastSeen ? acc + 1 : acc), 0)
+          setNewRequests({ count, latestId: maxId })
+          localStorage.setItem('adminLastBookingId', String(maxId))
+        }
+      } catch {
+        return
+      }
+    }
+
+    void poll()
+    const intervalId = window.setInterval(() => void poll(), 15000)
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [isAdmin, isAuthenticated])
 
   // Only show header on mobile if user is admin or seller
   const showHeaderOnMobile = isAdmin || isSeller
@@ -158,6 +202,31 @@ export default function Layout() {
       </header>
 
       <main className="app-main">
+        {isAdmin && newRequests && location.pathname !== '/admin/bookings' ? (
+          <div style={{ background: 'var(--color-primary)', color: '#fff' }}>
+            <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 0' }}>
+              <div style={{ fontWeight: 700 }}>
+                {newRequests.count === 1 ? 'Có 1 request mới' : `Có ${newRequests.count} request mới`}
+              </div>
+              <div className="row" style={{ gap: 10 }}>
+                <Link
+                  to="/admin/bookings"
+                  className="btn"
+                  style={{ padding: '6px 10px', fontSize: 13, borderColor: '#fff', color: '#fff' }}
+                  onClick={() => {
+                    setNewRequests(null)
+                    closeMenu()
+                  }}
+                >
+                  Xem ngay
+                </Link>
+                <button className="btn" type="button" style={{ padding: '6px 10px', fontSize: 13, borderColor: '#fff', color: '#fff' }} onClick={() => setNewRequests(null)}>
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         <Outlet />
       </main>
 
