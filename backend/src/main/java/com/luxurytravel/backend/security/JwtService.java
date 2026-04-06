@@ -120,7 +120,7 @@ public class JwtService {
         }
         try {
             return Decoders.BASE64.decode(secret);
-        } catch (IllegalArgumentException ignored) {
+        } catch (RuntimeException ignored) {
             return null;
         }
     }
@@ -131,7 +131,7 @@ public class JwtService {
         }
         try {
             return Decoders.BASE64URL.decode(secret);
-        } catch (IllegalArgumentException ignored) {
+        } catch (RuntimeException ignored) {
             return null;
         }
     }
