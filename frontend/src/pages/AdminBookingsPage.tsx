@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
-import type { BookingResponse } from '../types'
+import type { BookingResponse, User } from '../types'
 import './pages.css'
 
 function formatDate(iso: string) {
@@ -17,6 +17,7 @@ function formatMoney(val: number | undefined) {
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<BookingResponse[]>([])
+  const [sellerNameById, setSellerNameById] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,8 +25,21 @@ export default function AdminBookingsPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await apiFetch<BookingResponse[]>('/api/bookings')
-      setBookings(data)
+      const [bookingsData, sellersData] = await Promise.all([
+        apiFetch<BookingResponse[]>('/api/bookings'),
+        apiFetch<User[]>('/api/admin/users/sellers').catch(() => null),
+      ])
+      setBookings(bookingsData)
+
+      if (sellersData) {
+        const next: Record<number, string> = {}
+        for (const s of sellersData) {
+          next[s.id] = s.fullName || s.username
+        }
+        setSellerNameById(next)
+      } else {
+        setSellerNameById({})
+      }
     } catch (e: unknown) {
       if (e instanceof HttpError) {
         if (e.status === 403) {
@@ -127,7 +141,13 @@ export default function AdminBookingsPage() {
                       {formatMoney(b.commissionAmount)}
                     </td>
                     <td>{b.status}</td>
-                    <td>{b.sellerId ? `Seller #${b.sellerId}` : 'None'}</td>
+                    <td>
+                      {b.sellerId
+                        ? sellerNameById[b.sellerId]
+                          ? sellerNameById[b.sellerId]
+                          : `Seller #${b.sellerId}`
+                        : 'None'}
+                    </td>
                     <td>{formatDate(b.createdAt)}</td>
                   </tr>
                 ))}
