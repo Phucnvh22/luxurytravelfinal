@@ -1,13 +1,10 @@
 package com.luxurytravel.backend.security;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -15,7 +12,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -31,17 +27,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource(
-            @Value("${application.cors.allowed-origins:http://localhost:5173}") String allowedOriginsRaw
-    ) {
-        List<String> allowedOrigins = Arrays.stream(allowedOriginsRaw.split(","))
-                .map(SecurityConfig::normalizeOrigin)
-                .filter(s -> !s.isEmpty())
-                .toList();
-
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Cấu hình "cực mạnh" để bỏ qua mọi lỗi CORS
-        config.setAllowedOriginPatterns(List.of("*")); 
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
@@ -53,34 +41,21 @@ public class SecurityConfig {
         return source;
     }
 
-    private static String normalizeOrigin(String origin) {
-        if (origin == null) {
+    private static String escapeJson(String s) {
+        if (s == null) {
             return "";
         }
-        String s = origin.trim();
-        if (s.length() >= 2) {
-            char first = s.charAt(0);
-            char last = s.charAt(s.length() - 1);
-            if ((first == '`' && last == '`') || (first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-                s = s.substring(1, s.length() - 1).trim();
-            }
-        }
-        s = s.replace("`", "").trim();
-        return s;
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
-                // Disable CSRF triệt để bằng lambda expression chuẩn của Spring Security 6+
                 .csrf(csrf -> csrf.disable())
-                // Đảm bảo không lưu session
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Cho phép tất cả OPTIONS (Preflight)
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        // Rõ ràng cho phép các endpoint Auth
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/register", "/api/auth/register/", "/api/auth/login", "/api/auth/login/").permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
@@ -96,9 +71,23 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings").authenticated()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(401);
+                            response.setContentType("application/json");
+                            String body = "{\"status\":401,\"error\":\"UNAUTHORIZED\",\"path\":\"" + escapeJson(request.getRequestURI()) + "\"}";
+                            response.getWriter().write(body);
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(403);
+                            response.setContentType("application/json");
+                            String body = "{\"status\":403,\"error\":\"FORBIDDEN\",\"path\":\"" + escapeJson(request.getRequestURI()) + "\",\"message\":\"" + escapeJson(accessDeniedException.getMessage()) + "\"}";
+                            response.getWriter().write(body);
+                        })
+                )
                 .authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .headers(headers -> headers.frameOptions(frame -> frame.disable())); // For H2 console
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 
         return http.build();
     }
