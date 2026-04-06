@@ -140,6 +140,13 @@ export default function Layout() {
             >
               Accommodations
             </NavLink>
+            <NavLink
+              to="/services"
+              className={({ isActive }) => (isActive ? 'active' : undefined)}
+              onClick={closeMenu}
+            >
+              Services
+            </NavLink>
             {isAdmin && (
               <>
                 <NavLink

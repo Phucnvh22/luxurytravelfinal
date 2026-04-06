@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import NotFoundPage from './pages/NotFoundPage'
+import ServicesPage from './pages/ServicesPage'
 import { useAuth } from './contexts/AuthContext'
 
 function RefHandler() {
@@ -78,6 +79,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/services" element={<ServicesPage />} />
           <Route path="/destinations/:id" element={<DestinationPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
