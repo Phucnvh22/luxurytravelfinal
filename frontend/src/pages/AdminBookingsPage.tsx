@@ -161,9 +161,26 @@ export default function AdminBookingsPage() {
                         : 'None'}
                     </td>
                     <td>
-                      <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => void approve(b)} disabled={b.status !== 'PENDING'}>
-                        Approve
-                      </button>
+                      {b.status === 'PENDING' ? (
+                        <button className="btn" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => void approve(b)}>
+                          Approve
+                        </button>
+                      ) : (
+                        <button
+                          className="btn"
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            backgroundColor: 'var(--color-primary)',
+                            borderColor: 'var(--color-primary)',
+                            color: '#fff',
+                          }}
+                          type="button"
+                          disabled
+                        >
+                          Approved
+                        </button>
+                      )}
                     </td>
                     <td>{formatDate(b.createdAt)}</td>
                   </tr>

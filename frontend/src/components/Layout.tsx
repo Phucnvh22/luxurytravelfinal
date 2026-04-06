@@ -212,7 +212,7 @@ export default function Layout() {
                 <Link
                   to="/admin/bookings"
                   className="btn"
-                  style={{ padding: '6px 10px', fontSize: 13, borderColor: '#fff', color: '#fff' }}
+                  style={{ padding: '6px 10px', fontSize: 13, borderColor: '#fff', backgroundColor: '#fff', color: 'var(--color-primary)' }}
                   onClick={() => {
                     setNewRequests(null)
                     closeMenu()
@@ -220,7 +220,7 @@ export default function Layout() {
                 >
                   Xem ngay
                 </Link>
-                <button className="btn" type="button" style={{ padding: '6px 10px', fontSize: 13, borderColor: '#fff', color: '#fff' }} onClick={() => setNewRequests(null)}>
+                <button className="btn" type="button" style={{ padding: '6px 10px', fontSize: 13, borderColor: 'rgba(255,255,255,0.9)', backgroundColor: 'transparent', color: '#fff' }} onClick={() => setNewRequests(null)}>
                   Đóng
                 </button>
               </div>
