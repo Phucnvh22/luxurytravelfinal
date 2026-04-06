@@ -14,9 +14,44 @@ import { useAuth } from './contexts/AuthContext'
 function RefHandler() {
   const [searchParams] = useSearchParams()
   useEffect(() => {
-    const ref = searchParams.get('ref')
-    if (ref) {
-      localStorage.setItem('refId', ref)
+    const getCaseInsensitive = (params: URLSearchParams, key: string) => {
+      const target = key.toLowerCase()
+      for (const [k, v] of params.entries()) {
+        if (k.toLowerCase() === target) return v
+      }
+      return null
+    }
+
+    const parseFromHash = () => {
+      const hash = window.location.hash || ''
+      const idx = hash.indexOf('?')
+      if (idx === -1) return null
+      const query = hash.slice(idx + 1)
+      if (!query) return null
+      const params = new URLSearchParams(query)
+      return getCaseInsensitive(params, 'ref') ?? getCaseInsensitive(params, 'sellerId') ?? getCaseInsensitive(params, 'refId')
+    }
+
+    const raw =
+      getCaseInsensitive(searchParams, 'ref') ??
+      getCaseInsensitive(searchParams, 'sellerId') ??
+      getCaseInsensitive(searchParams, 'refId') ??
+      parseFromHash()
+
+    const normalized = raw?.trim()
+    if (!normalized) return
+
+    const asNumber = Number(normalized)
+    if (!Number.isFinite(asNumber) || !Number.isInteger(asNumber) || asNumber <= 0) return
+
+    try {
+      localStorage.setItem('refId', String(asNumber))
+    } catch {
+      try {
+        sessionStorage.setItem('refId', String(asNumber))
+      } catch {
+        return
+      }
     }
   }, [searchParams])
   return null

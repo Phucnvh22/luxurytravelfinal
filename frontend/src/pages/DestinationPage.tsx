@@ -77,7 +77,8 @@ export default function DestinationPage() {
       if (!form.travelDate) throw new Error('Please select a travel date')
       if (!form.travelers || form.travelers < 1) throw new Error('Minimum guests is 1')
 
-      const refIdStr = localStorage.getItem('refId')
+      const refIdStr = localStorage.getItem('refId') ?? sessionStorage.getItem('refId')
+      const sellerId = refIdStr ? Number(refIdStr) : null
       const payload: BookingCreateRequest = {
         destinationId,
         customerName: form.customerName.trim(),
@@ -86,7 +87,10 @@ export default function DestinationPage() {
         travelDate: form.travelDate,
         travelers: form.travelers,
         notes: form.notes?.trim() || '',
-        sellerId: refIdStr ? Number(refIdStr) : undefined,
+        sellerId:
+          typeof sellerId === 'number' && Number.isFinite(sellerId) && Number.isInteger(sellerId) && sellerId > 0
+            ? sellerId
+            : undefined,
       }
       const booking = await apiFetch<BookingResponse>('/api/bookings', {
         method: 'POST',
