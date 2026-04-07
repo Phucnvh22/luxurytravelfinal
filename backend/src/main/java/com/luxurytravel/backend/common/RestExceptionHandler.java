@@ -1,6 +1,10 @@
 package com.luxurytravel.backend.common;
 
 import com.luxurytravel.backend.destination.DestinationNotFoundException;
+import com.luxurytravel.backend.experience.ExperienceNotFoundException;
+import com.luxurytravel.backend.experience.ExperienceRequestNotFoundException;
+import com.luxurytravel.backend.service.TravelServiceNotFoundException;
+import com.luxurytravel.backend.user.UserNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +24,36 @@ public class RestExceptionHandler {
     public ResponseEntity<ApiError> handleDestinationNotFound(DestinationNotFoundException ex) {
         ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(TravelServiceNotFoundException.class)
+    public ResponseEntity<ApiError> handleServiceNotFound(TravelServiceNotFoundException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(ExperienceNotFoundException.class)
+    public ResponseEntity<ApiError> handleExperienceNotFound(ExperienceNotFoundException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(ExperienceRequestNotFoundException.class)
+    public ResponseEntity<ApiError> handleExperienceRequestNotFound(ExperienceRequestNotFoundException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiError> handleUserNotFound(UserNotFoundException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiError> handleAuthentication(AuthenticationException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
