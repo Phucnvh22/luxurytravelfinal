@@ -1,10 +1,12 @@
 :root {
-  --bg: #ebfcf3; /* Very light mint background */
-  --text: #064e3b; /* Deep green for text */
+  --bg: #ebfcf3;
+  --page-bg: var(--bg);
+  --surface: rgba(255, 255, 255, 0.9);
+  --text: #064e3b;
   --muted: #4b5563;
   --danger: rgb(239, 68, 68);
-  --primary-light: #6ee7b7; /* Light mint */
-  --primary-dark: #10b981; /* Primary mint */
+  --primary-light: #6ee7b7;
+  --primary-dark: #10b981;
   --accent: var(--primary-dark);
   --accent-bg: rgba(16, 185, 129, 0.12);
   --accent-border: rgba(16, 185, 129, 0.3);
@@ -18,7 +20,7 @@
 
   font: 16px/1.45 var(--sans);
   color: var(--text);
-  background: var(--bg);
+  background: var(--page-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

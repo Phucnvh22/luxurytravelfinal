@@ -64,6 +64,42 @@ export type DestinationUpsertRequest = {
   videoUrls?: string[]
 }
 
+export type TravelService = {
+  id: number
+  name: string
+  description: string
+  priceFrom: number
+  imageUrl: string
+  createdAt: string
+  videoUrls?: string[]
+}
+
+export type TravelServiceUpsertRequest = {
+  name: string
+  description: string
+  priceFrom: number
+  imageUrl: string
+  videoUrls?: string[]
+}
+
+export type Experience = {
+  id: number
+  name: string
+  description: string
+  priceFrom: number
+  imageUrl: string
+  createdAt: string
+  videoUrls?: string[]
+}
+
+export type ExperienceUpsertRequest = {
+  name: string
+  description: string
+  priceFrom: number
+  imageUrl: string
+  videoUrls?: string[]
+}
+
 export type BookingCreateRequest = {
   destinationId: number
   customerName: string
@@ -81,6 +117,64 @@ export type BookingResponse = {
   id: number
   destinationId: number
   destinationName: string
+  customerName: string
+  email: string
+  phone: string
+  travelDate: string
+  travelers: number
+  notes: string
+  status: BookingStatus
+  createdAt: string
+  sellerId?: number
+  userId?: number
+  totalPrice?: number
+  commissionAmount?: number
+}
+
+export type ServiceRequestCreateRequest = {
+  serviceId: number
+  customerName: string
+  email: string
+  phone: string
+  travelDate: string
+  travelers: number
+  notes?: string
+  sellerId?: number
+}
+
+export type ServiceRequestResponse = {
+  id: number
+  serviceId: number
+  serviceName: string
+  customerName: string
+  email: string
+  phone: string
+  travelDate: string
+  travelers: number
+  notes: string
+  status: BookingStatus
+  createdAt: string
+  sellerId?: number
+  userId?: number
+  totalPrice?: number
+  commissionAmount?: number
+}
+
+export type ExperienceRequestCreateRequest = {
+  experienceId: number
+  customerName: string
+  email: string
+  phone: string
+  travelDate: string
+  travelers: number
+  notes?: string
+  sellerId?: number
+}
+
+export type ExperienceRequestResponse = {
+  id: number
+  experienceId: number
+  experienceName: string
   customerName: string
   email: string
   phone: string

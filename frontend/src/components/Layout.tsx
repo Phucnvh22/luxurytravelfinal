@@ -4,14 +4,20 @@ import { createPortal } from 'react-dom'
 import TopNav from './TopNav'
 import BottomNav from './BottomNav'
 import { useAuth } from '../contexts/AuthContext'
+import { useI18n, type Lang } from '../contexts/I18nContext'
 import { apiFetch } from '../lib/api'
 import type { BookingResponse } from '../types'
 import './layout.css'
 
 export default function Layout() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
+  const { t, language, setLanguage } = useI18n()
   const location = useLocation()
   const isSeller = user?.role === 'SELLER'
+  const isAdminRoute = location.pathname.startsWith('/admin')
+  const accommodationIconUrl = encodeURI('/—Pngtree—warm family cartoon house_6261753.png')
+  const experienceIconUrl = encodeURI('/—Pngtree—a colorful hot air balloon_16332123.png')
+  const serviceIconUrl = encodeURI('/—Pngtree—classic metallic desk bell with_21118389.png')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const [copyOpen, setCopyOpen] = useState(false)
@@ -108,108 +114,210 @@ export default function Layout() {
     }
   }, [isAdmin, isAuthenticated])
 
-  // Only show header on mobile if user is admin or seller
-  const showHeaderOnMobile = isAdmin || isSeller
-  const headerClass = `app-header ${!showHeaderOnMobile ? 'hide-on-mobile' : ''}`
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMenu()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const showHeaderOnMobile = true
+  const headerClass = `app-header ${!showHeaderOnMobile ? 'hide-on-mobile' : ''} ${isAdminRoute ? 'app-header-admin' : ''} ${!isAdminRoute ? 'with-topnav' : ''}`
 
   return (
     <div className="app-shell">
-      <TopNav />
       <header className={headerClass}>
         <div className="container header-inner">
           <Link to="/" className="brand" onClick={closeMenu}>
-            Luxury Travel
+            {t('brand', 'Luxury Travel')}
           </Link>
-          
-          {showHeaderOnMobile && (
-            <button className="hamburger-btn" onClick={toggleMenu}>
+
+          <div className="header-actions">
+            {!isAdminRoute && (
+              <nav className="nav nav-main">
+                <NavLink
+                  to="/"
+                  className={({ isActive }) => (isActive ? 'active' : undefined)}
+                  end
+                >
+                  <img className="nav-main-icon" src={accommodationIconUrl} alt="" aria-hidden="true" />
+                  <span>{t('nav_accommodations', 'Accommodations')}</span>
+                </NavLink>
+                <NavLink
+                  to="/experiences"
+                  className={({ isActive }) => (isActive ? 'active' : undefined)}
+                >
+                  <img className="nav-main-icon" src={experienceIconUrl} alt="" aria-hidden="true" />
+                  <span>{t('nav_experiences', 'Experiences')}</span>
+                </NavLink>
+                <NavLink
+                  to="/services"
+                  className={({ isActive }) => (isActive ? 'active' : undefined)}
+                >
+                  <img className="nav-main-icon" src={serviceIconUrl} alt="" aria-hidden="true" />
+                  <span>{t('nav_services', 'Services')}</span>
+                </NavLink>
+              </nav>
+            )}
+
+            <select
+              className="lang-select"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as Lang)}
+              aria-label="Language"
+            >
+              <option value="en">{t('lang_en', 'English')}</option>
+              <option value="vi">{t('lang_vi', 'Tiếng Việt')}</option>
+              <option value="fr">{t('lang_fr', 'Français')}</option>
+              <option value="ko">{t('lang_ko', '한국어')}</option>
+              <option value="zh">{t('lang_zh', '中文')}</option>
+              <option value="es">{t('lang_es', 'Español')}</option>
+            </select>
+
+            <button className="hamburger-btn" type="button" onClick={toggleMenu} aria-label="Open menu">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="3" y1="12" x2="21" y2="12"></line>
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
               </svg>
             </button>
-          )}
 
-          <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`}>
-            <NavLink
-              to="/"
-              className={({ isActive }) => `nav-main-link ${isActive ? 'active' : ''}`}
-              end
-              onClick={closeMenu}
-            >
-              Accommodations
-            </NavLink>
-            <NavLink
-              to="/services"
-              className={({ isActive }) => (isActive ? 'active' : undefined)}
-              onClick={closeMenu}
-            >
-              Services
-            </NavLink>
-            {isAdmin && (
-              <>
-                <NavLink
-                  to="/admin/destinations"
-                  className={({ isActive }) => (isActive ? 'active' : undefined)}
-                  onClick={closeMenu}
-                >
-                  Admin Destinations
-                </NavLink>
-                <NavLink
-                  to="/admin/sellers"
-                  className={({ isActive }) => (isActive ? 'active' : undefined)}
-                  onClick={closeMenu}
-                >
-                  Sellers
-                </NavLink>
-              </>
-            )}
-            {isAuthenticated && (
-              <NavLink
-                to="/admin/bookings"
-                className={({ isActive }) => (isActive ? 'active' : undefined)}
-                onClick={closeMenu}
-              >
-                Requests
-              </NavLink>
-            )}
-            <div className="auth-section">
-              {isAuthenticated ? (
-                <div className="user-menu" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {isSeller && (
-                    <button 
-                      className="btn" 
-                      style={{ padding: '6px 12px', fontSize: '13px', borderColor: 'var(--primary-dark)', color: 'var(--primary-dark)' }}
-                      onClick={() => {
-                        openReferralDialog()
-                        closeMenu()
-                      }}
-                    >
-                      Copy referral link
-                    </button>
-                  )}
-                  <span className="user-name" style={{ fontSize: '14px' }}>Hi, {user?.fullName}</span>
-                  <button onClick={() => { logout(); closeMenu(); }} className="btn" style={{ padding: '6px 12px', fontSize: '13px' }}>
-                    Log out
+            {mobileMenuOpen ? <button className="menu-overlay" type="button" aria-label="Close menu" onClick={closeMenu} /> : null}
+            <div className={`menu ${mobileMenuOpen ? 'open' : ''}`}>
+              {isAdmin && (
+                <>
+                  <div className="menu-title">{t('menu_admin', 'Admin')}</div>
+                  <NavLink
+                    to="/admin/destinations"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_destinations', 'Destinations')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/services"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_services', 'Services')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/experiences"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_experiences', 'Experiences')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/sellers"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_sellers', 'Sellers')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/bookings"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_bookings', 'Bookings')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/service-requests"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_service_requests', 'Service Requests')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/experience-requests"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_experience_requests', 'Experience Requests')}
+                  </NavLink>
+                  <div className="menu-sep" />
+                </>
+              )}
+
+              {isSeller && (
+                <>
+                  <div className="menu-title">{t('menu_seller', 'Seller')}</div>
+                  <NavLink
+                    to="/seller/bookings"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_my_bookings', 'My bookings')}
+                  </NavLink>
+                  <NavLink
+                    to="/seller/service-requests"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_my_service_requests', 'My service requests')}
+                  </NavLink>
+                  <NavLink
+                    to="/seller/experience-requests"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_my_experience_requests', 'My experience requests')}
+                  </NavLink>
+                  <NavLink
+                    to="/seller/experiences"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_manage_experiences', 'Manage experiences')}
+                  </NavLink>
+                  <button
+                    className="menu-item"
+                    type="button"
+                    onClick={() => {
+                      openReferralDialog()
+                      closeMenu()
+                    }}
+                  >
+                    {t('menu_copy_referral', 'Copy referral link')}
                   </button>
-                </div>
+                  <div className="menu-sep" />
+                </>
+              )}
+
+              <div className="menu-title">{t('menu_account', 'Account')}</div>
+              {isAuthenticated ? (
+                <>
+                  <div className="menu-meta">Hi, {user?.fullName}</div>
+                  <button
+                    className="menu-item"
+                    type="button"
+                    onClick={() => {
+                      logout()
+                      closeMenu()
+                    }}
+                  >
+                    {t('menu_logout', 'Log out')}
+                  </button>
+                </>
               ) : (
                 <NavLink
                   to="/login"
-                  className={({ isActive }) => (isActive ? 'active' : undefined)}
+                  className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
                   onClick={closeMenu}
                 >
-                  Log in
+                  {t('menu_login', 'Log in')}
                 </NavLink>
               )}
             </div>
-          </nav>
+          </div>
         </div>
       </header>
+      {!isAdminRoute && <TopNav />}
 
       <main className="app-main">
-        {isAdmin && newRequests && location.pathname !== '/admin/bookings' ? (
+        {isAdminRoute && isAdmin && newRequests && location.pathname !== '/admin/bookings' ? (
           <div style={{ background: 'var(--color-primary)', color: '#fff' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 0' }}>
               <div style={{ fontWeight: 700 }}>
@@ -237,12 +345,14 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <footer className="app-footer">
-        <div className="container footer-inner">
-          <div>© {new Date().getFullYear()} Luxury Travel</div>
-          <div className="muted">Built with Spring Boot + React</div>
-        </div>
-      </footer>
+      {!isAdminRoute && (
+        <footer className="app-footer">
+          <div className="container footer-inner">
+            <div>© {new Date().getFullYear()} Luxury Travel</div>
+            <div className="muted">Built with Spring Boot + React</div>
+          </div>
+        </footer>
+      )}
 
       {copyOpen
         ? createPortal(
@@ -317,7 +427,7 @@ export default function Layout() {
             document.body
           )
         : null}
-      <BottomNav />
+      {!isAdminRoute && <BottomNav />}
     </div>
   )
 }

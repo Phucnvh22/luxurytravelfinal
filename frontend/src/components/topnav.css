@@ -1,11 +1,11 @@
 .top-nav-mobile {
   position: sticky;
-  top: 0;
+  top: 62px;
   left: 0;
   right: 0;
   background: rgba(235, 252, 243, 0.95);
   backdrop-filter: blur(10px);
-  z-index: 100;
+  z-index: 150;
   padding: 16px 24px 0;
   box-shadow: 0 1px 12px rgba(52, 211, 153, 0.15);
   display: flex;
@@ -44,12 +44,17 @@
 
 .category-item:hover,
 .category-item.active {
-  color: #10b981;
-  border-bottom: 2px solid #10b981;
+  color: var(--text);
+  border-bottom: 2px solid var(--primary-dark);
 }
 
 .category-icon-wrapper {
   position: relative;
+  height: 64px;
+  width: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .category-icon {
@@ -59,16 +64,34 @@
   opacity: 0.7;
 }
 
+.category-icon--accommodation {
+  width: 60px;
+  height: 60px;
+}
+
+.category-icon--service {
+  width: 52px;
+  height: 52px;
+}
+
+.category-icon--experience {
+  width: 56px;
+  height: 56px;
+}
+
+
+
 .category-item:hover .category-icon,
 .category-item.active .category-icon {
   opacity: 1;
 }
 
+
 .badge-new {
   position: absolute;
   top: -8px;
   right: -16px;
-  background: #10b981;
+  background: var(--primary-dark);
   color: #fff;
   font-size: 9px;
   font-weight: bold;

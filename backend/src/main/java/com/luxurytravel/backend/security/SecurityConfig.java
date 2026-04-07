@@ -65,13 +65,19 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/api/destinations/**",
+                                "/api/experiences/**",
+                                "/api/services/**",
                                 "/api/categories/**",
                                 "/h2-console/**"
                         ).permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/bookings").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/service-requests").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/experience-requests").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/seller/**").hasAnyRole("ADMIN", "SELLER")
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/service-requests").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/experience-requests").authenticated()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

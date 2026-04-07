@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
+import { useI18n } from '../contexts/I18nContext'
 import type { Destination } from '../types'
 import './pages.css'
 
@@ -23,6 +24,7 @@ function getYouTubeThumbUrl(videoUrl: string) {
 }
 
 export default function HomePage() {
+  const { t } = useI18n()
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -38,7 +40,7 @@ export default function HomePage() {
       })
       .catch((e: unknown) => {
         if (cancelled) return
-        const message = e instanceof HttpError ? e.message : 'Could not load data'
+        const message = e instanceof HttpError ? e.message : t('common_something_wrong', 'Something went wrong')
         setError(message)
       })
       .finally(() => {
@@ -48,7 +50,7 @@ export default function HomePage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [t])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -62,39 +64,34 @@ export default function HomePage() {
     })
   }, [destinations, query])
 
+  const heroTheme = useMemo(
+    () => ({
+      title: t('nav_accommodations', 'Accommodations'),
+      subtitle: 'Da Nang Bay',
+      imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Da%20Nang%20Bay%201.jpg?width=1600',
+    }),
+    [t],
+  )
+
   return (
     <>
       <section className="hero">
         <div className="container hero-inner">
           <div>
-            <div className="badge">Luxury Travel • Private Experiences</div>
-            <h1>Premium journeys, tailored just for you</h1>
+            <div className="badge">{t('home_badge', 'Luxury Travel • Private Experiences')}</div>
+            <h1>{t('home_title', 'Premium journeys, tailored just for you')}</h1>
             <p className="muted hero-sub">
-              Discover standout destinations, choose your itinerary, and request a booking in minutes.
+              {t('home_sub', 'Discover standout destinations, choose your itinerary, and request a booking in minutes.')}
             </p>
 
-            <div className="hero-stats">
-              <div className="stat">
-                <div className="stat-value">Curated</div>
-                <div className="stat-label">Handpicked routes</div>
-              </div>
-              <div className="stat">
-                <div className="stat-value">Fast</div>
-                <div className="stat-label">Book in a few steps</div>
-              </div>
-              <div className="stat">
-                <div className="stat-value">Flexible</div>
-                <div className="stat-label">Personalized requests</div>
-              </div>
-            </div>
-
-            <div className="hero-actions">
-              <a className="btn primary" href="#accommodations">
-                Browse accommodations
-              </a>
-              <a className="btn" href="/swagger-ui" target="_blank" rel="noreferrer">
-                API Docs
-              </a>
+            <div className="hero-topic-grid hero-topic-grid--single">
+              <Link to="/" className="hero-topic-card hero-topic-card--single">
+                <div className="hero-topic-media" style={{ backgroundImage: `url(${heroTheme.imageUrl})` }} />
+                <div className="hero-topic-overlay">
+                  <div className="hero-topic-title">{heroTheme.title}</div>
+                  <div className="hero-topic-subtitle">{heroTheme.subtitle}</div>
+                </div>
+              </Link>
             </div>
           </div>
         </div>
@@ -104,31 +101,31 @@ export default function HomePage() {
         <div className="container">
           <div className="section-head">
             <div>
-              <h2>Accommodations</h2>
-              <div className="muted">Explore stays and send a booking request instantly.</div>
+              <h2>{t('home_section_title', 'Accommodations')}</h2>
+              <div className="muted">{t('home_section_sub', 'Explore stays and send a booking request instantly.')}</div>
             </div>
             <div className="search-inline">
               <input
                 className="input"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search accommodations..."
+                placeholder={t('home_search_placeholder', 'Search destinations...')}
               />
             </div>
           </div>
 
           {loading ? (
-            <div className="card muted">Loading accommodations...</div>
+            <div className="card muted">{t('loading', 'Loading...')}</div>
           ) : error ? (
             <div className="card error">
-              <div className="error-title">Something went wrong</div>
+              <div className="error-title">{t('common_something_wrong', 'Something went wrong')}</div>
               <div className="muted">{error}</div>
               <div className="muted">
                 Tip: start the Spring Boot backend at http://localhost:8080
               </div>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="card muted">No results found.</div>
+            <div className="card muted">{t('common_no_results', 'No results found.')}</div>
           ) : (
             <div className="grid">
               {filtered.map((d) => {
