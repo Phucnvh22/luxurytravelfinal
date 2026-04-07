@@ -41,11 +41,11 @@ public class ExperienceRequestService {
         User user = userRepository.findByUsername(username).orElseThrow(() -> new UserNotFoundException(username));
 
         if (user.getRole() == Role.ADMIN) {
-            return experienceRequestRepository.findAll().stream().map(ExperienceRequestResponse::from).collect(Collectors.toList());
+            return experienceRequestRepository.findAllByOrderByCreatedAtDescIdDesc().stream().map(ExperienceRequestResponse::from).collect(Collectors.toList());
         } else if (user.getRole() == Role.SELLER) {
-            return experienceRequestRepository.findBySellerId(user.getId()).stream().map(ExperienceRequestResponse::from).collect(Collectors.toList());
+            return experienceRequestRepository.findBySellerIdOrderByCreatedAtDescIdDesc(user.getId()).stream().map(ExperienceRequestResponse::from).collect(Collectors.toList());
         } else {
-            return experienceRequestRepository.findByUserId(user.getId()).stream().map(ExperienceRequestResponse::from).collect(Collectors.toList());
+            return experienceRequestRepository.findByUserIdOrderByCreatedAtDescIdDesc(user.getId()).stream().map(ExperienceRequestResponse::from).collect(Collectors.toList());
         }
     }
 

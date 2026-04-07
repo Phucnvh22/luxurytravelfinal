@@ -15,6 +15,12 @@ function formatMoney(val: number | undefined) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
 }
 
+function toTime(value?: string) {
+  if (!value) return 0
+  const t = new Date(value).getTime()
+  return Number.isFinite(t) ? t : 0
+}
+
 export default function SellerBookingsPage() {
   const [bookings, setBookings] = useState<BookingResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,7 +36,7 @@ export default function SellerBookingsPage() {
     }
     try {
       const bookingsData = await apiFetch<BookingResponse[]>('/api/bookings')
-      setBookings(bookingsData)
+      setBookings([...bookingsData].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt) || b.id - a.id))
       setError(null)
     } catch (e: unknown) {
       if (!opts?.silent) {

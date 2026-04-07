@@ -6,7 +6,7 @@ import BottomNav from './BottomNav'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n, type Lang } from '../contexts/I18nContext'
 import { apiFetch } from '../lib/api'
-import type { BookingResponse } from '../types'
+import type { AdminRequestSummary } from '../types'
 import './layout.css'
 
 export default function Layout() {
@@ -25,7 +25,8 @@ export default function Layout() {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const copyInputRef = useRef<HTMLInputElement | null>(null)
 
-  const [newRequests, setNewRequests] = useState<{ count: number; latestId: number } | null>(null)
+  const [requestSummary, setRequestSummary] = useState<AdminRequestSummary | null>(null)
+  const [notificationFlash, setNotificationFlash] = useState<{ count: number } | null>(null)
 
   const toggleMenu = () => setMobileMenuOpen(!mobileMenuOpen)
   const closeMenu = () => setMobileMenuOpen(false)
@@ -81,25 +82,23 @@ export default function Layout() {
 
     const poll = async () => {
       try {
-        const data = await apiFetch<BookingResponse[]>('/api/bookings')
+        const data = await apiFetch<AdminRequestSummary>('/api/admin/requests/summary')
         if (cancelled) return
-        if (!Array.isArray(data) || data.length === 0) return
+        setRequestSummary(data)
 
-        const maxId = data.reduce((m, b) => (b.id > m ? b.id : m), 0)
-        if (!Number.isFinite(maxId) || maxId <= 0) return
+        const latestServiceId = data.latestServiceRequestId ?? 0
+        const latestExperienceId = data.latestExperienceRequestId ?? 0
+        const fingerprint = `${latestServiceId}:${latestExperienceId}`
+        const storedFingerprint = localStorage.getItem('adminLatestRequestFingerprint')
 
-        const stored = localStorage.getItem('adminLastBookingId')
-        const lastSeen = stored ? Number(stored) : 0
-
-        if (!lastSeen) {
-          localStorage.setItem('adminLastBookingId', String(maxId))
+        if (!storedFingerprint) {
+          localStorage.setItem('adminLatestRequestFingerprint', fingerprint)
           return
         }
 
-        if (maxId > lastSeen) {
-          const count = data.reduce((acc, b) => (b.id > lastSeen ? acc + 1 : acc), 0)
-          setNewRequests({ count, latestId: maxId })
-          localStorage.setItem('adminLastBookingId', String(maxId))
+        if (fingerprint !== storedFingerprint && data.totalPendingRequests > 0) {
+          setNotificationFlash({ count: data.totalPendingRequests })
+          localStorage.setItem('adminLatestRequestFingerprint', fingerprint)
         }
       } catch {
         return
@@ -107,7 +106,7 @@ export default function Layout() {
     }
 
     void poll()
-    const intervalId = window.setInterval(() => void poll(), 15000)
+    const intervalId = window.setInterval(() => void poll(), 5000)
     return () => {
       cancelled = true
       window.clearInterval(intervalId)
@@ -130,7 +129,7 @@ export default function Layout() {
       <header className={headerClass}>
         <div className="container header-inner">
           <Link to="/" className="brand" onClick={closeMenu}>
-            {t('brand', 'Luxury Travel')}
+            {t('brand', 'Da Nang Luxury Travel')}
           </Link>
 
           <div className="header-actions">
@@ -181,6 +180,9 @@ export default function Layout() {
                 <line x1="3" y1="6" x2="21" y2="6"></line>
                 <line x1="3" y1="18" x2="21" y2="18"></line>
               </svg>
+              {isAdmin && (requestSummary?.totalPendingRequests ?? 0) > 0 ? (
+                <span className="notif-badge">{requestSummary?.totalPendingRequests}</span>
+              ) : null}
             </button>
 
             {mobileMenuOpen ? <button className="menu-overlay" type="button" aria-label="Close menu" onClick={closeMenu} /> : null}
@@ -228,14 +230,20 @@ export default function Layout() {
                     className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
                     onClick={closeMenu}
                   >
-                    {t('menu_service_requests', 'Service Requests')}
+                    <span>{t('menu_service_requests', 'Service Requests')}</span>
+                    {(requestSummary?.pendingServiceRequests ?? 0) > 0 ? (
+                      <span className="menu-item-badge">{requestSummary?.pendingServiceRequests}</span>
+                    ) : null}
                   </NavLink>
                   <NavLink
                     to="/admin/experience-requests"
                     className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
                     onClick={closeMenu}
                   >
-                    {t('menu_experience_requests', 'Experience Requests')}
+                    <span>{t('menu_experience_requests', 'Experience Requests')}</span>
+                    {(requestSummary?.pendingExperienceRequests ?? 0) > 0 ? (
+                      <span className="menu-item-badge">{requestSummary?.pendingExperienceRequests}</span>
+                    ) : null}
                   </NavLink>
                   <div className="menu-sep" />
                 </>
@@ -317,25 +325,25 @@ export default function Layout() {
       {!isAdminRoute && <TopNav />}
 
       <main className="app-main">
-        {isAdminRoute && isAdmin && newRequests && location.pathname !== '/admin/bookings' ? (
+        {isAdminRoute && isAdmin && notificationFlash && location.pathname !== '/admin/bookings' ? (
           <div style={{ background: 'var(--color-primary)', color: '#fff' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 0' }}>
               <div style={{ fontWeight: 700 }}>
-                {newRequests.count === 1 ? 'Có 1 request mới' : `Có ${newRequests.count} request mới`}
+                {notificationFlash.count === 1 ? 'Có 1 request mới' : `Có ${notificationFlash.count} request mới`}
               </div>
               <div className="row" style={{ gap: 10 }}>
                 <Link
-                  to="/admin/bookings"
+                  to="/admin/service-requests"
                   className="btn"
                   style={{ padding: '6px 10px', fontSize: 13, borderColor: '#fff', backgroundColor: '#fff', color: 'var(--color-primary)' }}
                   onClick={() => {
-                    setNewRequests(null)
+                    setNotificationFlash(null)
                     closeMenu()
                   }}
                 >
                   Xem ngay
                 </Link>
-                <button className="btn" type="button" style={{ padding: '6px 10px', fontSize: 13, borderColor: 'rgba(255,255,255,0.9)', backgroundColor: 'transparent', color: '#fff' }} onClick={() => setNewRequests(null)}>
+                <button className="btn" type="button" style={{ padding: '6px 10px', fontSize: 13, borderColor: 'rgba(255,255,255,0.9)', backgroundColor: 'transparent', color: '#fff' }} onClick={() => setNotificationFlash(null)}>
                   Đóng
                 </button>
               </div>
@@ -347,9 +355,35 @@ export default function Layout() {
 
       {!isAdminRoute && (
         <footer className="app-footer">
-          <div className="container footer-inner">
-            <div>© {new Date().getFullYear()} Luxury Travel</div>
-            <div className="muted">Built with Spring Boot + React</div>
+          <div className="container footer-grid">
+            <div>
+              <div className="footer-brand">{t('footer_brand', 'Da Nang Luxury Travel')}</div>
+              <div className="footer-text">
+                {t('footer_desc', 'Premium travel services with personalized experiences for every journey.')}
+              </div>
+              <div className="footer-copy">
+                © {new Date().getFullYear()} {t('footer_brand', 'Da Nang Luxury Travel')}. {t('footer_rights', 'All rights reserved.')}
+              </div>
+            </div>
+
+            <div>
+              <div className="footer-title">{t('footer_company_info', 'Company Info')}</div>
+              <div className="footer-text">
+                213 Le Tan Trung, Phuong Son Tra, Da Nang.
+              </div>
+              <a className="footer-phone" href="tel:+849357572725">
+                {t('footer_phone_label', 'Phone')}: +849357572725
+              </a>
+            </div>
+
+            <div>
+              <div className="footer-title">{t('footer_quick_links', 'Quick Links')}</div>
+              <div className="footer-links">
+                <Link to="/">{t('nav_accommodations', 'Accommodations')}</Link>
+                <Link to="/experiences">{t('nav_experiences', 'Experiences')}</Link>
+                <Link to="/services">{t('nav_services', 'Services')}</Link>
+              </div>
+            </div>
           </div>
         </footer>
       )}

@@ -23,6 +23,12 @@ function getYouTubeThumbUrl(videoUrl: string) {
   return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
 }
 
+function toTime(value?: string) {
+  if (!value) return 0
+  const t = new Date(value).getTime()
+  return Number.isFinite(t) ? t : 0
+}
+
 export default function HomePage() {
   const { t } = useI18n()
   const [destinations, setDestinations] = useState<Destination[]>([])
@@ -36,7 +42,7 @@ export default function HomePage() {
       .then((data) => {
         if (cancelled) return
         setError(null)
-        setDestinations(data)
+        setDestinations([...data].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt) || b.id - a.id))
       })
       .catch((e: unknown) => {
         if (cancelled) return
@@ -68,7 +74,7 @@ export default function HomePage() {
     () => ({
       title: t('nav_accommodations', 'Accommodations'),
       subtitle: 'Da Nang Bay',
-      imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Da%20Nang%20Bay%201.jpg?width=1600',
+      imageUrl: encodeURI('/acommodation.jpg'),
     }),
     [t],
   )
@@ -78,7 +84,7 @@ export default function HomePage() {
       <section className="hero">
         <div className="container hero-inner">
           <div>
-            <div className="badge">{t('home_badge', 'Luxury Travel • Private Experiences')}</div>
+            <div className="badge">{t('home_badge', 'Da Nang Luxury Travel • Private Experiences')}</div>
             <h1>{t('home_title', 'Premium journeys, tailored just for you')}</h1>
             <p className="muted hero-sub">
               {t('home_sub', 'Discover standout destinations, choose your itinerary, and request a booking in minutes.')}

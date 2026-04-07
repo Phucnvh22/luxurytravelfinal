@@ -1,27 +1,72 @@
+import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n } from '../contexts/I18nContext'
+import { SOCIAL_CHANNELS } from '../constants/social'
 import './bottomnav.css'
 
 export default function BottomNav() {
   const { isAuthenticated, logout, user, isAdmin } = useAuth()
   const { t } = useI18n()
   const isSeller = user?.role === 'SELLER'
+  const [messageOpen, setMessageOpen] = useState(false)
+  const messageRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (!messageRef.current) return
+      const target = event.target as Node
+      if (!messageRef.current.contains(target)) setMessageOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMessageOpen(false)
+    }
+    window.addEventListener('mousedown', onClickOutside)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('mousedown', onClickOutside)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [])
 
   return (
     <div className="bottom-nav-mobile">
-      <NavLink
-        to="/"
-        end
-        className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
-      >
-        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" className="bottom-nav-icon">
-          <g fill="none">
-            <path d="m13 24c6.0751322 0 11-4.9248678 11-11 0-6.07513225-4.9248678-11-11-11-6.07513225 0-11 4.92486775-11 11 0 6.0751322 4.92486775 11 11 11zm8-3 9 9" stroke="currentcolor" strokeWidth="4"></path>
-          </g>
-        </svg>
-        <span>{t('mobile_accommodation', 'Accommodation')}</span>
-      </NavLink>
+      <div className={`bottom-nav-item bottom-nav-message ${messageOpen ? 'active' : ''}`} ref={messageRef}>
+        <button
+          type="button"
+          className="bottom-nav-message-trigger"
+          onClick={() => setMessageOpen((v) => !v)}
+          aria-label="Message"
+          aria-expanded={messageOpen}
+        >
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="bottom-nav-icon">
+            <path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentcolor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Message</span>
+        </button>
+
+        {messageOpen && (
+          <div className="message-menu">
+            {SOCIAL_CHANNELS.map((channel) => (
+              <a
+                key={channel.key}
+                className="message-link"
+                href={channel.href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => {
+                  if (channel.href === '#') e.preventDefault()
+                }}
+              >
+                <span className="message-logo-wrap">
+                  <img className="message-logo" src={channel.icon} alt={`${channel.label} logo`} />
+                </span>
+                <span>{channel.label}</span>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
 
       {(isAdmin || isSeller) && (
         <NavLink

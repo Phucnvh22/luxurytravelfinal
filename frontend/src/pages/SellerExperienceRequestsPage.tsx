@@ -15,6 +15,12 @@ function formatMoney(val: number | undefined) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
 }
 
+function toTime(value?: string) {
+  if (!value) return 0
+  const t = new Date(value).getTime()
+  return Number.isFinite(t) ? t : 0
+}
+
 export default function SellerExperienceRequestsPage() {
   const [requests, setRequests] = useState<ExperienceRequestResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,7 +36,7 @@ export default function SellerExperienceRequestsPage() {
     }
     try {
       const data = await apiFetch<ExperienceRequestResponse[]>('/api/experience-requests')
-      setRequests(data)
+      setRequests([...data].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt) || b.id - a.id))
       setError(null)
     } catch (e: unknown) {
       if (!opts?.silent) {
@@ -165,4 +171,3 @@ export default function SellerExperienceRequestsPage() {
     </section>
   )
 }
-

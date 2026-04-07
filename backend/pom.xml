@@ -14,7 +14,7 @@
     <artifactId>backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>luxury-travel-backend</name>
-    <description>Luxury Travel API</description>
+    <description>Da Nang Luxury Travel API</description>
 
     <properties>
         <java.version>17</java.version>
