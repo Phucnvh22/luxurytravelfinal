@@ -59,7 +59,7 @@ export default function ExperiencesPage() {
     () => ({
       title: t('nav_experiences', 'Experiences'),
       subtitle: 'Dragon Bridge',
-      imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Da_Nang_Dragon_Bridge_(I).jpg?width=1600',
+      imageUrl: encodeURI('/cauvang-1654247842-9403-1654247849.jpg.webp'),
     }),
     [t],
   )

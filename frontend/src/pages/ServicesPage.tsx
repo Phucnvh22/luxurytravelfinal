@@ -62,7 +62,7 @@ export default function ServicesPage() {
     () => ({
       title: t('nav_services', 'Services'),
       subtitle: 'Marble Mountains',
-      imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Marble_Mountain_Gate,_Da_Nang.jpg?width=1600',
+      imageUrl: encodeURI('/cau-rong.jpg'),
     }),
     [t],
   )

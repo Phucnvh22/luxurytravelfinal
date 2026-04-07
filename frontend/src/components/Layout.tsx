@@ -129,7 +129,7 @@ export default function Layout() {
       <header className={headerClass}>
         <div className="container header-inner">
           <Link to="/" className="brand" onClick={closeMenu}>
-            {t('brand', 'Luxury Travel')}
+            {t('brand', 'Da Nang Luxury Travel')}
           </Link>
 
           <div className="header-actions">
@@ -355,9 +355,35 @@ export default function Layout() {
 
       {!isAdminRoute && (
         <footer className="app-footer">
-          <div className="container footer-inner">
-            <div>© {new Date().getFullYear()} Luxury Travel</div>
-            <div className="muted">Built with Spring Boot + React</div>
+          <div className="container footer-grid">
+            <div>
+              <div className="footer-brand">{t('footer_brand', 'Da Nang Luxury Travel')}</div>
+              <div className="footer-text">
+                {t('footer_desc', 'Premium travel services with personalized experiences for every journey.')}
+              </div>
+              <div className="footer-copy">
+                © {new Date().getFullYear()} {t('footer_brand', 'Da Nang Luxury Travel')}. {t('footer_rights', 'All rights reserved.')}
+              </div>
+            </div>
+
+            <div>
+              <div className="footer-title">{t('footer_company_info', 'Company Info')}</div>
+              <div className="footer-text">
+                213 Le Tan Trung, Phuong Son Tra, Da Nang.
+              </div>
+              <a className="footer-phone" href="tel:+849357572725">
+                {t('footer_phone_label', 'Phone')}: +849357572725
+              </a>
+            </div>
+
+            <div>
+              <div className="footer-title">{t('footer_quick_links', 'Quick Links')}</div>
+              <div className="footer-links">
+                <Link to="/">{t('nav_accommodations', 'Accommodations')}</Link>
+                <Link to="/experiences">{t('nav_experiences', 'Experiences')}</Link>
+                <Link to="/services">{t('nav_services', 'Services')}</Link>
+              </div>
+            </div>
           </div>
         </footer>
       )}

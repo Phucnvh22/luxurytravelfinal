@@ -74,7 +74,7 @@ export default function HomePage() {
     () => ({
       title: t('nav_accommodations', 'Accommodations'),
       subtitle: 'Da Nang Bay',
-      imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Da%20Nang%20Bay%201.jpg?width=1600',
+      imageUrl: encodeURI('/acommodation.jpg'),
     }),
     [t],
   )
@@ -84,7 +84,7 @@ export default function HomePage() {
       <section className="hero">
         <div className="container hero-inner">
           <div>
-            <div className="badge">{t('home_badge', 'Luxury Travel • Private Experiences')}</div>
+            <div className="badge">{t('home_badge', 'Da Nang Luxury Travel • Private Experiences')}</div>
             <h1>{t('home_title', 'Premium journeys, tailored just for you')}</h1>
             <p className="muted hero-sub">
               {t('home_sub', 'Discover standout destinations, choose your itinerary, and request a booking in minutes.')}
