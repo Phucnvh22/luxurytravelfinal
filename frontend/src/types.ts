@@ -188,3 +188,11 @@ export type ExperienceRequestResponse = {
   totalPrice?: number
   commissionAmount?: number
 }
+
+export type AdminRequestSummary = {
+  pendingServiceRequests: number
+  pendingExperienceRequests: number
+  latestServiceRequestId?: number
+  latestExperienceRequestId?: number
+  totalPendingRequests: number
+}

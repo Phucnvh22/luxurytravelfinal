@@ -14,7 +14,7 @@ public class DestinationService {
     }
 
     public List<Destination> list() {
-        return destinationRepository.findAll();
+        return destinationRepository.findAllByOrderByCreatedAtDescIdDesc();
     }
 
     public Destination getById(Long id) {

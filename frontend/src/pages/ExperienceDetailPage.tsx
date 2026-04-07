@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
+import GuestQuantityInput from '../components/GuestQuantityInput'
 import type { Experience, ExperienceRequestCreateRequest, ExperienceRequestResponse } from '../types'
 import './pages.css'
 
@@ -42,9 +43,10 @@ export default function ExperienceDetailPage() {
     email: '',
     phone: '',
     travelDate: todayIsoDate(),
-    travelers: 2,
+    travelers: 1,
     notes: '',
   })
+  const [travelersInput, setTravelersInput] = useState('')
 
   useEffect(() => {
     if (!Number.isFinite(experienceId)) {
@@ -81,7 +83,8 @@ export default function ExperienceDetailPage() {
       if (!form.email.trim()) throw new Error(t('form_email', 'Email'))
       if (!form.phone.trim()) throw new Error(t('form_phone', 'Phone'))
       if (!form.travelDate) throw new Error(t('form_travel_date', 'Travel date'))
-      if (!form.travelers || form.travelers < 1) throw new Error(t('form_guests', 'Guests'))
+      const travelers = Number(travelersInput)
+      if (!Number.isInteger(travelers) || travelers < 1) throw new Error(t('form_guests', 'Guests'))
 
       const refIdStr = localStorage.getItem('refId') ?? sessionStorage.getItem('refId')
       const sellerId = refIdStr ? Number(refIdStr) : null
@@ -91,7 +94,7 @@ export default function ExperienceDetailPage() {
         email: form.email.trim(),
         phone: form.phone.trim(),
         travelDate: form.travelDate,
-        travelers: form.travelers,
+        travelers,
         notes: form.notes?.trim() || '',
         sellerId:
           typeof sellerId === 'number' && Number.isFinite(sellerId) && Number.isInteger(sellerId) && sellerId > 0
@@ -109,9 +112,10 @@ export default function ExperienceDetailPage() {
         email: '',
         phone: '',
         travelDate: todayIsoDate(),
-        travelers: 2,
+        travelers: 1,
         notes: '',
       })
+      setTravelersInput('')
     } catch (e: unknown) {
       const message =
         e instanceof HttpError
@@ -237,16 +241,12 @@ export default function ExperienceDetailPage() {
                     onChange={(e) => setForm((p) => ({ ...p, travelDate: e.target.value }))}
                   />
                 </label>
-                <label className="field" style={{ width: 140 }}>
-                  <div className="field-label">{t('form_guests', 'Guests')}</div>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={form.travelers}
-                    onChange={(e) => setForm((p) => ({ ...p, travelers: Number(e.target.value) }))}
-                  />
-                </label>
+                <GuestQuantityInput
+                  label={t('form_guests', 'Guests')}
+                  value={travelersInput}
+                  onChange={setTravelersInput}
+                  placeholder={t('form_guests_placeholder', 'Enter guests')}
+                />
               </div>
 
               <label className="field">

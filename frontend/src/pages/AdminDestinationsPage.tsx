@@ -14,6 +14,12 @@ type DestinationUpsertRequest = {
   videoUrls?: string[]
 }
 
+function toTime(value?: string) {
+  if (!value) return 0
+  const t = new Date(value).getTime()
+  return Number.isFinite(t) ? t : 0
+}
+
 export default function AdminDestinationsPage() {
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,7 +43,7 @@ export default function AdminDestinationsPage() {
   const [createError, setCreateError] = useState<string | null>(null)
 
   const sorted = useMemo(() => {
-    return [...destinations].sort((a, b) => b.id - a.id)
+    return [...destinations].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt) || b.id - a.id)
   }, [destinations])
 
   async function load(opts?: { silent?: boolean }) {

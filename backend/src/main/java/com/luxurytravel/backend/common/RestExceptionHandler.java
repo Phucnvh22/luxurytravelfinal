@@ -3,6 +3,7 @@ package com.luxurytravel.backend.common;
 import com.luxurytravel.backend.destination.DestinationNotFoundException;
 import com.luxurytravel.backend.experience.ExperienceNotFoundException;
 import com.luxurytravel.backend.experience.ExperienceRequestNotFoundException;
+import com.luxurytravel.backend.service.ServiceRequestNotFoundException;
 import com.luxurytravel.backend.service.TravelServiceNotFoundException;
 import com.luxurytravel.backend.user.UserNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -40,6 +41,12 @@ public class RestExceptionHandler {
 
     @ExceptionHandler(ExperienceRequestNotFoundException.class)
     public ResponseEntity<ApiError> handleExperienceRequestNotFound(ExperienceRequestNotFoundException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(ServiceRequestNotFoundException.class)
+    public ResponseEntity<ApiError> handleServiceRequestNotFound(ServiceRequestNotFoundException ex) {
         ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }

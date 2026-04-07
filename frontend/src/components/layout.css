@@ -119,11 +119,28 @@
   cursor: pointer;
   padding: 8px;
   color: var(--text);
+  position: relative;
 }
 
 .hamburger-btn svg {
   width: 24px;
   height: 24px;
+}
+
+.notif-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  font-weight: 800;
+  padding: 0 5px;
 }
 
 .menu {
@@ -192,6 +209,20 @@
 .menu-item.active {
   background: rgba(52, 211, 153, 0.16);
   color: var(--primary-dark);
+}
+
+.menu-item-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  font-weight: 800;
+  padding: 0 5px;
 }
 
 .menu-sep {

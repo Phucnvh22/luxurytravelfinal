@@ -15,6 +15,12 @@ function formatMoney(val: number | undefined) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val)
 }
 
+function toTime(value?: string) {
+  if (!value) return 0
+  const t = new Date(value).getTime()
+  return Number.isFinite(t) ? t : 0
+}
+
 export default function AdminServiceRequestsPage() {
   const [requests, setRequests] = useState<ServiceRequestResponse[]>([])
   const [sellerNameById, setSellerNameById] = useState<Record<number, string>>({})
@@ -45,7 +51,7 @@ export default function AdminServiceRequestsPage() {
         apiFetch<ServiceRequestResponse[]>('/api/service-requests'),
         apiFetch<User[]>('/api/admin/users/sellers').catch(() => null),
       ])
-      setRequests(requestsData)
+      setRequests([...requestsData].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt) || b.id - a.id))
       setError(null)
 
       if (sellersData) {
@@ -218,4 +224,3 @@ export default function AdminServiceRequestsPage() {
     </section>
   )
 }
-

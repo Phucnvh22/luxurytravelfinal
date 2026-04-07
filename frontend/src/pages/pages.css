@@ -485,6 +485,38 @@
   resize: vertical;
 }
 
+.guest-input-field {
+  width: 180px;
+}
+
+.guest-input-wrap {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  gap: 8px;
+  align-items: center;
+}
+
+.guest-step-btn {
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  border-radius: 10px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.guest-step-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.guest-count-input {
+  text-align: center;
+  font-weight: 700;
+}
+
 .input:focus,
 .textarea:focus,
 .select:focus {

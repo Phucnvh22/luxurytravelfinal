@@ -1,8 +1,10 @@
 package com.luxurytravel.backend.service;
 
 import com.luxurytravel.backend.booking.BookingStatus;
+import com.luxurytravel.backend.common.AuthenticationException;
 import com.luxurytravel.backend.user.Role;
 import com.luxurytravel.backend.user.User;
+import com.luxurytravel.backend.user.UserNotFoundException;
 import com.luxurytravel.backend.user.UserRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -28,18 +30,18 @@ public class ServiceRequestService {
     public List<ServiceRequestResponse> list() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
-            throw new RuntimeException("Unauthorized");
+            throw new AuthenticationException("Unauthorized");
         }
 
         String username = auth.getName();
-        User user = userRepository.findByUsername(username).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByUsername(username).orElseThrow(() -> new UserNotFoundException(username));
 
         if (user.getRole() == Role.ADMIN) {
-            return serviceRequestRepository.findAll().stream().map(ServiceRequestResponse::from).collect(Collectors.toList());
+            return serviceRequestRepository.findAllByOrderByCreatedAtDescIdDesc().stream().map(ServiceRequestResponse::from).collect(Collectors.toList());
         } else if (user.getRole() == Role.SELLER) {
-            return serviceRequestRepository.findBySellerId(user.getId()).stream().map(ServiceRequestResponse::from).collect(Collectors.toList());
+            return serviceRequestRepository.findBySellerIdOrderByCreatedAtDescIdDesc(user.getId()).stream().map(ServiceRequestResponse::from).collect(Collectors.toList());
         } else {
-            return serviceRequestRepository.findByUserId(user.getId()).stream().map(ServiceRequestResponse::from).collect(Collectors.toList());
+            return serviceRequestRepository.findByUserIdOrderByCreatedAtDescIdDesc(user.getId()).stream().map(ServiceRequestResponse::from).collect(Collectors.toList());
         }
     }
 
@@ -84,7 +86,7 @@ public class ServiceRequestService {
 
     @Transactional
     public ServiceRequestResponse approve(Long requestId) {
-        ServiceRequest r = serviceRequestRepository.findById(requestId).orElseThrow(() -> new RuntimeException("Service request not found"));
+        ServiceRequest r = serviceRequestRepository.findById(requestId).orElseThrow(() -> new ServiceRequestNotFoundException(requestId));
 
         if (r.getStatus() == BookingStatus.CANCELLED) {
             throw new RuntimeException("Service request is cancelled");

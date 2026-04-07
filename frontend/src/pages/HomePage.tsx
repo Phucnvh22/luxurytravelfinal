@@ -23,6 +23,12 @@ function getYouTubeThumbUrl(videoUrl: string) {
   return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
 }
 
+function toTime(value?: string) {
+  if (!value) return 0
+  const t = new Date(value).getTime()
+  return Number.isFinite(t) ? t : 0
+}
+
 export default function HomePage() {
   const { t } = useI18n()
   const [destinations, setDestinations] = useState<Destination[]>([])
@@ -36,7 +42,7 @@ export default function HomePage() {
       .then((data) => {
         if (cancelled) return
         setError(null)
-        setDestinations(data)
+        setDestinations([...data].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt) || b.id - a.id))
       })
       .catch((e: unknown) => {
         if (cancelled) return
