@@ -1,16 +1,22 @@
 package com.luxurytravel.backend.destination;
 
+import com.luxurytravel.backend.booking.BookingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import static org.springframework.http.HttpStatus.CONFLICT;
 
 import java.util.List;
 
 @Service
 public class DestinationService {
     private final DestinationRepository destinationRepository;
+    private final BookingRepository bookingRepository;
 
-    public DestinationService(DestinationRepository destinationRepository) {
+    public DestinationService(DestinationRepository destinationRepository, BookingRepository bookingRepository) {
         this.destinationRepository = destinationRepository;
+        this.bookingRepository = bookingRepository;
     }
 
     public List<Destination> list() {
@@ -40,6 +46,9 @@ public class DestinationService {
     public void delete(Long id) {
         if (!destinationRepository.existsById(id)) {
             throw new DestinationNotFoundException(id);
+        }
+        if (bookingRepository.existsByDestination_Id(id)) {
+            throw new ResponseStatusException(CONFLICT, "Cannot delete destination because it has related bookings");
         }
         destinationRepository.deleteById(id);
     }
