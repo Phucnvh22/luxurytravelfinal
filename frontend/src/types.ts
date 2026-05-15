@@ -47,6 +47,7 @@ export type Destination = {
   name: string
   location: string
   description: string
+  type: string
   priceFrom: number
   durationDays: number
   imageUrl: string
@@ -58,6 +59,7 @@ export type DestinationUpsertRequest = {
   name: string
   location: string
   description: string
+  type: string
   priceFrom: number
   durationDays: number
   imageUrl: string
@@ -68,6 +70,7 @@ export type TravelService = {
   id: number
   name: string
   description: string
+  type: string
   priceFrom: number
   imageUrl: string
   createdAt: string
@@ -77,6 +80,7 @@ export type TravelService = {
 export type TravelServiceUpsertRequest = {
   name: string
   description: string
+  type: string
   priceFrom: number
   imageUrl: string
   videoUrls?: string[]
@@ -86,6 +90,7 @@ export type Experience = {
   id: number
   name: string
   description: string
+  type: string
   priceFrom: number
   imageUrl: string
   createdAt: string
@@ -95,6 +100,7 @@ export type Experience = {
 export type ExperienceUpsertRequest = {
   name: string
   description: string
+  type: string
   priceFrom: number
   imageUrl: string
   videoUrls?: string[]

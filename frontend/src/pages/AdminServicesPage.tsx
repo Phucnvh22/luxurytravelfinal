@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
+import { NAV_ITEMS } from '../constants/navigation'
 import type { TravelService, TravelServiceUpsertRequest } from '../types'
 import './pages.css'
 
 export default function AdminServicesPage() {
+  const serviceTypes = NAV_ITEMS.find((item) => item.key === 'service')?.types ?? []
   const [services, setServices] = useState<TravelService[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -15,6 +17,7 @@ export default function AdminServicesPage() {
   const [form, setForm] = useState<TravelServiceUpsertRequest>({
     name: '',
     description: '',
+    type: serviceTypes[0] ?? '',
     priceFrom: 49,
     imageUrl: 'https://images.unsplash.com/photo-1550353127-b0da3aeaa0ca?auto=format&fit=crop&w=1400&q=80',
     videoUrls: [],
@@ -74,6 +77,7 @@ export default function AdminServicesPage() {
         ...form,
         name: form.name.trim(),
         description: form.description.trim(),
+        type: form.type.trim(),
         imageUrl: form.imageUrl.trim(),
         videoUrls: videoUrlsInput.split('\n').map((s) => s.trim()).filter(Boolean),
         priceFrom: String(form.priceFrom),
@@ -112,6 +116,7 @@ export default function AdminServicesPage() {
     setForm({
       name: s.name,
       description: s.description,
+      type: s.type ?? (serviceTypes[0] ?? ''),
       priceFrom: Number(s.priceFrom),
       imageUrl: s.imageUrl,
       videoUrls: s.videoUrls || [],
@@ -182,6 +187,20 @@ export default function AdminServicesPage() {
                 onChange={(e) => setForm((p) => ({ ...p, priceFrom: Number(e.target.value) }))}
               />
             </label>
+            <label className="field" style={{ width: 220 }}>
+              <div className="field-label">Type</div>
+              <select
+                className="select"
+                value={form.type}
+                onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+              >
+                {serviceTypes.map((typeName) => (
+                  <option key={typeName} value={typeName}>
+                    {typeName}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <label className="field">
@@ -235,6 +254,7 @@ export default function AdminServicesPage() {
                   setForm({
                     name: '',
                     description: '',
+                    type: serviceTypes[0] ?? '',
                     priceFrom: 49,
                     imageUrl:
                       'https://images.unsplash.com/photo-1550353127-b0da3aeaa0ca?auto=format&fit=crop&w=1400&q=80',
@@ -266,6 +286,7 @@ export default function AdminServicesPage() {
                     <th style={{ width: 70 }}>ID</th>
                     <th>Name</th>
                     <th style={{ width: 140 }}>Price from</th>
+                    <th style={{ width: 180 }}>Type</th>
                     <th>Videos</th>
                     <th style={{ width: 160 }}>Actions</th>
                   </tr>
@@ -284,6 +305,7 @@ export default function AdminServicesPage() {
                         </div>
                       </td>
                       <td>{Number(s.priceFrom)}+</td>
+                      <td>{s.type || '-'}</td>
                       <td>
                         <div style={{ fontSize: 12, wordBreak: 'break-all', maxWidth: 200 }}>
                           {s.videoUrls?.map((url, i) => (

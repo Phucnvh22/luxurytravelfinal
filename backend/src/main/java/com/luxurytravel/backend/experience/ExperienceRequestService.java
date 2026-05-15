@@ -51,6 +51,7 @@ public class ExperienceRequestService {
 
     @Transactional
     public ExperienceRequestResponse create(ExperienceRequestCreateRequest request) {
+        User currentUser = requireAuthenticatedUser();
         Experience experience = experienceRepository.findById(request.getExperienceId())
                 .orElseThrow(() -> new ExperienceNotFoundException(request.getExperienceId()));
 
@@ -79,11 +80,7 @@ public class ExperienceRequestService {
         r.setCommissionAmount(commissionAmount);
         r.setCommissionCredited(false);
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
-            String username = auth.getName();
-            userRepository.findByUsername(username).ifPresent(u -> r.setUserId(u.getId()));
-        }
+        r.setUserId(currentUser.getId());
 
         return ExperienceRequestResponse.from(experienceRequestRepository.save(r));
     }
@@ -115,5 +112,14 @@ public class ExperienceRequestService {
         }
 
         return ExperienceRequestResponse.from(experienceRequestRepository.save(r));
+    }
+
+    private User requireAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+            throw new AuthenticationException("Unauthorized");
+        }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new AuthenticationException("Unauthorized"));
     }
 }

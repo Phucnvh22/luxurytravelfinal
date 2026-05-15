@@ -4,10 +4,10 @@ server:
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://danangluxurytravel.com:3306/travel-luxury?createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/travel_luxury?createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${SPRING_DATASOURCE_USERNAME:app}
-    password: ${SPRING_DATASOURCE_PASSWORD:Abc@123456789}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
@@ -16,6 +16,17 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
     open-in-view: false
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID:}
+            client-secret: ${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET:}
+            scope:
+              - openid
+              - profile
+              - email
 
 springdoc:
   api-docs:
@@ -25,8 +36,16 @@ springdoc:
 
 application:
   cors:
-    allowed-origins: ${APPLICATION_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-origins: ${APPLICATION_CORS_ALLOWED_ORIGINS:http://localhost:5174}
   security:
     jwt:
-      secret-key: ${APPLICATION_SECURITY_JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      secret-key: ${APPLICATION_SECURITY_JWT_SECRET_KEY:}
       expiration: ${APPLICATION_SECURITY_JWT_EXPIRATION:86400000}
+    oauth2:
+      frontend-redirect-base-url: ${APPLICATION_SECURITY_OAUTH2_FRONTEND_REDIRECT_BASE_URL:http://localhost:5174}
+  whatsapp:
+    cloud-api:
+      token: ${WHATSAPP_CLOUD_API_TOKEN:}
+      phone-number-id: ${WHATSAPP_CLOUD_API_PHONE_NUMBER_ID:}
+      template-name: ${WHATSAPP_CLOUD_API_TEMPLATE_NAME:}
+      template-language: ${WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE:en_US}

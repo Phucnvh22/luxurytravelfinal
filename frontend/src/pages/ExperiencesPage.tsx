@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
+import { NAV_ITEMS } from '../constants/navigation'
 import type { Experience } from '../types'
 import './pages.css'
 
@@ -25,8 +26,10 @@ export default function ExperiencesPage() {
   const { t } = useI18n()
   const [experiences, setExperiences] = useState<Experience[]>([])
   const [query, setQuery] = useState('')
+  const [selectedType, setSelectedType] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const experienceTypes = NAV_ITEMS.find((item) => item.key === 'experience')?.types ?? []
 
   useEffect(() => {
     let cancelled = false
@@ -51,9 +54,14 @@ export default function ExperiencesPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return experiences
-    return experiences.filter((e) => `${e.name} ${e.description}`.toLowerCase().includes(q))
-  }, [experiences, query])
+    return experiences.filter((e) => {
+      const hay = `${e.name} ${e.description}`.toLowerCase()
+      if (q && !hay.includes(q)) return false
+      if (!selectedType) return true
+
+      return (e.type ?? '').toLowerCase() === selectedType.toLowerCase()
+    })
+  }, [experienceTypes, experiences, query, selectedType])
 
   const heroTheme = useMemo(
     () => ({
@@ -95,13 +103,27 @@ export default function ExperiencesPage() {
               <h2>{t('experiences_section_title', 'Experiences')}</h2>
               <div className="muted">{t('experiences_section_sub', 'Choose an experience to view details.')}</div>
             </div>
-            <div className="search-inline">
-              <input
-                className="input"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('experiences_section_title', 'Experiences')}
-              />
+            <div className="section-tools">
+              <div className="type-filters">
+                {experienceTypes.map((typeName) => (
+                  <button
+                    type="button"
+                    key={typeName}
+                    className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
+                    onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
+                  >
+                    {typeName}
+                  </button>
+                ))}
+              </div>
+              <div className="search-inline">
+                <input
+                  className="input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t('experiences_section_title', 'Experiences')}
+                />
+              </div>
             </div>
           </div>
 

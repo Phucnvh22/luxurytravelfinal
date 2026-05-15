@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
+import { NAV_ITEMS } from '../constants/navigation'
 import type { Destination } from '../types'
 import './pages.css'
 
@@ -33,8 +34,10 @@ export default function HomePage() {
   const { t } = useI18n()
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [query, setQuery] = useState('')
+  const [selectedType, setSelectedType] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const accommodationTypes = NAV_ITEMS.find((item) => item.key === 'accommodation')?.types ?? []
 
   useEffect(() => {
     let cancelled = false
@@ -60,15 +63,18 @@ export default function HomePage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return destinations
     return destinations.filter((d) => {
-      const match =
+      const matchesQuery =
+        !q ||
         d.name.toLowerCase().includes(q) ||
         d.location.toLowerCase().includes(q) ||
         d.description.toLowerCase().includes(q)
-      return match
+      if (!matchesQuery) return false
+
+      if (!selectedType) return true
+      return (d.type ?? '').toLowerCase() === selectedType.toLowerCase()
     })
-  }, [destinations, query])
+  }, [accommodationTypes, destinations, query, selectedType])
 
   const heroTheme = useMemo(
     () => ({
@@ -110,13 +116,27 @@ export default function HomePage() {
               <h2>{t('home_section_title', 'Accommodations')}</h2>
               <div className="muted">{t('home_section_sub', 'Explore stays and send a booking request instantly.')}</div>
             </div>
-            <div className="search-inline">
-              <input
-                className="input"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('home_search_placeholder', 'Search destinations...')}
-              />
+            <div className="section-tools">
+              <div className="type-filters">
+                {accommodationTypes.map((typeName) => (
+                  <button
+                    type="button"
+                    key={typeName}
+                    className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
+                    onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
+                  >
+                    {typeName}
+                  </button>
+                ))}
+              </div>
+              <div className="search-inline">
+                <input
+                  className="input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t('home_search_placeholder', 'Search destinations...')}
+                />
+              </div>
             </div>
           </div>
 

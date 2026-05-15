@@ -20,10 +20,12 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final AuthenticationProvider authenticationProvider;
+    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, AuthenticationProvider authenticationProvider) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, AuthenticationProvider authenticationProvider, OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.authenticationProvider = authenticationProvider;
+        this.oAuth2LoginSuccessHandler = oAuth2LoginSuccessHandler;
     }
 
     @Bean
@@ -53,7 +55,7 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error", "/error/**").permitAll()
@@ -64,15 +66,14 @@ public class SecurityConfig {
                                 "/api-docs/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
+                                "/oauth2/**",
+                                "/login/oauth2/**",
                                 "/api/destinations/**",
                                 "/api/experiences/**",
                                 "/api/services/**",
                                 "/api/categories/**",
                                 "/h2-console/**"
                         ).permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/bookings").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/service-requests").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/experience-requests").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/seller/**").hasAnyRole("ADMIN", "SELLER")
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings").authenticated()
@@ -95,6 +96,7 @@ public class SecurityConfig {
                         })
                 )
                 .authenticationProvider(authenticationProvider)
+                .oauth2Login(oauth2 -> oauth2.successHandler(oAuth2LoginSuccessHandler))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
 

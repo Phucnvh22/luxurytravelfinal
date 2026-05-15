@@ -1,0 +1,12 @@
+backend/target/
+backend/.classpath
+backend/.project
+backend/.settings/
+
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+.DS_Store
+.idea/
+.vscode/

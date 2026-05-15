@@ -60,6 +60,7 @@ public class DestinationService {
         destination.setPriceFrom(request.getPriceFrom());
         destination.setDurationDays(request.getDurationDays());
         destination.setImageUrl(request.getImageUrl());
+        destination.setType(request.getType().trim());
         destination.setVideoUrls(request.getVideoUrls());
     }
 }

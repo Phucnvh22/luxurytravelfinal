@@ -47,6 +47,7 @@ public class ServiceRequestService {
 
     @Transactional
     public ServiceRequestResponse create(ServiceRequestCreateRequest request) {
+        User currentUser = requireAuthenticatedUser();
         TravelService service = travelServiceRepository.findById(request.getServiceId())
                 .orElseThrow(() -> new TravelServiceNotFoundException(request.getServiceId()));
 
@@ -75,11 +76,7 @@ public class ServiceRequestService {
         r.setCommissionAmount(commissionAmount);
         r.setCommissionCredited(false);
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
-            String username = auth.getName();
-            userRepository.findByUsername(username).ifPresent(u -> r.setUserId(u.getId()));
-        }
+        r.setUserId(currentUser.getId());
 
         return ServiceRequestResponse.from(serviceRequestRepository.save(r));
     }
@@ -110,5 +107,14 @@ public class ServiceRequestService {
         }
 
         return ServiceRequestResponse.from(serviceRequestRepository.save(r));
+    }
+
+    private User requireAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+            throw new AuthenticationException("Unauthorized");
+        }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new AuthenticationException("Unauthorized"));
     }
 }

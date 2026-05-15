@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
+import { NAV_ITEMS } from '../constants/navigation'
 import type { Experience, ExperienceUpsertRequest } from '../types'
 import './pages.css'
 
 type Scope = 'admin' | 'seller'
 
 export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
+  const experienceTypes = NAV_ITEMS.find((item) => item.key === 'experience')?.types ?? []
   const [experiences, setExperiences] = useState<Experience[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -17,6 +19,7 @@ export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
   const [form, setForm] = useState<ExperienceUpsertRequest>({
     name: '',
     description: '',
+    type: experienceTypes[0] ?? '',
     priceFrom: 99,
     imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Da_Nang_Dragon_Bridge_(I).jpg?width=1600',
     videoUrls: [],
@@ -86,6 +89,7 @@ export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
         ...form,
         name: trimmedName,
         description: trimmedDescription,
+        type: form.type.trim(),
         imageUrl: trimmedImageUrl,
         videoUrls: videoUrlsInput.split('\n').map((s) => s.trim()).filter(Boolean),
         priceFrom: Number(form.priceFrom),
@@ -126,6 +130,7 @@ export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
     setForm({
       name: item.name,
       description: item.description,
+      type: item.type ?? (experienceTypes[0] ?? ''),
       priceFrom: Number(item.priceFrom),
       imageUrl: item.imageUrl,
       videoUrls: item.videoUrls || [],
@@ -215,6 +220,20 @@ export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
                 onChange={(e) => setForm((p) => ({ ...p, priceFrom: Number(e.target.value) }))}
               />
             </label>
+            <label className="field" style={{ width: 220 }}>
+              <div className="field-label">Type</div>
+              <select
+                className="select"
+                value={form.type}
+                onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+              >
+                {experienceTypes.map((typeName) => (
+                  <option key={typeName} value={typeName}>
+                    {typeName}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <label className="field">
@@ -268,6 +287,7 @@ export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
                   setForm({
                     name: '',
                     description: '',
+                    type: experienceTypes[0] ?? '',
                     priceFrom: 99,
                     imageUrl: 'https://commons.wikimedia.org/wiki/Special:FilePath/Da_Nang_Dragon_Bridge_(I).jpg?width=1600',
                     videoUrls: [],
@@ -298,6 +318,7 @@ export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
                     <th style={{ width: 70 }}>ID</th>
                     <th>Name</th>
                     <th style={{ width: 140 }}>Price from</th>
+                    <th style={{ width: 180 }}>Type</th>
                     <th>Videos</th>
                     <th style={{ width: 160 }}>Actions</th>
                   </tr>
@@ -316,6 +337,7 @@ export default function ExperienceCrudPage({ scope }: { scope: Scope }) {
                         </div>
                       </td>
                       <td>{Number(item.priceFrom)}+</td>
+                      <td>{item.type || '-'}</td>
                       <td>
                         <div style={{ fontSize: 12, wordBreak: 'break-all', maxWidth: 200 }}>
                           {item.videoUrls?.map((url, i) => (

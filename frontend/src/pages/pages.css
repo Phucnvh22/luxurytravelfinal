@@ -265,6 +265,36 @@
   box-shadow: none;
 }
 
+.section-tools {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.type-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.type-filter-btn {
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #065f46;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.type-filter-btn.active {
+  background: var(--primary-dark);
+  color: #fff;
+  border-color: transparent;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -641,5 +671,23 @@
 
   .hero-stats {
     grid-template-columns: 1fr;
+  }
+
+  .section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .section-tools {
+    justify-items: stretch;
+    width: 100%;
+  }
+
+  .type-filters {
+    justify-content: flex-start;
+  }
+
+  .search-inline {
+    width: 100%;
   }
 }

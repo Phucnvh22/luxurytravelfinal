@@ -26,4 +26,19 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@RequestBody @Valid LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
     }
+
+    @PostMapping("/social-login")
+    public ResponseEntity<AuthResponse> socialLogin(@RequestBody @Valid SocialLoginRequest request) {
+        return ResponseEntity.ok(authService.socialLogin(request));
+    }
+
+    @PostMapping("/whatsapp/request-otp")
+    public ResponseEntity<WhatsappOtpResponse> requestWhatsappOtp(@RequestBody @Valid WhatsappOtpRequest request) {
+        return ResponseEntity.ok(authService.requestWhatsappOtp(request));
+    }
+
+    @PostMapping("/whatsapp/verify-otp")
+    public ResponseEntity<AuthResponse> verifyWhatsappOtp(@RequestBody @Valid WhatsappOtpVerifyRequest request) {
+        return ResponseEntity.ok(authService.verifyWhatsappOtp(request));
+    }
 }

@@ -48,6 +48,7 @@ public class TravelServiceService {
         s.setDescription(request.getDescription());
         s.setPriceFrom(request.getPriceFrom());
         s.setImageUrl(request.getImageUrl());
+        s.setType(request.getType().trim());
         s.setVideoUrls(request.getVideoUrls());
     }
 }

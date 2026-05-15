@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
+import { useAuth } from '../contexts/AuthContext'
 import type { BookingCreateRequest, BookingResponse, Destination } from '../types'
 import './pages.css'
 
@@ -19,6 +20,7 @@ function todayIsoDate() {
 }
 
 export default function DestinationPage() {
+  const { isAuthenticated } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
 
@@ -71,6 +73,7 @@ export default function DestinationPage() {
     setSubmitError(null)
     setSuccess(null)
     try {
+      if (!isAuthenticated) throw new Error('Please log in to submit request')
       if (!form.customerName.trim()) throw new Error('Please enter your full name')
       if (!form.email.trim()) throw new Error('Please enter your email')
       if (!form.phone.trim()) throw new Error('Please enter your phone number')
@@ -199,95 +202,109 @@ export default function DestinationPage() {
 
             <div className="card detail-card">
               <div className="panel-title">Request a booking</div>
-              <div className="muted" style={{ fontSize: 13 }}>
-                Fill in your details to submit a booking request. Default status: PENDING.
-              </div>
-
-              <label className="field">
-                <div className="field-label">Full name</div>
-                <input
-                  className="input"
-                  value={form.customerName}
-                  onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))}
-                  placeholder="John Doe"
-                />
-              </label>
-
-              <label className="field">
-                <div className="field-label">Email</div>
-                <input
-                  className="input"
-                  value={form.email}
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="you@email.com"
-                />
-              </label>
-
-              <label className="field">
-                <div className="field-label">Phone</div>
-                <input
-                  className="input"
-                  value={form.phone}
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  placeholder="0901 234 567"
-                />
-              </label>
-
-              <div className="row">
-                <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                  <div className="field-label">Travel date</div>
-                  <input
-                    className="input"
-                    type="date"
-                    value={form.travelDate}
-                    onChange={(e) => setForm((p) => ({ ...p, travelDate: e.target.value }))}
-                  />
-                </label>
-                <label className="field" style={{ width: 140 }}>
-                  <div className="field-label">Guests</div>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={form.travelers}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, travelers: Number(e.target.value) }))
-                    }
-                  />
-                </label>
-              </div>
-
-              <label className="field">
-                <div className="field-label">Notes (optional)</div>
-                <textarea
-                  className="textarea"
-                  value={form.notes ?? ''}
-                  onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                  placeholder="Ocean view room, vegetarian meals..."
-                />
-              </label>
-
-              {submitError ? (
+              {!isAuthenticated ? (
                 <div className="card error" style={{ marginTop: 12 }}>
-                  <div className="error-title">Could not submit request</div>
-                  <div className="muted">{submitError}</div>
-                </div>
-              ) : null}
-
-              {success ? (
-                <div className="card" style={{ marginTop: 12, padding: 14 }}>
-                  <div style={{ fontWeight: 800 }}>Request submitted</div>
-                  <div className="muted" style={{ marginTop: 6 }}>
-                    Booking #{success.id} • {success.status}
+                  <div className="error-title">Login required</div>
+                  <div className="muted">Please log in before submitting a request.</div>
+                  <div className="row" style={{ marginTop: 10 }}>
+                    <Link className="btn primary" to={`/login?redirect=${encodeURIComponent(`/destinations/${destinationId}`)}`}>
+                      Log in now
+                    </Link>
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                <>
+                  <div className="muted" style={{ fontSize: 13 }}>
+                    Fill in your details to submit a booking request. Default status: PENDING.
+                  </div>
 
-              <div className="row" style={{ marginTop: 14 }}>
-                <button className="btn primary" type="button" onClick={submit} disabled={submitting}>
-                  {submitting ? 'Sending...' : 'Submit request'}
-                </button>
-              </div>
+                  <label className="field">
+                    <div className="field-label">Full name</div>
+                    <input
+                      className="input"
+                      value={form.customerName}
+                      onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))}
+                      placeholder="John Doe"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <div className="field-label">Email</div>
+                    <input
+                      className="input"
+                      value={form.email}
+                      onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                      placeholder="you@email.com"
+                    />
+                  </label>
+
+                  <label className="field">
+                    <div className="field-label">Phone</div>
+                    <input
+                      className="input"
+                      value={form.phone}
+                      onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                      placeholder="0901 234 567"
+                    />
+                  </label>
+
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                      <div className="field-label">Travel date</div>
+                      <input
+                        className="input"
+                        type="date"
+                        value={form.travelDate}
+                        onChange={(e) => setForm((p) => ({ ...p, travelDate: e.target.value }))}
+                      />
+                    </label>
+                    <label className="field" style={{ width: 140 }}>
+                      <div className="field-label">Guests</div>
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        value={form.travelers}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, travelers: Number(e.target.value) }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  <label className="field">
+                    <div className="field-label">Notes (optional)</div>
+                    <textarea
+                      className="textarea"
+                      value={form.notes ?? ''}
+                      onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                      placeholder="Ocean view room, vegetarian meals..."
+                    />
+                  </label>
+
+                  {submitError ? (
+                    <div className="card error" style={{ marginTop: 12 }}>
+                      <div className="error-title">Could not submit request</div>
+                      <div className="muted">{submitError}</div>
+                    </div>
+                  ) : null}
+
+                  {success ? (
+                    <div className="card" style={{ marginTop: 12, padding: 14 }}>
+                      <div style={{ fontWeight: 800 }}>Request submitted</div>
+                      <div className="muted" style={{ marginTop: 6 }}>
+                        Booking #{success.id} • {success.status}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="row" style={{ marginTop: 14 }}>
+                    <button className="btn primary" type="button" onClick={submit} disabled={submitting}>
+                      {submitting ? 'Sending...' : 'Submit request'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

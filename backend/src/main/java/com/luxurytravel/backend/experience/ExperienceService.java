@@ -49,6 +49,7 @@ public class ExperienceService {
         e.setDescription(request.getDescription().trim());
         e.setPriceFrom(request.getPriceFrom());
         e.setImageUrl(request.getImageUrl().trim());
+        e.setType(request.getType().trim());
         e.setVideoUrls(request.getVideoUrls() != null ? request.getVideoUrls() : new ArrayList<>());
     }
 }

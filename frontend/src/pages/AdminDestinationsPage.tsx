@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
+import { NAV_ITEMS } from '../constants/navigation'
 import type { Destination } from '../types'
 import './pages.css'
 
@@ -8,6 +9,7 @@ type DestinationUpsertRequest = {
   name: string
   location: string
   description: string
+  type: string
   priceFrom: number
   durationDays: number
   imageUrl: string
@@ -21,6 +23,7 @@ function toTime(value?: string) {
 }
 
 export default function AdminDestinationsPage() {
+  const accommodationTypes = NAV_ITEMS.find((item) => item.key === 'accommodation')?.types ?? []
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +35,7 @@ export default function AdminDestinationsPage() {
     name: '',
     location: '',
     description: '',
+    type: accommodationTypes[0] ?? '',
     priceFrom: 999,
     durationDays: 5,
     imageUrl:
@@ -94,6 +98,7 @@ export default function AdminDestinationsPage() {
         name: form.name.trim(),
         location: form.location.trim(),
         description: form.description.trim(),
+        type: form.type.trim(),
         imageUrl: form.imageUrl.trim(),
         videoUrls: videoUrlsInput.split('\n').map(s => s.trim()).filter(Boolean),
         priceFrom: String(form.priceFrom),
@@ -133,6 +138,7 @@ export default function AdminDestinationsPage() {
       name: d.name,
       location: d.location,
       description: d.description,
+      type: d.type ?? (accommodationTypes[0] ?? ''),
       priceFrom: d.priceFrom,
       durationDays: d.durationDays,
       imageUrl: d.imageUrl,
@@ -201,6 +207,20 @@ export default function AdminDestinationsPage() {
                 onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
                 placeholder="Santorini, Greece"
               />
+            </label>
+            <label className="field" style={{ width: 220 }}>
+              <div className="field-label">Type</div>
+              <select
+                className="select"
+                value={form.type}
+                onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+              >
+                {accommodationTypes.map((typeName) => (
+                  <option key={typeName} value={typeName}>
+                    {typeName}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
 
@@ -283,6 +303,7 @@ export default function AdminDestinationsPage() {
                     name: '',
                     location: '',
                     description: '',
+                    type: accommodationTypes[0] ?? '',
                     priceFrom: 999,
                     durationDays: 5,
                     imageUrl:
@@ -316,6 +337,7 @@ export default function AdminDestinationsPage() {
                     <th>Name</th>
                     <th style={{ width: 160 }}>Location</th>
                     <th style={{ width: 120 }}>Days</th>
+                    <th style={{ width: 180 }}>Type</th>
                     <th>Videos</th>
                     <th style={{ width: 160 }}>Actions</th>
                   </tr>
@@ -334,6 +356,7 @@ export default function AdminDestinationsPage() {
                       </td>
                       <td>{d.location}</td>
                       <td>{d.durationDays}</td>
+                      <td>{d.type || '-'}</td>
                       <td>
                         <div style={{ fontSize: 12, wordBreak: 'break-all', maxWidth: 200 }}>
                           {d.videoUrls?.map((url, i) => (

@@ -41,6 +41,9 @@ public class Destination {
     @Column(nullable = false)
     private String imageUrl;
 
+    @Column(length = 120)
+    private String type;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "destination_videos", joinColumns = @JoinColumn(name = "destination_id"))
     @Column(name = "video_url")
@@ -116,6 +119,14 @@ public class Destination {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     public Instant getCreatedAt() {

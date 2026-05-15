@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes, Navigate, useSearchParams } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, Navigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import Layout from './components/Layout'
 import AdminBookingsPage from './pages/AdminBookingsPage'
@@ -13,6 +13,7 @@ import ExperienceDetailPage from './pages/ExperienceDetailPage'
 import ExperiencesPage from './pages/ExperiencesPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import OAuth2SuccessPage from './pages/OAuth2SuccessPage'
 import RegisterPage from './pages/RegisterPage'
 import NotFoundPage from './pages/NotFoundPage'
 import SellerBookingsPage from './pages/SellerBookingsPage'
@@ -78,9 +79,11 @@ function ProtectedRoute({
   requiredRoles?: string[]
 }) {
   const { isAuthenticated, user } = useAuth()
+  const location = useLocation()
   
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    const redirect = `${location.pathname}${location.search}`
+    return <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />
   }
 
   const roles = requiredRoles ?? (requiredRole ? [requiredRole] : undefined)
@@ -104,6 +107,7 @@ export default function App() {
           <Route path="/services/:id" element={<ServiceDetailPage />} />
           <Route path="/destinations/:id" element={<DestinationPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/oauth2/success" element={<OAuth2SuccessPage />} />
           <Route path="/register" element={<RegisterPage />} />
           
           {/* Admin routes */}

@@ -35,6 +35,9 @@ public class TravelService {
     @Column(nullable = false)
     private String imageUrl;
 
+    @Column(length = 120)
+    private String type;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "service_videos", joinColumns = @JoinColumn(name = "service_id"))
     @Column(name = "video_url")
@@ -92,6 +95,14 @@ public class TravelService {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     public List<String> getVideoUrls() {

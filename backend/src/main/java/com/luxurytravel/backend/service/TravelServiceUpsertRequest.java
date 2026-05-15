@@ -19,6 +19,9 @@ public class TravelServiceUpsertRequest {
     @NotBlank
     private String imageUrl;
 
+    @NotBlank
+    private String type;
+
     private List<String> videoUrls;
 
     public String getName() {
@@ -59,5 +62,13 @@ public class TravelServiceUpsertRequest {
 
     public void setVideoUrls(List<String> videoUrls) {
         this.videoUrls = videoUrls;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 }

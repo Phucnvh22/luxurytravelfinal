@@ -42,50 +42,56 @@ public class DataSeeder {
             }
 
             if (travelServiceRepository.count() == 0) {
-                travelServiceRepository.save(new TravelService(
+                travelServiceRepository.save(buildService(
                         "Private Car",
                         "Door-to-door transfers with a professional driver. Flexible pick-up times and premium vehicles.",
                         new BigDecimal("79.00"),
                         "https://images.unsplash.com/photo-1550353127-b0da3aeaa0ca?auto=format&fit=crop&w=1400&q=80",
-                        java.util.List.of("https://www.youtube.com/watch?v=aqz-KE-bpKQ")
+                        java.util.List.of("https://www.youtube.com/watch?v=aqz-KE-bpKQ"),
+                        "Private car"
                 ));
-                travelServiceRepository.save(new TravelService(
+                travelServiceRepository.save(buildService(
                         "Breakfast",
                         "Daily breakfast add-on with dietary options. Great for early departures and relaxed mornings.",
                         new BigDecimal("15.00"),
                         "https://images.unsplash.com/photo-1495214783159-3503fd1b572d?auto=format&fit=crop&w=1400&q=80",
-                        java.util.List.of("https://www.youtube.com/watch?v=ysz5S6PUM-U")
+                        java.util.List.of("https://www.youtube.com/watch?v=ysz5S6PUM-U"),
+                        "Clean service"
                 ));
-                travelServiceRepository.save(new TravelService(
+                travelServiceRepository.save(buildService(
                         "Tour Guide",
                         "Local experts for private city tours, cultural experiences, and tailored itineraries.",
                         new BigDecimal("120.00"),
                         "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1400&q=80",
-                        java.util.List.of("https://www.youtube.com/watch?v=YE7VzlLtp-4")
+                        java.util.List.of("https://www.youtube.com/watch?v=YE7VzlLtp-4"),
+                        "Clean service"
                 ));
             }
 
             if (experienceRepository.count() == 0) {
-                experienceRepository.save(new Experience(
+                experienceRepository.save(buildExperience(
                         "Hot Air Balloon Ride",
                         "A scenic flight with a private pilot and pickup. Ideal for sunrise views and special occasions.",
                         new BigDecimal("299.00"),
                         "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1400&q=80",
-                        java.util.List.of("https://www.youtube.com/watch?v=aqz-KE-bpKQ")
+                        java.util.List.of("https://www.youtube.com/watch?v=aqz-KE-bpKQ"),
+                        "Private tour"
                 ));
-                experienceRepository.save(new Experience(
+                experienceRepository.save(buildExperience(
                         "Private Cooking Class",
                         "Hands-on local cuisine with a chef at your villa. Includes ingredients and tasting course.",
                         new BigDecimal("159.00"),
                         "https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?auto=format&fit=crop&w=1400&q=80",
-                        java.util.List.of("https://www.youtube.com/watch?v=ysz5S6PUM-U")
+                        java.util.List.of("https://www.youtube.com/watch?v=ysz5S6PUM-U"),
+                        "Dining experience"
                 ));
-                experienceRepository.save(new Experience(
+                experienceRepository.save(buildExperience(
                         "Sunset Yacht Cruise",
                         "A curated route with drinks and light bites included. Private crew and flexible timing.",
                         new BigDecimal("499.00"),
                         "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1400&q=80",
-                        java.util.List.of("https://www.youtube.com/watch?v=YE7VzlLtp-4")
+                        java.util.List.of("https://www.youtube.com/watch?v=YE7VzlLtp-4"),
+                        "Private tour"
                 ));
             }
 
@@ -97,7 +103,8 @@ public class DataSeeder {
                         new BigDecimal("799.00"),
                         4,
                         "https://commons.wikimedia.org/wiki/Special:FilePath/Da%20Nang%20Bay%201.jpg?width=1600",
-                        java.util.List.of()
+                        java.util.List.of(),
+                        "Dài hạng"
                 ));
             }
 
@@ -109,7 +116,8 @@ public class DataSeeder {
                         new BigDecimal("699.00"),
                         3,
                         "https://commons.wikimedia.org/wiki/Special:FilePath/Da_Nang_Dragon_Bridge_(I).jpg?width=1600",
-                        java.util.List.of()
+                        java.util.List.of(),
+                        "Ngắn hạng"
                 ));
             }
 
@@ -121,7 +129,8 @@ public class DataSeeder {
                         new BigDecimal("649.00"),
                         3,
                         "https://commons.wikimedia.org/wiki/Special:FilePath/Marble_Mountain_Gate,_Da_Nang.jpg?width=1600",
-                        java.util.List.of()
+                        java.util.List.of(),
+                        "Ngắn hạng"
                 ));
             }
 
@@ -136,7 +145,8 @@ public class DataSeeder {
                     new BigDecimal("1299.00"),
                     5,
                     "https://images.unsplash.com/photo-1504512485720-7d83a16ee930?auto=format&fit=crop&w=1400&q=80",
-                    java.util.List.of("https://www.youtube.com/watch?v=kYJ5B32-9sI", "https://www.youtube.com/watch?v=R2_Mn-qffMA")
+                    java.util.List.of("https://www.youtube.com/watch?v=kYJ5B32-9sI", "https://www.youtube.com/watch?v=R2_Mn-qffMA"),
+                    "Dài hạng"
             ));
             destinationRepository.save(build(
                     "Kyoto Heritage",
@@ -145,7 +155,8 @@ public class DataSeeder {
                     new BigDecimal("1499.00"),
                     6,
                     "https://images.unsplash.com/photo-1549692520-acc6669e2f0c?auto=format&fit=crop&w=1400&q=80",
-                    java.util.List.of("https://www.youtube.com/watch?v=FjU_x1106pg", "https://www.youtube.com/watch?v=bO9oOQzG748")
+                    java.util.List.of("https://www.youtube.com/watch?v=FjU_x1106pg", "https://www.youtube.com/watch?v=bO9oOQzG748"),
+                    "Dài hạng"
             ));
             destinationRepository.save(build(
                     "Swiss Alps Luxury",
@@ -154,7 +165,8 @@ public class DataSeeder {
                     new BigDecimal("2199.00"),
                     7,
                     "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1400&q=80",
-                    java.util.List.of("https://www.youtube.com/watch?v=zO1sK55Ww9I", "https://www.youtube.com/watch?v=o0hX3kHXYlY")
+                    java.util.List.of("https://www.youtube.com/watch?v=zO1sK55Ww9I", "https://www.youtube.com/watch?v=o0hX3kHXYlY"),
+                    "Dài hạng"
             ));
             destinationRepository.save(build(
                     "Bali Wellness Retreat",
@@ -163,12 +175,27 @@ public class DataSeeder {
                     new BigDecimal("999.00"),
                     4,
                     "https://images.unsplash.com/photo-1500375592092-40eb2168fd21?auto=format&fit=crop&w=1400&q=80",
-                    java.util.List.of("https://www.youtube.com/watch?v=mY8Qe4zQZkI", "https://www.youtube.com/watch?v=vV_X1106pg")
+                    java.util.List.of("https://www.youtube.com/watch?v=mY8Qe4zQZkI", "https://www.youtube.com/watch?v=vV_X1106pg"),
+                    "Dài hạng"
             ));
         };
     }
 
-    private Destination build(String name, String location, String desc, BigDecimal price, int days, String img, java.util.List<String> videoUrls) {
-        return new Destination(name, location, desc, price, days, img, videoUrls);
+    private Destination build(String name, String location, String desc, BigDecimal price, int days, String img, java.util.List<String> videoUrls, String type) {
+        Destination destination = new Destination(name, location, desc, price, days, img, videoUrls);
+        destination.setType(type);
+        return destination;
+    }
+
+    private TravelService buildService(String name, String description, BigDecimal priceFrom, String imageUrl, java.util.List<String> videoUrls, String type) {
+        TravelService service = new TravelService(name, description, priceFrom, imageUrl, videoUrls);
+        service.setType(type);
+        return service;
+    }
+
+    private Experience buildExperience(String name, String description, BigDecimal priceFrom, String imageUrl, java.util.List<String> videoUrls, String type) {
+        Experience experience = new Experience(name, description, priceFrom, imageUrl, videoUrls);
+        experience.setType(type);
+        return experience;
     }
 }

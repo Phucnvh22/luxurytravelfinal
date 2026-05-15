@@ -38,6 +38,12 @@ public class User implements UserDetails {
     @Column(name = "commission_balance")
     private Double commissionBalance = 0.0;
 
+    @Column(length = 30)
+    private String authProvider;
+
+    @Column(length = 191)
+    private String providerUserId;
+
     public User() {
     }
 
@@ -145,5 +151,21 @@ public class User implements UserDetails {
 
     public void setCommissionBalance(Double commissionBalance) {
         this.commissionBalance = commissionBalance;
+    }
+
+    public String getAuthProvider() {
+        return authProvider;
+    }
+
+    public void setAuthProvider(String authProvider) {
+        this.authProvider = authProvider;
+    }
+
+    public String getProviderUserId() {
+        return providerUserId;
+    }
+
+    public void setProviderUserId(String providerUserId) {
+        this.providerUserId = providerUserId;
     }
 }

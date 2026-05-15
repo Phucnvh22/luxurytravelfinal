@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
+import { useAuth } from '../contexts/AuthContext'
 import GuestQuantityInput from '../components/GuestQuantityInput'
 import type { ServiceRequestCreateRequest, ServiceRequestResponse, TravelService } from '../types'
 import './pages.css'
@@ -28,6 +29,7 @@ function getYouTubeId(u: string) {
 
 export default function ServiceDetailPage() {
   const { t } = useI18n()
+  const { isAuthenticated } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
 
@@ -81,6 +83,7 @@ export default function ServiceDetailPage() {
     setSubmitError(null)
     setSuccess(null)
     try {
+      if (!isAuthenticated) throw new Error('Please log in to submit request')
       if (!form.customerName.trim()) throw new Error(t('form_full_name', 'Full name'))
       if (!form.email.trim()) throw new Error(t('form_email', 'Email'))
       if (!form.phone.trim()) throw new Error(t('form_phone', 'Phone'))
@@ -202,6 +205,17 @@ export default function ServiceDetailPage() {
               <div className="muted" style={{ fontSize: 13 }}>
                 {t('form_request_hint', 'Fill in your details to submit a request. Default status: PENDING.')}
               </div>
+              {!isAuthenticated ? (
+                <div className="card error" style={{ marginTop: 12 }}>
+                  <div className="error-title">Login required</div>
+                  <div className="muted">Please log in before submitting a request.</div>
+                  <div className="row" style={{ marginTop: 10 }}>
+                    <Link className="btn primary" to={`/login?redirect=${encodeURIComponent(`/services/${serviceId}`)}`}>
+                      Log in now
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
 
               <label className="field">
                 <div className="field-label">{t('form_full_name', 'Full name')}</div>
@@ -278,7 +292,7 @@ export default function ServiceDetailPage() {
               ) : null}
 
               <div className="row" style={{ marginTop: 14 }}>
-                <button className="btn primary" type="button" onClick={submit} disabled={submitting}>
+                <button className="btn primary" type="button" onClick={submit} disabled={submitting || !isAuthenticated}>
                   {submitting ? t('form_sending', 'Sending...') : t('form_submit', 'Submit request')}
                 </button>
               </div>

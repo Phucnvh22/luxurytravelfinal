@@ -3,6 +3,7 @@ package com.luxurytravel.backend.booking;
 import com.luxurytravel.backend.destination.Destination;
 import com.luxurytravel.backend.destination.DestinationNotFoundException;
 import com.luxurytravel.backend.destination.DestinationRepository;
+import com.luxurytravel.backend.common.AuthenticationException;
 import com.luxurytravel.backend.user.User;
 import com.luxurytravel.backend.user.UserRepository;
 import org.springframework.security.core.Authentication;
@@ -52,6 +53,7 @@ public class BookingService {
 
     @Transactional
     public BookingResponse create(BookingCreateRequest request) {
+        User currentUser = requireAuthenticatedUser();
         Destination destination = destinationRepository.findById(request.getDestinationId())
                 .orElseThrow(() -> new DestinationNotFoundException(request.getDestinationId()));
 
@@ -81,13 +83,18 @@ public class BookingService {
         booking.setCommissionAmount(commissionAmount);
         booking.setCommissionCredited(false);
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !auth.getPrincipal().equals("anonymousUser")) {
-            String username = auth.getName();
-            userRepository.findByUsername(username).ifPresent(user -> booking.setUserId(user.getId()));
-        }
+        booking.setUserId(currentUser.getId());
 
         return BookingResponse.from(bookingRepository.save(booking));
+    }
+
+    private User requireAuthenticatedUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+            throw new AuthenticationException("Unauthorized");
+        }
+        return userRepository.findByUsername(auth.getName())
+                .orElseThrow(() -> new AuthenticationException("Unauthorized"));
     }
 
     @Transactional

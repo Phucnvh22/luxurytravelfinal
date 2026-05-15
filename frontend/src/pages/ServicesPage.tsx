@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
+import { NAV_ITEMS } from '../constants/navigation'
 import type { TravelService } from '../types'
 import './pages.css'
 
@@ -25,8 +26,10 @@ export default function ServicesPage() {
   const { t } = useI18n()
   const [services, setServices] = useState<TravelService[]>([])
   const [query, setQuery] = useState('')
+  const [selectedType, setSelectedType] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const serviceTypes = NAV_ITEMS.find((item) => item.key === 'service')?.types ?? []
 
   useEffect(() => {
     let cancelled = false
@@ -51,12 +54,14 @@ export default function ServicesPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return services
     return services.filter((s) => {
       const hay = `${s.name} ${s.description}`.toLowerCase()
-      return hay.includes(q)
+      if (q && !hay.includes(q)) return false
+      if (!selectedType) return true
+
+      return (s.type ?? '').toLowerCase() === selectedType.toLowerCase()
     })
-  }, [query, services])
+  }, [query, selectedType, serviceTypes, services])
 
   const heroTheme = useMemo(
     () => ({
@@ -98,13 +103,27 @@ export default function ServicesPage() {
               <h2>{t('services_section_title', 'Services')}</h2>
               <div className="muted">{t('services_section_sub', 'Choose an add-on service and send a request instantly.')}</div>
             </div>
-            <div className="search-inline">
-              <input
-                className="input"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('services_section_title', 'Services')}
-              />
+            <div className="section-tools">
+              <div className="type-filters">
+                {serviceTypes.map((typeName) => (
+                  <button
+                    type="button"
+                    key={typeName}
+                    className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
+                    onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
+                  >
+                    {typeName}
+                  </button>
+                ))}
+              </div>
+              <div className="search-inline">
+                <input
+                  className="input"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t('services_section_title', 'Services')}
+                />
+              </div>
             </div>
           </div>
 
