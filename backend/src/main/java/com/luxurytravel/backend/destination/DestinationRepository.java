@@ -6,6 +6,7 @@ import java.util.List;
 
 public interface DestinationRepository extends JpaRepository<Destination, Long> {
     boolean existsByNameIgnoreCase(String name);
+    //a
 
     List<Destination> findAllByOrderByCreatedAtDescIdDesc();
 }
