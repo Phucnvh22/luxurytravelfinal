@@ -4,6 +4,7 @@ import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
 import { useAuth } from '../contexts/AuthContext'
 import GuestQuantityInput from '../components/GuestQuantityInput'
+import { addRecentlyViewed } from '../lib/recentlyViewed'
 import type { Experience, ExperienceRequestCreateRequest, ExperienceRequestResponse } from '../types'
 import './pages.css'
 
@@ -75,6 +76,18 @@ export default function ExperienceDetailPage() {
       cancelled = true
     }
   }, [experienceId, navigate, t])
+
+  useEffect(() => {
+    if (!experience) return
+    addRecentlyViewed({
+      kind: 'experience',
+      id: experience.id,
+      name: experience.name,
+      imageUrl: experience.imageUrl,
+      itemType: experience.type,
+      path: `/experiences/${experience.id}`,
+    })
+  }, [experience])
 
   async function submit() {
     setSubmitting(true)

@@ -64,6 +64,29 @@ jobs:
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      - name: Validate runtime env
+        run: |
+          PORT="${{ secrets.VPS_SSH_PORT }}"
+          if [ -z "$PORT" ]; then PORT=22; fi
+
+          HAS_DB_SECRETS=1
+          if [ -z '${{ secrets.MYSQL_PASSWORD }}' ]; then HAS_DB_SECRETS=0; fi
+          if [ -z '${{ secrets.MYSQL_ROOT_PASSWORD }}' ]; then HAS_DB_SECRETS=0; fi
+
+          if [ "$HAS_DB_SECRETS" = "1" ]; then
+            exit 0
+          fi
+
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$PORT" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "\
+            set -e; \
+            cd '${{ secrets.VPS_APP_DIR }}'; \
+            if [ ! -f .env ]; then \
+              echo 'Missing MYSQL_PASSWORD / MYSQL_ROOT_PASSWORD secrets and no .env found on VPS.'; \
+              echo 'Fix: create VPS_APP_DIR/.env with MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD, or add GitHub Secrets MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD.'; \
+              exit 1; \
+            fi \
+          "
+
       - name: Upload docker-compose.yml
         run: |
           PORT="${{ secrets.VPS_SSH_PORT }}"
@@ -78,6 +101,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "$PORT" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "\
             set -e; \
             cd '${{ secrets.VPS_APP_DIR }}'; \
+            if [ -n '${{ secrets.MYSQL_PASSWORD }}' ]; then export MYSQL_PASSWORD='${{ secrets.MYSQL_PASSWORD }}'; fi; \
+            if [ -n '${{ secrets.MYSQL_ROOT_PASSWORD }}' ]; then export MYSQL_ROOT_PASSWORD='${{ secrets.MYSQL_ROOT_PASSWORD }}'; fi; \
+            if [ -n '${{ secrets.APPLICATION_SECURITY_JWT_SECRET_KEY }}' ]; then export APPLICATION_SECURITY_JWT_SECRET_KEY='${{ secrets.APPLICATION_SECURITY_JWT_SECRET_KEY }}'; fi; \
+            if [ -n '${{ secrets.APPLICATION_CORS_ALLOWED_ORIGINS }}' ]; then export APPLICATION_CORS_ALLOWED_ORIGINS='${{ secrets.APPLICATION_CORS_ALLOWED_ORIGINS }}'; fi; \
             export GHCR_OWNER='${{ secrets.GHCR_USERNAME }}'; \
             if [ -z \"\$GHCR_OWNER\" ]; then GHCR_OWNER='${{ github.repository_owner }}'; fi; \
             export GHCR_OWNER=\$(echo \"\$GHCR_OWNER\" | tr '[:upper:]' '[:lower:]'); \

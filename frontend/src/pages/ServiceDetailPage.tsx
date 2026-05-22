@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
 import { useAuth } from '../contexts/AuthContext'
+import { addRecentlyViewed } from '../lib/recentlyViewed'
 import GuestQuantityInput from '../components/GuestQuantityInput'
 import type { ServiceRequestCreateRequest, ServiceRequestResponse, TravelService } from '../types'
 import './pages.css'
@@ -77,6 +78,18 @@ export default function ServiceDetailPage() {
       cancelled = true
     }
   }, [serviceId, navigate, t])
+
+  useEffect(() => {
+    if (!service) return
+    addRecentlyViewed({
+      kind: 'service',
+      id: service.id,
+      name: service.name,
+      imageUrl: service.imageUrl,
+      itemType: service.type,
+      path: `/services/${service.id}`,
+    })
+  }, [service])
 
   async function submit() {
     setSubmitting(true)

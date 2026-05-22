@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
+import { addRecentlyViewed } from '../lib/recentlyViewed'
 import type { BookingCreateRequest, BookingResponse, Destination } from '../types'
 import './pages.css'
 
@@ -67,6 +68,18 @@ export default function DestinationPage() {
       cancelled = true
     }
   }, [destinationId, navigate])
+
+  useEffect(() => {
+    if (!destination) return
+    addRecentlyViewed({
+      kind: 'destination',
+      id: destination.id,
+      name: destination.name,
+      imageUrl: destination.imageUrl,
+      itemType: destination.type,
+      path: `/destinations/${destination.id}`,
+    })
+  }, [destination])
 
   async function submit() {
     setSubmitting(true)

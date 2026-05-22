@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
 import { NAV_ITEMS } from '../constants/navigation'
+import RecentlyViewedSection from '../components/RecentlyViewedSection'
 import type { TravelService } from '../types'
 import './pages.css'
 
@@ -126,6 +127,8 @@ export default function ServicesPage() {
               </div>
             </div>
           </div>
+
+          <RecentlyViewedSection />
 
           {loading ? (
             <div className="card muted">{t('loading', 'Loading...')}</div>
