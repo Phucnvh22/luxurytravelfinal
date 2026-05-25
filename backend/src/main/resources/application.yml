@@ -16,17 +16,6 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
     open-in-view: false
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID:}
-            client-secret: ${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET:}
-            scope:
-              - openid
-              - profile
-              - email
 
 springdoc:
   api-docs:
