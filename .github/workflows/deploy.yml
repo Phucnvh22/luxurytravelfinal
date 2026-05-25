@@ -105,6 +105,9 @@ jobs:
             if [ -n '${{ secrets.MYSQL_ROOT_PASSWORD }}' ]; then export MYSQL_ROOT_PASSWORD='${{ secrets.MYSQL_ROOT_PASSWORD }}'; fi; \
             if [ -n '${{ secrets.APPLICATION_SECURITY_JWT_SECRET_KEY }}' ]; then export APPLICATION_SECURITY_JWT_SECRET_KEY='${{ secrets.APPLICATION_SECURITY_JWT_SECRET_KEY }}'; fi; \
             if [ -n '${{ secrets.APPLICATION_CORS_ALLOWED_ORIGINS }}' ]; then export APPLICATION_CORS_ALLOWED_ORIGINS='${{ secrets.APPLICATION_CORS_ALLOWED_ORIGINS }}'; fi; \
+            if [ -n '${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID }}' ]; then export SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID='${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID }}'; fi; \
+            if [ -n '${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET }}' ]; then export SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET='${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET }}'; fi; \
+            if [ -n '${{ secrets.APPLICATION_SECURITY_OAUTH2_FRONTEND_REDIRECT_BASE_URL }}' ]; then export APPLICATION_SECURITY_OAUTH2_FRONTEND_REDIRECT_BASE_URL='${{ secrets.APPLICATION_SECURITY_OAUTH2_FRONTEND_REDIRECT_BASE_URL }}'; fi; \
             export GHCR_OWNER='${{ secrets.GHCR_USERNAME }}'; \
             if [ -z \"\$GHCR_OWNER\" ]; then GHCR_OWNER='${{ github.repository_owner }}'; fi; \
             export GHCR_OWNER=\$(echo \"\$GHCR_OWNER\" | tr '[:upper:]' '[:lower:]'); \
