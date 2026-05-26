@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
 import { NAV_ITEMS } from '../constants/navigation'
+import TypeGate from '../components/TypeGate'
+import { getTypeFallbackLabel, getTypeLabelKey, getTypeOptions } from '../constants/typeOptions'
 import RecentlyViewedSection from '../components/RecentlyViewedSection'
 import type { Experience } from '../types'
 import './pages.css'
@@ -54,12 +56,11 @@ export default function ExperiencesPage() {
   }, [t])
 
   const filtered = useMemo(() => {
+    if (!selectedType) return []
     const q = query.trim().toLowerCase()
     return experiences.filter((e) => {
       const hay = `${e.name} ${e.description}`.toLowerCase()
       if (q && !hay.includes(q)) return false
-      if (!selectedType) return true
-
       return (e.type ?? '').toLowerCase() === selectedType.toLowerCase()
     })
   }, [experienceTypes, experiences, query, selectedType])
@@ -104,33 +105,50 @@ export default function ExperiencesPage() {
               <h2>{t('experiences_section_title', 'Experiences')}</h2>
               <div className="muted">{t('experiences_section_sub', 'Choose an experience to view details.')}</div>
             </div>
-            <div className="section-tools">
-              <div className="type-filters">
-                {experienceTypes.map((typeName) => (
-                  <button
-                    type="button"
-                    key={typeName}
-                    className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
-                    onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
-                  >
-                    {typeName}
-                  </button>
-                ))}
+            {selectedType ? (
+              <div className="section-tools">
+                <div className="type-filters">
+                  {experienceTypes.map((typeName) => {
+                    const labelKey = getTypeLabelKey('experience', typeName)
+                    const fallbackLabel = getTypeFallbackLabel('experience', typeName)
+                    return (
+                      <button
+                        type="button"
+                        key={typeName}
+                        className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
+                        onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
+                      >
+                        {t(labelKey ?? '', fallbackLabel)}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="search-inline">
+                  <input
+                    className="input"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t('experiences_section_title', 'Experiences')}
+                  />
+                </div>
               </div>
-              <div className="search-inline">
-                <input
-                  className="input"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t('experiences_section_title', 'Experiences')}
-                />
-              </div>
-            </div>
+            ) : null}
           </div>
 
-          <RecentlyViewedSection />
+          {!selectedType ? (
+            <TypeGate
+              titleKey="type_pick_title"
+              titleFallback="Choose a type"
+              subtitleKey="type_pick_sub_experience"
+              subtitleFallback="Pick a type to view experiences."
+              options={getTypeOptions('experience')}
+              onSelect={(value) => setSelectedType(value)}
+            />
+          ) : (
+            <RecentlyViewedSection />
+          )}
 
-          {loading ? (
+          {!selectedType ? null : loading ? (
             <div className="card muted">{t('loading', 'Loading...')}</div>
           ) : error ? (
             <div className="card error">

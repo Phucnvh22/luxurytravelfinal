@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
 import { NAV_ITEMS } from '../constants/navigation'
+import TypeGate from '../components/TypeGate'
+import { getTypeFallbackLabel, getTypeLabelKey, getTypeOptions } from '../constants/typeOptions'
 import RecentlyViewedSection from '../components/RecentlyViewedSection'
 import type { TravelService } from '../types'
 import './pages.css'
@@ -54,12 +56,11 @@ export default function ServicesPage() {
   }, [t])
 
   const filtered = useMemo(() => {
+    if (!selectedType) return []
     const q = query.trim().toLowerCase()
     return services.filter((s) => {
       const hay = `${s.name} ${s.description}`.toLowerCase()
       if (q && !hay.includes(q)) return false
-      if (!selectedType) return true
-
       return (s.type ?? '').toLowerCase() === selectedType.toLowerCase()
     })
   }, [query, selectedType, serviceTypes, services])
@@ -104,33 +105,50 @@ export default function ServicesPage() {
               <h2>{t('services_section_title', 'Services')}</h2>
               <div className="muted">{t('services_section_sub', 'Choose an add-on service and send a request instantly.')}</div>
             </div>
-            <div className="section-tools">
-              <div className="type-filters">
-                {serviceTypes.map((typeName) => (
-                  <button
-                    type="button"
-                    key={typeName}
-                    className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
-                    onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
-                  >
-                    {typeName}
-                  </button>
-                ))}
+            {selectedType ? (
+              <div className="section-tools">
+                <div className="type-filters">
+                  {serviceTypes.map((typeName) => {
+                    const labelKey = getTypeLabelKey('service', typeName)
+                    const fallbackLabel = getTypeFallbackLabel('service', typeName)
+                    return (
+                      <button
+                        type="button"
+                        key={typeName}
+                        className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
+                        onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
+                      >
+                        {t(labelKey ?? '', fallbackLabel)}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="search-inline">
+                  <input
+                    className="input"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t('services_section_title', 'Services')}
+                  />
+                </div>
               </div>
-              <div className="search-inline">
-                <input
-                  className="input"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t('services_section_title', 'Services')}
-                />
-              </div>
-            </div>
+            ) : null}
           </div>
 
-          <RecentlyViewedSection />
+          {!selectedType ? (
+            <TypeGate
+              titleKey="type_pick_title"
+              titleFallback="Choose a type"
+              subtitleKey="type_pick_sub_service"
+              subtitleFallback="Pick a type to view services."
+              options={getTypeOptions('service')}
+              onSelect={(value) => setSelectedType(value)}
+            />
+          ) : (
+            <RecentlyViewedSection />
+          )}
 
-          {loading ? (
+          {!selectedType ? null : loading ? (
             <div className="card muted">{t('loading', 'Loading...')}</div>
           ) : error ? (
             <div className="card error">
