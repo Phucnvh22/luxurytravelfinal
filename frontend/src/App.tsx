@@ -22,6 +22,7 @@ import SellerExperienceRequestsPage from './pages/SellerExperienceRequestsPage'
 import SellerServiceRequestsPage from './pages/SellerServiceRequestsPage'
 import ServiceDetailPage from './pages/ServiceDetailPage'
 import ServicesPage from './pages/ServicesPage'
+import MyRequestsPage from './pages/MyRequestsPage'
 import { useAuth } from './contexts/AuthContext'
 
 function RefHandler() {
@@ -110,6 +111,11 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/oauth2/success" element={<OAuth2SuccessPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/me/requests" element={
+            <ProtectedRoute>
+              <MyRequestsPage />
+            </ProtectedRoute>
+          } />
           
           {/* Admin routes */}
           <Route path="/admin/destinations" element={

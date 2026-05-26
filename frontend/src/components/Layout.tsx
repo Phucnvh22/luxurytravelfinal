@@ -14,6 +14,7 @@ export default function Layout() {
   const { t, language, setLanguage } = useI18n()
   const location = useLocation()
   const isSeller = user?.role === 'SELLER'
+  const isUser = user?.role === 'USER'
   const isAdminRoute = location.pathname.startsWith('/admin')
   const accommodationIconUrl = encodeURI('/—Pngtree—warm family cartoon house_6261753.png')
   const experienceIconUrl = encodeURI('/—Pngtree—a colorful hot air balloon_16332123.png')
@@ -306,6 +307,15 @@ export default function Layout() {
               {isAuthenticated ? (
                 <>
                   <div className="menu-meta">Hi, {user?.fullName}</div>
+                  {isUser ? (
+                    <NavLink
+                      to="/me/requests"
+                      className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                      onClick={closeMenu}
+                    >
+                      {t('menu_my_requests', 'My requests')}
+                    </NavLink>
+                  ) : null}
                   <button
                     className="menu-item"
                     type="button"

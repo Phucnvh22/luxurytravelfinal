@@ -9,6 +9,7 @@ export default function BottomNav() {
   const { isAuthenticated, logout, user, isAdmin } = useAuth()
   const { t } = useI18n()
   const isSeller = user?.role === 'SELLER'
+  const isUser = user?.role === 'USER'
   const [messageOpen, setMessageOpen] = useState(false)
   const messageRef = useRef<HTMLDivElement | null>(null)
 
@@ -75,6 +76,16 @@ export default function BottomNav() {
             <path d="M10 15h12M10 20h10" fill="none" stroke="currentcolor" strokeWidth="2" strokeLinecap="round"></path>
           </svg>
           <span>{isAdmin ? t('mobile_admin', 'Admin') : t('mobile_requests', 'Requests')}</span>
+        </NavLink>
+      )}
+
+      {isUser && (
+        <NavLink to="/me/requests" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+          <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" className="bottom-nav-icon">
+            <path d="M6 4h20a2 2 0 0 1 2 2v20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 6h16M10 2v4m12-4v4" fill="none" stroke="currentcolor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path>
+            <path d="M10 15h12M10 20h10" fill="none" stroke="currentcolor" strokeWidth="2" strokeLinecap="round"></path>
+          </svg>
+          <span>{t('mobile_requests', 'Requests')}</span>
         </NavLink>
       )}
 
