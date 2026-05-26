@@ -350,6 +350,60 @@ export default function Layout() {
             </div>
           </div>
         ) : null}
+        {!isAdminRoute ? (
+          <div className="container global-airport-banner-wrap">
+            <Link to="/services" className="global-airport-banner" aria-label={t('banner_airport_aria', 'Đặt dịch vụ đưa đón sân bay')}>
+              <div className="global-airport-banner__media" aria-hidden="true">
+                <svg viewBox="0 0 220 120" xmlns="http://www.w3.org/2000/svg" className="global-airport-banner__car">
+                  <defs>
+                    <linearGradient id="carBody" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor="#ffffff" />
+                      <stop offset="1" stopColor="#e8eef7" />
+                    </linearGradient>
+                    <linearGradient id="carGlass" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stopColor="#d9ecff" />
+                      <stop offset="1" stopColor="#a8c7e6" />
+                    </linearGradient>
+                    <filter id="carShadow" x="-40%" y="-40%" width="180%" height="180%">
+                      <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="rgba(0,0,0,0.2)" />
+                    </filter>
+                  </defs>
+                  <g filter="url(#carShadow)">
+                    <path
+                      d="M58 74c4-15 12-29 24-37 15-10 35-14 58-14h9c10 0 19 6 24 14l13 21c1 1 2 3 2 5v11c0 6-5 11-11 11H64c-9 0-15-9-13-17z"
+                      fill="url(#carBody)"
+                      stroke="rgba(15,23,42,0.18)"
+                      strokeWidth="3"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M98 30h45c7 0 14 4 18 10l9 15H95l3-25z"
+                      fill="url(#carGlass)"
+                      stroke="rgba(15,23,42,0.12)"
+                      strokeWidth="3"
+                      strokeLinejoin="round"
+                    />
+                    <rect x="74" y="57" width="116" height="10" rx="5" fill="rgba(15,23,42,0.12)" />
+                    <circle cx="92" cy="83" r="14" fill="#0f172a" opacity="0.92" />
+                    <circle cx="92" cy="83" r="7" fill="#e2e8f0" />
+                    <circle cx="166" cy="83" r="14" fill="#0f172a" opacity="0.92" />
+                    <circle cx="166" cy="83" r="7" fill="#e2e8f0" />
+                  </g>
+                </svg>
+              </div>
+              <div className="global-airport-banner__text">
+                <div>{t('banner_airport_line1', 'Đặt dịch vụ đưa đón sân bay.')}</div>
+                <div>{t('banner_airport_line2', 'Trên khắp Việt Nam.')}</div>
+              </div>
+              <div className="global-airport-banner__cta" aria-hidden="true">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className="global-airport-banner__arrow">
+                  <path d="M5 12h12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                  <path d="M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </Link>
+          </div>
+        ) : null}
         <Outlet />
       </main>
 

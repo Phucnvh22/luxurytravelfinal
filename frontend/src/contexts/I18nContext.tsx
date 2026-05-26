@@ -79,6 +79,9 @@ const dictionaries: Record<Lang, Dict> = {
     form_submit: 'Submit request',
     form_sending: 'Sending...',
     back: 'Back',
+    banner_airport_line1: 'Book airport transfers.',
+    banner_airport_line2: 'Worldwide.',
+    banner_airport_aria: 'Book airport transfers',
   },
   vi: {
     brand: 'Da Nang Luxury Travel',
@@ -154,6 +157,9 @@ const dictionaries: Record<Lang, Dict> = {
     form_submit: 'Gửi yêu cầu',
     form_sending: 'Đang gửi...',
     back: 'Quay lại',
+    banner_airport_line1: 'Đặt dịch vụ đưa đón sân bay.',
+    banner_airport_line2: 'Trên toàn thế giới.',
+    banner_airport_aria: 'Đặt dịch vụ đưa đón sân bay',
   },
   fr: {
     brand: 'Da Nang Luxury Travel',
