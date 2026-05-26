@@ -50,13 +50,10 @@ export default function BottomNav() {
             {SOCIAL_CHANNELS.map((channel) => (
               <a
                 key={channel.key}
-                className="message-link"
+                className={`message-link message-link--${channel.key}`}
                 href={channel.href}
                 target="_blank"
                 rel="noreferrer"
-                onClick={(e) => {
-                  if (channel.href === '#') e.preventDefault()
-                }}
               >
                 <span className="message-logo-wrap">
                   <img className="message-logo" src={channel.icon} alt={`${channel.label} logo`} />

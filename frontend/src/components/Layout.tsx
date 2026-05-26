@@ -213,6 +213,13 @@ export default function Layout() {
                     {t('menu_experiences', 'Experiences')}
                   </NavLink>
                   <NavLink
+                    to="/admin/users"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_users', 'Users')}
+                  </NavLink>
+                  <NavLink
                     to="/admin/sellers"
                     className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
                     onClick={closeMenu}
@@ -324,6 +331,16 @@ export default function Layout() {
         </div>
       </header>
       {!isAdminRoute && <TopNav />}
+      {!isAdminRoute ? (
+        <div className="promo-bar" role="status" aria-live="polite">
+          <div className="container promo-bar-inner">
+            <span className="promo-bar-icon" aria-hidden="true">
+              %
+            </span>
+            <div className="promo-bar-text">{t('promo_first_two_bookings', 'Ưu đãi chào mừng: Giảm 10% cho 2 lần đặt đầu tiên.')}</div>
+          </div>
+        </div>
+      ) : null}
 
       <main className="app-main">
         {isAdminRoute && isAdmin && notificationFlash && location.pathname !== '/admin/bookings' ? (

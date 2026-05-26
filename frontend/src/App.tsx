@@ -7,6 +7,7 @@ import AdminExperienceRequestsPage from './pages/AdminExperienceRequestsPage'
 import AdminServiceRequestsPage from './pages/AdminServiceRequestsPage'
 import AdminServicesPage from './pages/AdminServicesPage'
 import AdminSellersPage from './pages/AdminSellersPage'
+import AdminUsersPage from './pages/AdminUsersPage'
 import DestinationPage from './pages/DestinationPage'
 import ExperienceCrudPage from './pages/ExperienceCrudPage'
 import ExperienceDetailPage from './pages/ExperienceDetailPage'
@@ -119,6 +120,11 @@ export default function App() {
           <Route path="/admin/sellers" element={
             <ProtectedRoute requiredRole="ADMIN">
               <AdminSellersPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/users" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminUsersPage />
             </ProtectedRoute>
           } />
           <Route path="/admin/bookings" element={

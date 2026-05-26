@@ -108,6 +108,10 @@ jobs:
             if [ -n '${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID }}' ]; then export SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID='${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID }}'; fi; \
             if [ -n '${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET }}' ]; then export SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET='${{ secrets.SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET }}'; fi; \
             if [ -n '${{ secrets.APPLICATION_SECURITY_OAUTH2_FRONTEND_REDIRECT_BASE_URL }}' ]; then export APPLICATION_SECURITY_OAUTH2_FRONTEND_REDIRECT_BASE_URL='${{ secrets.APPLICATION_SECURITY_OAUTH2_FRONTEND_REDIRECT_BASE_URL }}'; fi; \
+            if [ -n '${{ secrets.WHATSAPP_CLOUD_API_TOKEN }}' ]; then export WHATSAPP_CLOUD_API_TOKEN='${{ secrets.WHATSAPP_CLOUD_API_TOKEN }}'; fi; \
+            if [ -n '${{ secrets.WHATSAPP_CLOUD_API_PHONE_NUMBER_ID }}' ]; then export WHATSAPP_CLOUD_API_PHONE_NUMBER_ID='${{ secrets.WHATSAPP_CLOUD_API_PHONE_NUMBER_ID }}'; fi; \
+            if [ -n '${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_NAME }}' ]; then export WHATSAPP_CLOUD_API_TEMPLATE_NAME='${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_NAME }}'; fi; \
+            if [ -n '${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE }}' ]; then export WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE='${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE }}'; fi; \
             export GHCR_OWNER='${{ secrets.GHCR_USERNAME }}'; \
             if [ -z \"\$GHCR_OWNER\" ]; then GHCR_OWNER='${{ github.repository_owner }}'; fi; \
             export GHCR_OWNER=\$(echo \"\$GHCR_OWNER\" | tr '[:upper:]' '[:lower:]'); \

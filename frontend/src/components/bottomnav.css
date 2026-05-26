@@ -98,6 +98,31 @@
   display: block;
 }
 
+.message-link--whatsapp .message-logo-wrap,
+.chat-with-us-link--whatsapp .message-logo-wrap {
+  background: #25d366;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.message-link--zalo .message-logo-wrap,
+.chat-with-us-link--zalo .message-logo-wrap {
+  background: #0068ff;
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+.message-link--kakaotalk .message-logo-wrap,
+.chat-with-us-link--kakaotalk .message-logo-wrap {
+  background: #fee500;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.message-link--whatsapp .message-logo,
+.chat-with-us-link--whatsapp .message-logo,
+.message-link--zalo .message-logo,
+.chat-with-us-link--zalo .message-logo {
+  filter: brightness(0) invert(1);
+}
+
 .bottom-nav-item.active {
   color: var(--primary-dark);
 }

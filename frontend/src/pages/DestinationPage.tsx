@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useAuth } from '../contexts/AuthContext'
+import { useI18n } from '../contexts/I18nContext'
 import { addRecentlyViewed } from '../lib/recentlyViewed'
+import { SOCIAL_CHANNELS } from '../constants/social'
 import type { BookingCreateRequest, BookingResponse, Destination } from '../types'
 import './pages.css'
 
@@ -21,9 +23,12 @@ function todayIsoDate() {
 }
 
 export default function DestinationPage() {
+  const { t } = useI18n()
   const { isAuthenticated } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const redirect = `${location.pathname}${location.search}`
 
   const destinationId = useMemo(() => Number(id), [id])
   const [destination, setDestination] = useState<Destination | null>(null)
@@ -82,11 +87,15 @@ export default function DestinationPage() {
   }, [destination])
 
   async function submit() {
+    if (!isAuthenticated) {
+      navigate(`/login?redirect=${encodeURIComponent(redirect)}`)
+      return
+    }
+
     setSubmitting(true)
     setSubmitError(null)
     setSuccess(null)
     try {
-      if (!isAuthenticated) throw new Error('Please log in to submit request')
       if (!form.customerName.trim()) throw new Error('Please enter your full name')
       if (!form.email.trim()) throw new Error('Please enter your email')
       if (!form.phone.trim()) throw new Error('Please enter your phone number')
@@ -220,7 +229,7 @@ export default function DestinationPage() {
                   <div className="error-title">Login required</div>
                   <div className="muted">Please log in before submitting a request.</div>
                   <div className="row" style={{ marginTop: 10 }}>
-                    <Link className="btn primary" to={`/login?redirect=${encodeURIComponent(`/destinations/${destinationId}`)}`}>
+                    <Link className="btn primary" to={`/login?redirect=${encodeURIComponent(redirect)}`}>
                       Log in now
                     </Link>
                   </div>
@@ -318,6 +327,27 @@ export default function DestinationPage() {
                   </div>
                 </>
               )}
+
+              <div className="chat-with-us">
+                <div className="field-label">{t('chat_with_us', 'Chat with us')}</div>
+                <div className="chat-with-us-links">
+                  {SOCIAL_CHANNELS.map((channel) => (
+                    <a
+                      key={channel.key}
+                      className={`chat-with-us-link chat-with-us-link--${channel.key}`}
+                      href={channel.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={channel.label}
+                      title={channel.label}
+                    >
+                      <span className="message-logo-wrap" aria-hidden="true">
+                        <img className="message-logo" src={channel.icon} alt="" />
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}

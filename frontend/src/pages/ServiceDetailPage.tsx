@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
 import { useAuth } from '../contexts/AuthContext'
 import { addRecentlyViewed } from '../lib/recentlyViewed'
+import { SOCIAL_CHANNELS } from '../constants/social'
 import GuestQuantityInput from '../components/GuestQuantityInput'
 import type { ServiceRequestCreateRequest, ServiceRequestResponse, TravelService } from '../types'
 import './pages.css'
@@ -33,6 +34,8 @@ export default function ServiceDetailPage() {
   const { isAuthenticated } = useAuth()
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const redirect = `${location.pathname}${location.search}`
 
   const serviceId = useMemo(() => Number(id), [id])
   const [service, setService] = useState<TravelService | null>(null)
@@ -92,11 +95,15 @@ export default function ServiceDetailPage() {
   }, [service])
 
   async function submit() {
+    if (!isAuthenticated) {
+      navigate(`/login?redirect=${encodeURIComponent(redirect)}`)
+      return
+    }
+
     setSubmitting(true)
     setSubmitError(null)
     setSuccess(null)
     try {
-      if (!isAuthenticated) throw new Error('Please log in to submit request')
       if (!form.customerName.trim()) throw new Error(t('form_full_name', 'Full name'))
       if (!form.email.trim()) throw new Error(t('form_email', 'Email'))
       if (!form.phone.trim()) throw new Error(t('form_phone', 'Phone'))
@@ -223,91 +230,114 @@ export default function ServiceDetailPage() {
                   <div className="error-title">Login required</div>
                   <div className="muted">Please log in before submitting a request.</div>
                   <div className="row" style={{ marginTop: 10 }}>
-                    <Link className="btn primary" to={`/login?redirect=${encodeURIComponent(`/services/${serviceId}`)}`}>
+                    <Link className="btn primary" to={`/login?redirect=${encodeURIComponent(redirect)}`}>
                       Log in now
                     </Link>
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                <>
+                  <label className="field">
+                    <div className="field-label">{t('form_full_name', 'Full name')}</div>
+                    <input
+                      className="input"
+                      value={form.customerName}
+                      onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))}
+                      placeholder="John Doe"
+                    />
+                  </label>
 
-              <label className="field">
-                <div className="field-label">{t('form_full_name', 'Full name')}</div>
-                <input
-                  className="input"
-                  value={form.customerName}
-                  onChange={(e) => setForm((p) => ({ ...p, customerName: e.target.value }))}
-                  placeholder="John Doe"
-                />
-              </label>
+                  <label className="field">
+                    <div className="field-label">{t('form_email', 'Email')}</div>
+                    <input
+                      className="input"
+                      value={form.email}
+                      onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                      placeholder="you@email.com"
+                    />
+                  </label>
 
-              <label className="field">
-                <div className="field-label">{t('form_email', 'Email')}</div>
-                <input
-                  className="input"
-                  value={form.email}
-                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="you@email.com"
-                />
-              </label>
+                  <label className="field">
+                    <div className="field-label">{t('form_phone', 'Phone')}</div>
+                    <input
+                      className="input"
+                      value={form.phone}
+                      onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                      placeholder="0901 234 567"
+                    />
+                  </label>
 
-              <label className="field">
-                <div className="field-label">{t('form_phone', 'Phone')}</div>
-                <input
-                  className="input"
-                  value={form.phone}
-                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-                  placeholder="0901 234 567"
-                />
-              </label>
-
-              <div className="row">
-                <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                  <div className="field-label">{t('form_travel_date', 'Travel date')}</div>
-                  <input
-                    className="input"
-                    type="date"
-                    value={form.travelDate}
-                    onChange={(e) => setForm((p) => ({ ...p, travelDate: e.target.value }))}
-                  />
-                </label>
-                <GuestQuantityInput
-                  label={t('form_guests', 'Guests')}
-                  value={travelersInput}
-                  onChange={setTravelersInput}
-                  placeholder={t('form_guests_placeholder', 'Enter guests')}
-                />
-              </div>
-
-              <label className="field">
-                <div className="field-label">{t('form_notes', 'Notes (optional)')}</div>
-                <textarea
-                  className="textarea"
-                  value={form.notes ?? ''}
-                  onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                  placeholder="Pickup point, dietary preferences..."
-                />
-              </label>
-
-              {submitError ? (
-                <div className="card error" style={{ marginTop: 12 }}>
-                  <div className="error-title">{t('common_something_wrong', 'Something went wrong')}</div>
-                  <div className="muted">{submitError}</div>
-                </div>
-              ) : null}
-
-              {success ? (
-                <div className="card" style={{ marginTop: 12, padding: 14 }}>
-                  <div style={{ fontWeight: 800 }}>{t('form_submit', 'Submit request')}</div>
-                  <div className="muted" style={{ marginTop: 6 }}>
-                    Request #{success.id} • {success.status}
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                      <div className="field-label">{t('form_travel_date', 'Travel date')}</div>
+                      <input
+                        className="input"
+                        type="date"
+                        value={form.travelDate}
+                        onChange={(e) => setForm((p) => ({ ...p, travelDate: e.target.value }))}
+                      />
+                    </label>
+                    <GuestQuantityInput
+                      label={t('form_guests', 'Guests')}
+                      value={travelersInput}
+                      onChange={setTravelersInput}
+                      placeholder={t('form_guests_placeholder', 'Enter guests')}
+                    />
                   </div>
-                </div>
-              ) : null}
 
-              <div className="row" style={{ marginTop: 14 }}>
-                <button className="btn primary" type="button" onClick={submit} disabled={submitting || !isAuthenticated}>
-                  {submitting ? t('form_sending', 'Sending...') : t('form_submit', 'Submit request')}
-                </button>
+                  <label className="field">
+                    <div className="field-label">{t('form_notes', 'Notes (optional)')}</div>
+                    <textarea
+                      className="textarea"
+                      value={form.notes ?? ''}
+                      onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                      placeholder="Pickup point, dietary preferences..."
+                    />
+                  </label>
+
+                  {submitError ? (
+                    <div className="card error" style={{ marginTop: 12 }}>
+                      <div className="error-title">{t('common_something_wrong', 'Something went wrong')}</div>
+                      <div className="muted">{submitError}</div>
+                    </div>
+                  ) : null}
+
+                  {success ? (
+                    <div className="card" style={{ marginTop: 12, padding: 14 }}>
+                      <div style={{ fontWeight: 800 }}>{t('form_submit', 'Submit request')}</div>
+                      <div className="muted" style={{ marginTop: 6 }}>
+                        Request #{success.id} • {success.status}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="row" style={{ marginTop: 14 }}>
+                    <button className="btn primary" type="button" onClick={submit} disabled={submitting}>
+                      {submitting ? t('form_sending', 'Sending...') : t('form_submit', 'Submit request')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <div className="chat-with-us">
+                <div className="field-label">{t('chat_with_us', 'Chat with us')}</div>
+                <div className="chat-with-us-links">
+                  {SOCIAL_CHANNELS.map((channel) => (
+                    <a
+                      key={channel.key}
+                      className={`chat-with-us-link chat-with-us-link--${channel.key}`}
+                      href={channel.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={channel.label}
+                      title={channel.label}
+                    >
+                      <span className="message-logo-wrap" aria-hidden="true">
+                        <img className="message-logo" src={channel.icon} alt="" />
+                      </span>
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
