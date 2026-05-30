@@ -6,7 +6,8 @@ import { NAV_ITEMS } from '../constants/navigation'
 import TypeGate from '../components/TypeGate'
 import { getTypeFallbackLabel, getTypeLabelKey, getTypeOptions } from '../constants/typeOptions'
 import RecentlyViewedSection from '../components/RecentlyViewedSection'
-import type { Destination } from '../types'
+import type { Destination, Experience, TravelService } from '../types'
+import { getFeaturedNavKeys } from '../lib/featuredItems'
 import './pages.css'
 
 function formatMoney(value: string) {
@@ -33,14 +34,32 @@ function toTime(value?: string) {
   return Number.isFinite(t) ? t : 0
 }
 
+type FeaturedItem = {
+  id: number
+  name: string
+  location?: string
+  description?: string
+  type: string
+  priceFrom: number | string
+  imageUrl: string
+  createdAt: string
+  videoUrls?: string[]
+  category: 'accommodation' | 'experience' | 'service'
+  durationDays?: number
+}
+
 export default function HomePage() {
   const { t } = useI18n()
   const [destinations, setDestinations] = useState<Destination[]>([])
+  const [experiences, setExperiences] = useState<Experience[]>([])
+  const [services, setServices] = useState<TravelService[]>([])
   const [query, setQuery] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const accommodationTypes = NAV_ITEMS.find((item) => item.key === 'accommodation')?.types ?? []
+
+  const featuredKeys = useMemo(() => getFeaturedNavKeys(), [])
 
   useEffect(() => {
     let cancelled = false
@@ -63,6 +82,83 @@ export default function HomePage() {
       cancelled = true
     }
   }, [t])
+
+  useEffect(() => {
+    if (featuredKeys.length === 0) return
+    if (!featuredKeys.includes('experience') && !featuredKeys.includes('service')) return
+
+    let cancelled = false
+
+    const fetchExperiences = featuredKeys.includes('experience')
+      ? apiFetch<Experience[]>('/api/experiences').catch(() => [] as Experience[])
+      : Promise.resolve([] as Experience[])
+
+    const fetchServices = featuredKeys.includes('service')
+      ? apiFetch<TravelService[]>('/api/services').catch(() => [] as TravelService[])
+      : Promise.resolve([] as TravelService[])
+
+    Promise.all([fetchExperiences, fetchServices])
+      .then(([expData, svcData]) => {
+        if (cancelled) return
+        setExperiences(expData)
+        setServices(svcData)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [featuredKeys])
+
+  const featuredItems = useMemo<FeaturedItem[]>(() => {
+    if (featuredKeys.length === 0) return []
+
+    const items: FeaturedItem[] = []
+
+    if (featuredKeys.includes('accommodation')) {
+      destinations.forEach((d) => {
+        items.push({
+          ...d,
+          category: 'accommodation',
+        })
+      })
+    }
+
+    if (featuredKeys.includes('experience')) {
+      experiences.forEach((e) => {
+        items.push({
+          id: e.id,
+          name: e.name,
+          location: undefined,
+          description: e.description,
+          type: e.type,
+          priceFrom: e.priceFrom,
+          imageUrl: e.imageUrl,
+          createdAt: e.createdAt,
+          videoUrls: e.videoUrls,
+          category: 'experience',
+        })
+      })
+    }
+
+    if (featuredKeys.includes('service')) {
+      services.forEach((s) => {
+        items.push({
+          id: s.id,
+          name: s.name,
+          location: undefined,
+          description: s.description,
+          type: s.type,
+          priceFrom: s.priceFrom,
+          imageUrl: s.imageUrl,
+          createdAt: s.createdAt,
+          videoUrls: s.videoUrls,
+          category: 'service',
+        })
+      })
+    }
+
+    return items.sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt))
+  }, [featuredKeys, destinations, experiences, services])
 
   const filtered = useMemo(() => {
     if (!selectedType) return []
@@ -131,14 +227,55 @@ export default function HomePage() {
           </div>
 
           {!selectedType ? (
-            <TypeGate
-              titleKey="type_pick_title"
-              titleFallback="Choose a type"
-              subtitleKey="type_pick_sub_accommodation"
-              subtitleFallback="Pick a type to view accommodations."
-              options={getTypeOptions('accommodation')}
-              onSelect={(value) => setSelectedType(value)}
-            />
+            featuredKeys.length > 0 && featuredItems.length > 0 ? (
+              <div className="grid">
+                <div className="section-head" style={{ gridColumn: '1 / -1', marginBottom: '16px' }}>
+                  <div>
+                    <h2>{t('home_featured_title', 'Featured')}</h2>
+                    <div className="muted">{t('home_featured_sub', 'Handpicked categories by admin.')}</div>
+                  </div>
+                </div>
+                {featuredItems.map((item) => {
+                  const getLink = () => {
+                    if (item.category === 'experience') return `/experiences/${item.id}`
+                    if (item.category === 'service') return `/services/${item.id}`
+                    return `/destinations/${item.id}`
+                  }
+                  const thumb = item.videoUrls?.[0] ? getYouTubeThumbUrl(item.videoUrls[0]) : null
+                  const categoryLabel = item.category === 'experience'
+                    ? t('nav_experiences', 'Experiences')
+                    : item.category === 'service'
+                      ? t('nav_services', 'Services')
+                      : `${item.durationDays} days`
+                  return (
+                    <Link to={getLink()} key={`${item.category}-${item.id}`} className="card destination-card">
+                      <div className="card-media-carousel">
+                        <div className="carousel-item">
+                          <div className="thumb" style={{ backgroundImage: `url(${thumb ?? item.imageUrl})` }} />
+                        </div>
+                      </div>
+                      <div className="card-body">
+                        <div className="card-title-row">
+                          <div className="card-title">{item.name}</div>
+                          <div className="pill">{categoryLabel}</div>
+                        </div>
+                        <div className="muted">{item.location ?? item.description}</div>
+                        <div className="price">{formatMoney(String(item.priceFrom))}+</div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            ) : (
+              <TypeGate
+                titleKey="type_pick_title"
+                titleFallback="Choose a type"
+                subtitleKey="type_pick_sub_accommodation"
+                subtitleFallback="Pick a type to view accommodations."
+                options={getTypeOptions('accommodation')}
+                onSelect={(value) => setSelectedType(value)}
+              />
+            )
           ) : (
             <RecentlyViewedSection />
           )}
