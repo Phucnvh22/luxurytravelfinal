@@ -78,35 +78,17 @@ export default function HomePage() {
     })
   }, [accommodationTypes, destinations, query, selectedType])
 
-  const heroTheme = useMemo(
-    () => ({
-      title: t('nav_accommodations', 'Accommodations'),
-      subtitle: 'Da Nang Bay',
-      imageUrl: encodeURI('/acommodation.jpg'),
-    }),
-    [t],
-  )
 
   return (
     <>
       <section className="hero">
-        <div className="container hero-inner">
+        <div className="container hero-inner hero-inner--single">
           <div>
             <div className="badge">{t('home_badge', 'Da Nang Luxury Travel • Private Experiences')}</div>
             <h1>{t('home_title', 'Premium journeys, tailored just for you')}</h1>
             <p className="muted hero-sub">
               {t('home_sub', 'Discover standout destinations, choose your itinerary, and request a booking in minutes.')}
             </p>
-
-            <div className="hero-topic-grid hero-topic-grid--single">
-              <Link to="/" className="hero-topic-card hero-topic-card--single">
-                <div className="hero-topic-media" style={{ backgroundImage: `url(${heroTheme.imageUrl})` }} />
-                <div className="hero-topic-overlay">
-                  <div className="hero-topic-title">{heroTheme.title}</div>
-                  <div className="hero-topic-subtitle">{heroTheme.subtitle}</div>
-                </div>
-              </Link>
-            </div>
           </div>
         </div>
       </section>

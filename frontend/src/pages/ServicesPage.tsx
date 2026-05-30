@@ -65,35 +65,16 @@ export default function ServicesPage() {
     })
   }, [query, selectedType, serviceTypes, services])
 
-  const heroTheme = useMemo(
-    () => ({
-      title: t('nav_services', 'Services'),
-      subtitle: 'Marble Mountains',
-      imageUrl: encodeURI('/cau-rong.jpg'),
-    }),
-    [t],
-  )
-
   return (
     <>
       <section className="hero">
-        <div className="container hero-inner">
+        <div className="container hero-inner hero-inner--single">
           <div>
             <div className="badge">{t('services_badge', 'Services • Add-ons')}</div>
             <h1>{t('services_title', 'Make your trip smoother with premium services')}</h1>
             <p className="muted hero-sub">
               {t('services_sub', 'Add private transfers, breakfast, or a dedicated tour guide to your journey.')}
             </p>
-
-            <div className="hero-topic-grid hero-topic-grid--single">
-              <Link to="/services" className="hero-topic-card hero-topic-card--single">
-                <div className="hero-topic-media" style={{ backgroundImage: `url(${heroTheme.imageUrl})` }} />
-                <div className="hero-topic-overlay">
-                  <div className="hero-topic-title">{heroTheme.title}</div>
-                  <div className="hero-topic-subtitle">{heroTheme.subtitle}</div>
-                </div>
-              </Link>
-            </div>
           </div>
         </div>
       </section>

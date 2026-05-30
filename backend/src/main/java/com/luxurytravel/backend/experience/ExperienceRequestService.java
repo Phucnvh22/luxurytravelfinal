@@ -1,6 +1,7 @@
 package com.luxurytravel.backend.experience;
 
 import com.luxurytravel.backend.booking.BookingStatus;
+import com.luxurytravel.backend.commission.CommissionService;
 import com.luxurytravel.backend.common.AuthenticationException;
 import com.luxurytravel.backend.user.Role;
 import com.luxurytravel.backend.user.User;
@@ -19,15 +20,18 @@ public class ExperienceRequestService {
     private final ExperienceRequestRepository experienceRequestRepository;
     private final ExperienceRepository experienceRepository;
     private final UserRepository userRepository;
+    private final CommissionService commissionService;
 
     public ExperienceRequestService(
             ExperienceRequestRepository experienceRequestRepository,
             ExperienceRepository experienceRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            CommissionService commissionService
     ) {
         this.experienceRequestRepository = experienceRequestRepository;
         this.experienceRepository = experienceRepository;
         this.userRepository = userRepository;
+        this.commissionService = commissionService;
     }
 
     @Transactional(readOnly = true)
@@ -73,8 +77,12 @@ public class ExperienceRequestService {
         if (request.getSellerId() != null) {
             User seller = userRepository.findById(request.getSellerId()).orElse(null);
             if (seller != null) {
-                Double rate = seller.getCommissionRate() != null ? seller.getCommissionRate() : 0.0;
-                commissionAmount = totalPrice * rate / 100.0;
+                commissionAmount = commissionService.calculateCommissionAmount(
+                        CommissionService.MODULE_EXPERIENCE_REQUEST,
+                        experience.getType(),
+                        totalPrice,
+                        seller.getCommissionRate()
+                );
             }
         }
         r.setCommissionAmount(commissionAmount);

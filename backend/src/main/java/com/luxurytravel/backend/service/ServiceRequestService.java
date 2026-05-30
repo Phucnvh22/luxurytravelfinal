@@ -1,6 +1,7 @@
 package com.luxurytravel.backend.service;
 
 import com.luxurytravel.backend.booking.BookingStatus;
+import com.luxurytravel.backend.commission.CommissionService;
 import com.luxurytravel.backend.common.AuthenticationException;
 import com.luxurytravel.backend.user.Role;
 import com.luxurytravel.backend.user.User;
@@ -19,11 +20,18 @@ public class ServiceRequestService {
     private final ServiceRequestRepository serviceRequestRepository;
     private final TravelServiceRepository travelServiceRepository;
     private final UserRepository userRepository;
+    private final CommissionService commissionService;
 
-    public ServiceRequestService(ServiceRequestRepository serviceRequestRepository, TravelServiceRepository travelServiceRepository, UserRepository userRepository) {
+    public ServiceRequestService(
+            ServiceRequestRepository serviceRequestRepository,
+            TravelServiceRepository travelServiceRepository,
+            UserRepository userRepository,
+            CommissionService commissionService
+    ) {
         this.serviceRequestRepository = serviceRequestRepository;
         this.travelServiceRepository = travelServiceRepository;
         this.userRepository = userRepository;
+        this.commissionService = commissionService;
     }
 
     @Transactional(readOnly = true)
@@ -69,8 +77,12 @@ public class ServiceRequestService {
         if (request.getSellerId() != null) {
             User seller = userRepository.findById(request.getSellerId()).orElse(null);
             if (seller != null) {
-                Double rate = seller.getCommissionRate() != null ? seller.getCommissionRate() : 0.0;
-                commissionAmount = totalPrice * rate / 100.0;
+                commissionAmount = commissionService.calculateCommissionAmount(
+                        CommissionService.MODULE_SERVICE_REQUEST,
+                        service.getType(),
+                        totalPrice,
+                        seller.getCommissionRate()
+                );
             }
         }
         r.setCommissionAmount(commissionAmount);

@@ -26,6 +26,27 @@ springdoc:
 application:
   cors:
     allowed-origins: ${APPLICATION_CORS_ALLOWED_ORIGINS:http://localhost:5174}
+  commission:
+    modules:
+      booking:
+        # Fallback when destination.type doesn't match any entry below.
+        default-rate: 6
+        # Case-insensitive match by Destination.type
+        type-rates:
+          "dài hạng": 8
+          "ngắn hạng": 6
+      service-request:
+        default-rate: 8
+        # Case-insensitive match by TravelService.type
+        type-rates:
+          "private car": 10
+          "clean service": 6
+      experience-request:
+        default-rate: 7
+        # Case-insensitive match by Experience.type
+        type-rates:
+          "private tour": 9
+          "dining experience": 6
   security:
     jwt:
       secret-key: ${APPLICATION_SECURITY_JWT_SECRET_KEY:}

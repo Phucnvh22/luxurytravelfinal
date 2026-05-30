@@ -65,35 +65,16 @@ export default function ExperiencesPage() {
     })
   }, [experienceTypes, experiences, query, selectedType])
 
-  const heroTheme = useMemo(
-    () => ({
-      title: t('nav_experiences', 'Experiences'),
-      subtitle: 'Dragon Bridge',
-      imageUrl: encodeURI('/cauvang-1654247842-9403-1654247849.jpg.webp'),
-    }),
-    [t],
-  )
-
   return (
     <>
       <section className="hero">
-        <div className="container hero-inner">
+        <div className="container hero-inner hero-inner--single">
           <div>
             <div className="badge">{t('experiences_badge', 'Experiences • Activities')}</div>
             <h1>{t('experiences_title', 'Unique experiences, curated for your trip')}</h1>
             <p className="muted hero-sub">
               {t('experiences_sub', 'Browse curated activities and learn more about each experience.')}
             </p>
-
-            <div className="hero-topic-grid hero-topic-grid--single">
-              <Link to="/experiences" className="hero-topic-card hero-topic-card--single">
-                <div className="hero-topic-media" style={{ backgroundImage: `url(${heroTheme.imageUrl})` }} />
-                <div className="hero-topic-overlay">
-                  <div className="hero-topic-title">{heroTheme.title}</div>
-                  <div className="hero-topic-subtitle">{heroTheme.subtitle}</div>
-                </div>
-              </Link>
-            </div>
           </div>
         </div>
       </section>

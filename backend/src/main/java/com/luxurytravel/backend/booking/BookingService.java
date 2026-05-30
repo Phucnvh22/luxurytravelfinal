@@ -1,5 +1,6 @@
 package com.luxurytravel.backend.booking;
 
+import com.luxurytravel.backend.commission.CommissionService;
 import com.luxurytravel.backend.destination.Destination;
 import com.luxurytravel.backend.destination.DestinationNotFoundException;
 import com.luxurytravel.backend.destination.DestinationRepository;
@@ -19,11 +20,18 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final DestinationRepository destinationRepository;
     private final UserRepository userRepository;
+    private final CommissionService commissionService;
 
-    public BookingService(BookingRepository bookingRepository, DestinationRepository destinationRepository, UserRepository userRepository) {
+    public BookingService(
+            BookingRepository bookingRepository,
+            DestinationRepository destinationRepository,
+            UserRepository userRepository,
+            CommissionService commissionService
+    ) {
         this.bookingRepository = bookingRepository;
         this.destinationRepository = destinationRepository;
         this.userRepository = userRepository;
+        this.commissionService = commissionService;
     }
 
     @Transactional(readOnly = true)
@@ -76,8 +84,12 @@ public class BookingService {
         if (request.getSellerId() != null) {
             User seller = userRepository.findById(request.getSellerId()).orElse(null);
             if (seller != null) {
-                Double rate = seller.getCommissionRate() != null ? seller.getCommissionRate() : 0.0;
-                commissionAmount = totalPrice * rate / 100.0;
+                commissionAmount = commissionService.calculateCommissionAmount(
+                        CommissionService.MODULE_BOOKING,
+                        destination.getType(),
+                        totalPrice,
+                        seller.getCommissionRate()
+                );
             }
         }
         booking.setCommissionAmount(commissionAmount);
