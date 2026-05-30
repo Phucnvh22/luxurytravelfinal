@@ -6,7 +6,9 @@ import { NAV_ITEMS } from '../constants/navigation'
 import TypeGate from '../components/TypeGate'
 import { getTypeFallbackLabel, getTypeLabelKey, getTypeOptions } from '../constants/typeOptions'
 import RecentlyViewedSection from '../components/RecentlyViewedSection'
+import { useAuth } from '../contexts/AuthContext'
 import type { TravelService } from '../types'
+import { getFeaturedCards, toggleFeaturedCard, type FeaturedCard } from '../lib/featuredItems'
 import './pages.css'
 
 function formatMoney(value: number) {
@@ -25,9 +27,61 @@ function getYouTubeThumbUrl(videoUrl: string) {
   return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
 }
 
+function ServiceCard({
+  s,
+  isAdmin,
+  isFeatured,
+  onToggleFeatured,
+}: {
+  s: TravelService
+  isAdmin: boolean
+  isFeatured: boolean
+  onToggleFeatured: () => void
+}) {
+  const { t } = useI18n()
+  const thumb = s.videoUrls?.[0] ? getYouTubeThumbUrl(s.videoUrls[0]) : null
+  return (
+    <div className="card destination-card" style={{ position: 'relative' }}>
+      <Link to={`/services/${s.id}`} className="card-link-overlay" />
+      <div className="card-media-carousel">
+        <div className="carousel-item">
+          <div className="thumb" style={{ backgroundImage: `url(${thumb ?? s.imageUrl})` }} />
+        </div>
+      </div>
+      <div className="card-body">
+        <div className="card-title-row">
+          <div className="card-title">{s.name}</div>
+          <div className="pill">{t('nav_services', 'Services')}</div>
+        </div>
+        <div className="muted">{s.description}</div>
+        <div className="price">{formatMoney(Number(s.priceFrom))}+</div>
+      </div>
+      {isAdmin && (
+        <button
+          type="button"
+          className={`card-heart-btn ${isFeatured ? 'card-heart-btn--active' : ''}`}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onToggleFeatured()
+          }}
+          aria-label={isFeatured ? 'Remove from featured' : 'Add to featured'}
+          title={isFeatured ? 'Remove from featured' : 'Add to featured'}
+        >
+          <svg viewBox="0 0 24 24" fill={isFeatured ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function ServicesPage() {
   const { t } = useI18n()
+  const { isAdmin } = useAuth()
   const [services, setServices] = useState<TravelService[]>([])
+  const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>(() => getFeaturedCards())
   const [query, setQuery] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [loading, setLoading] = useState(true)
@@ -54,6 +108,15 @@ export default function ServicesPage() {
       cancelled = true
     }
   }, [t])
+
+  const handleToggleFeatured = (id: number) => {
+    const updated = toggleFeaturedCard(id, 'service')
+    setFeaturedCards(updated)
+  }
+
+  const isCardFeatured = (id: number) => {
+    return featuredCards.some((fc) => fc.id === id && fc.category === 'service')
+  }
 
   const filtered = useMemo(() => {
     if (!selectedType) return []
@@ -140,26 +203,15 @@ export default function ServicesPage() {
             <div className="card muted">{t('common_no_results', 'No results found.')}</div>
           ) : (
             <div className="grid">
-              {filtered.map((s) => {
-                const thumb = s.videoUrls?.[0] ? getYouTubeThumbUrl(s.videoUrls[0]) : null
-                return (
-                  <Link to={`/services/${s.id}`} key={s.id} className="card destination-card">
-                    <div className="card-media-carousel">
-                      <div className="carousel-item">
-                        <div className="thumb" style={{ backgroundImage: `url(${thumb ?? s.imageUrl})` }} />
-                      </div>
-                    </div>
-                    <div className="card-body">
-                      <div className="card-title-row">
-                        <div className="card-title">{s.name}</div>
-                        <div className="pill">{t('nav_services', 'Services')}</div>
-                      </div>
-                      <div className="muted">{s.description}</div>
-                      <div className="price">{formatMoney(Number(s.priceFrom))}+</div>
-                    </div>
-                  </Link>
-                )
-              })}
+              {filtered.map((s) => (
+                <ServiceCard
+                  key={s.id}
+                  s={s}
+                  isAdmin={isAdmin}
+                  isFeatured={isCardFeatured(s.id)}
+                  onToggleFeatured={() => handleToggleFeatured(s.id)}
+                />
+              ))}
             </div>
           )}
         </div>
