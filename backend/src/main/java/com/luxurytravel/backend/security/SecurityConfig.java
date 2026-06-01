@@ -79,6 +79,7 @@ public class SecurityConfig {
                                 "/api/experiences/**",
                                 "/api/services/**",
                                 "/api/categories/**",
+                                "/api/featured-cards/**",
                                 "/h2-console/**"
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

@@ -7,6 +7,7 @@ export default function TypeGate({
   subtitleKey,
   subtitleFallback,
   options,
+  selectedValue,
   onSelect,
 }: {
   titleKey: string
@@ -14,6 +15,7 @@ export default function TypeGate({
   subtitleKey?: string
   subtitleFallback?: string
   options: TypeOption[]
+  selectedValue?: string
   onSelect: (value: string) => void
 }) {
   const { t } = useI18n()
@@ -25,7 +27,12 @@ export default function TypeGate({
       </div>
       <div className="type-gate-grid">
         {options.map((opt) => (
-          <button key={opt.value} type="button" className="type-gate-card" onClick={() => onSelect(opt.value)}>
+          <button
+            key={opt.value}
+            type="button"
+            className={`type-gate-card ${selectedValue === opt.value ? 'type-gate-card--active' : ''}`}
+            onClick={() => onSelect(opt.value)}
+          >
             <div className="type-gate-thumb" style={{ backgroundImage: `url(${opt.imageUrl})` }} aria-hidden="true" />
             <div className="type-gate-label">{t(opt.labelKey, opt.fallbackLabel)}</div>
           </button>
@@ -34,4 +41,3 @@ export default function TypeGate({
     </div>
   )
 }
-

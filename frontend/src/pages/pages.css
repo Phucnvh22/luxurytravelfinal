@@ -363,6 +363,11 @@
   border-color: rgba(16, 185, 129, 0.55);
 }
 
+.type-gate-card--active {
+  border-color: rgba(5, 150, 105, 0.9);
+  box-shadow: 0 10px 26px rgba(5, 150, 105, 0.18);
+}
+
 .type-gate-thumb {
   width: 100%;
   height: 64px;

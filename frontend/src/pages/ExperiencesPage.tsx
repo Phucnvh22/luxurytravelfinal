@@ -8,7 +8,7 @@ import { getTypeFallbackLabel, getTypeLabelKey, getTypeOptions } from '../consta
 import RecentlyViewedSection from '../components/RecentlyViewedSection'
 import { useAuth } from '../contexts/AuthContext'
 import type { Experience } from '../types'
-import { getFeaturedCards, toggleFeaturedCard, type FeaturedCard } from '../lib/featuredItems'
+import { addFeaturedCard, deleteFeaturedCard, fetchFeaturedCards, type FeaturedCard } from '../lib/featuredItems'
 import './pages.css'
 
 function formatMoney(value: number) {
@@ -81,12 +81,25 @@ export default function ExperiencesPage() {
   const { t } = useI18n()
   const { isAdmin } = useAuth()
   const [experiences, setExperiences] = useState<Experience[]>([])
-  const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>(() => getFeaturedCards())
+  const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>([])
   const [query, setQuery] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const experienceTypes = NAV_ITEMS.find((item) => item.key === 'experience')?.types ?? []
+
+  useEffect(() => {
+    let cancelled = false
+    fetchFeaturedCards()
+      .then((data) => {
+        if (cancelled) return
+        setFeaturedCards(data)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -109,9 +122,17 @@ export default function ExperiencesPage() {
     }
   }, [t])
 
-  const handleToggleFeatured = (id: number) => {
-    const updated = toggleFeaturedCard(id, 'experience')
-    setFeaturedCards(updated)
+  const handleToggleFeatured = async (id: number) => {
+    const active = featuredCards.some((fc) => fc.id === id && fc.category === 'experience')
+    try {
+      if (active) {
+        await deleteFeaturedCard('experience', id)
+      } else {
+        await addFeaturedCard({ id, category: 'experience' })
+      }
+      const latest = await fetchFeaturedCards()
+      setFeaturedCards(latest)
+    } catch {}
   }
 
   const isCardFeatured = (id: number) => {
@@ -209,7 +230,7 @@ export default function ExperiencesPage() {
                   e={e}
                   isAdmin={isAdmin}
                   isFeatured={isCardFeatured(e.id)}
-                  onToggleFeatured={() => handleToggleFeatured(e.id)}
+                  onToggleFeatured={() => void handleToggleFeatured(e.id)}
                 />
               ))}
             </div>

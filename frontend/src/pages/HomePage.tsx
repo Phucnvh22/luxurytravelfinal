@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import { useI18n } from '../contexts/I18nContext'
-import { NAV_ITEMS } from '../constants/navigation'
 import TypeGate from '../components/TypeGate'
-import { getTypeFallbackLabel, getTypeLabelKey, getTypeOptions } from '../constants/typeOptions'
+import { getTypeOptions } from '../constants/typeOptions'
 import RecentlyViewedSection from '../components/RecentlyViewedSection'
 import { useAuth } from '../contexts/AuthContext'
 import type { Destination, Experience, TravelService } from '../types'
-import { getFeaturedCards, toggleFeaturedCard, type FeaturedCard } from '../lib/featuredItems'
+import { addFeaturedCard, deleteFeaturedCard, fetchFeaturedCards, type FeaturedCard } from '../lib/featuredItems'
 import './pages.css'
 
 function formatMoney(value: string) {
@@ -111,15 +110,36 @@ function DestinationCard({
 export default function HomePage() {
   const { t } = useI18n()
   const { isAdmin } = useAuth()
+  const location = useLocation()
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [experiences, setExperiences] = useState<Experience[]>([])
   const [services, setServices] = useState<TravelService[]>([])
-  const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>(() => getFeaturedCards())
+  const [featuredCards, setFeaturedCards] = useState<FeaturedCard[]>([])
   const [query, setQuery] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const accommodationTypes = NAV_ITEMS.find((item) => item.key === 'accommodation')?.types ?? []
+
+  const homeResetToken = (location.state as { homeResetToken?: number } | null)?.homeResetToken
+
+  useEffect(() => {
+    if (!homeResetToken) return
+    setSelectedType('')
+    setQuery('')
+  }, [homeResetToken])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchFeaturedCards()
+      .then((data) => {
+        if (cancelled) return
+        setFeaturedCards(data)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -221,9 +241,17 @@ export default function HomePage() {
     return items.sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt))
   }, [featuredCards, destinations, experiences, services])
 
-  const handleToggleFeatured = (id: number, category: 'destination' | 'experience' | 'service') => {
-    const updated = toggleFeaturedCard(id, category)
-    setFeaturedCards(updated)
+  const handleToggleFeatured = async (id: number, category: 'destination' | 'experience' | 'service') => {
+    const active = featuredCards.some((fc) => fc.id === id && fc.category === category)
+    try {
+      if (active) {
+        await deleteFeaturedCard(category, id)
+      } else {
+        await addFeaturedCard({ id, category })
+      }
+      const latest = await fetchFeaturedCards()
+      setFeaturedCards(latest)
+    } catch {}
   }
 
   const isCardFeatured = (id: number, category: 'destination' | 'experience' | 'service') => {
@@ -242,7 +270,7 @@ export default function HomePage() {
       if (!matchesQuery) return false
       return (d.type ?? '').toLowerCase() === selectedType.toLowerCase()
     })
-  }, [accommodationTypes, destinations, query, selectedType])
+  }, [destinations, query, selectedType])
 
 
   return (
@@ -268,22 +296,6 @@ export default function HomePage() {
             </div>
             {selectedType ? (
               <div className="section-tools">
-                <div className="type-filters">
-                  {accommodationTypes.map((typeName) => {
-                    const labelKey = getTypeLabelKey('accommodation', typeName)
-                    const fallbackLabel = getTypeFallbackLabel('accommodation', typeName)
-                    return (
-                      <button
-                        type="button"
-                        key={typeName}
-                        className={`type-filter-btn ${selectedType === typeName ? 'active' : ''}`}
-                        onClick={() => setSelectedType((prev) => (prev === typeName ? '' : typeName))}
-                      >
-                        {t(labelKey ?? '', fallbackLabel)}
-                      </button>
-                    )
-                  })}
-                </div>
                 <div className="search-inline">
                   <input
                     className="input"
@@ -297,57 +309,72 @@ export default function HomePage() {
           </div>
 
           {!selectedType ? (
-            featuredItems.length > 0 ? (
-              <div className="grid">
-                <div className="section-head" style={{ gridColumn: '1 / -1', marginBottom: '16px' }}>
-                  <div>
-                    <h2>{t('home_featured_title', 'Featured')}</h2>
-                    <div className="muted">{t('home_featured_sub', 'Handpicked destinations by admin.')}</div>
+            <>
+              {featuredItems.length > 0 ? (
+                <div className="grid">
+                  <div className="section-head" style={{ gridColumn: '1 / -1', marginBottom: '16px' }}>
+                    <div>
+                      <h2>{t('home_featured_title', 'Featured')}</h2>
+                      <div className="muted">{t('home_featured_sub', 'Handpicked destinations by admin.')}</div>
+                    </div>
                   </div>
+                  {featuredItems.map((item) => {
+                    const getLink = () => {
+                      if (item.category === 'experience') return `/experiences/${item.id}`
+                      if (item.category === 'service') return `/services/${item.id}`
+                      return `/destinations/${item.id}`
+                    }
+                    const thumb = item.videoUrls?.[0] ? getYouTubeThumbUrl(item.videoUrls[0]) : null
+                    const categoryLabel =
+                      item.category === 'experience'
+                        ? t('nav_experiences', 'Experiences')
+                        : item.category === 'service'
+                          ? t('nav_services', 'Services')
+                          : `${item.durationDays} days`
+                    return (
+                      <Link to={getLink()} key={`${item.category}-${item.id}`} className="card destination-card">
+                        <div className="card-media-carousel">
+                          <div className="carousel-item">
+                            <div className="thumb" style={{ backgroundImage: `url(${thumb ?? item.imageUrl})` }} />
+                          </div>
+                        </div>
+                        <div className="card-body">
+                          <div className="card-title-row">
+                            <div className="card-title">{item.name}</div>
+                            <div className="pill">{categoryLabel}</div>
+                          </div>
+                          <div className="muted">{item.location ?? item.description}</div>
+                          <div className="price">{formatMoney(String(item.priceFrom))}+</div>
+                        </div>
+                      </Link>
+                    )
+                  })}
                 </div>
-                {featuredItems.map((item) => {
-                  const getLink = () => {
-                    if (item.category === 'experience') return `/experiences/${item.id}`
-                    if (item.category === 'service') return `/services/${item.id}`
-                    return `/destinations/${item.id}`
-                  }
-                  const thumb = item.videoUrls?.[0] ? getYouTubeThumbUrl(item.videoUrls[0]) : null
-                  const categoryLabel = item.category === 'experience'
-                    ? t('nav_experiences', 'Experiences')
-                    : item.category === 'service'
-                      ? t('nav_services', 'Services')
-                      : `${item.durationDays} days`
-                  return (
-                    <Link to={getLink()} key={`${item.category}-${item.id}`} className="card destination-card">
-                      <div className="card-media-carousel">
-                        <div className="carousel-item">
-                          <div className="thumb" style={{ backgroundImage: `url(${thumb ?? item.imageUrl})` }} />
-                        </div>
-                      </div>
-                      <div className="card-body">
-                        <div className="card-title-row">
-                          <div className="card-title">{item.name}</div>
-                          <div className="pill">{categoryLabel}</div>
-                        </div>
-                        <div className="muted">{item.location ?? item.description}</div>
-                        <div className="price">{formatMoney(String(item.priceFrom))}+</div>
-                      </div>
-                    </Link>
-                  )
-                })}
-              </div>
-            ) : (
+              ) : null}
+
               <TypeGate
                 titleKey="type_pick_title"
                 titleFallback="Choose a type"
                 subtitleKey="type_pick_sub_accommodation"
                 subtitleFallback="Pick a type to view accommodations."
                 options={getTypeOptions('accommodation')}
-                onSelect={(value) => setSelectedType(value)}
+                selectedValue={selectedType}
+                onSelect={(value) => setSelectedType((prev) => (prev === value ? '' : value))}
               />
-            )
+            </>
           ) : (
-            <RecentlyViewedSection />
+            <>
+              <TypeGate
+                titleKey="type_pick_title"
+                titleFallback="Choose a type"
+                subtitleKey="type_pick_sub_accommodation"
+                subtitleFallback="Pick a type to view accommodations."
+                options={getTypeOptions('accommodation')}
+                selectedValue={selectedType}
+                onSelect={(value) => setSelectedType((prev) => (prev === value ? '' : value))}
+              />
+              <RecentlyViewedSection />
+            </>
           )}
 
           {!selectedType ? null : loading ? (
@@ -371,7 +398,7 @@ export default function HomePage() {
                     d={d}
                     isAdmin={isAdmin}
                     isFeatured={isCardFeatured(d.id, 'destination')}
-                    onToggleFeatured={() => handleToggleFeatured(d.id, 'destination')}
+                    onToggleFeatured={() => void handleToggleFeatured(d.id, 'destination')}
                   />
                 )
               })}

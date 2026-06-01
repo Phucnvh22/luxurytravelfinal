@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import TopNav from './TopNav'
 import BottomNav from './BottomNav'
@@ -13,6 +13,7 @@ export default function Layout() {
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
   const { t, language, setLanguage } = useI18n()
   const location = useLocation()
+  const navigate = useNavigate()
   const isSeller = user?.role === 'SELLER'
   const isUser = user?.role === 'USER'
   const isAdminRoute = location.pathname.startsWith('/admin')
@@ -130,7 +131,16 @@ export default function Layout() {
     <div className="app-shell">
       <header className={headerClass}>
         <div className="container header-inner">
-          <Link to="/" className="brand" onClick={closeMenu}>
+          <Link
+            to="/"
+            className="brand"
+            onClick={(e) => {
+              e.preventDefault()
+              closeMenu()
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+              navigate('/', { state: { homeResetToken: Date.now() } })
+            }}
+          >
             {t('brand', 'Da Nang Luxury Travel')}
           </Link>
 
