@@ -20,6 +20,7 @@ function getYouTubeId(u: string) {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
   const match = u.match(regExp)
   return match && match[2]?.length === 11 ? match[2] : null
+  //console.log(match[2])
 }
 
 function getYouTubeThumbUrl(videoUrl: string) {
