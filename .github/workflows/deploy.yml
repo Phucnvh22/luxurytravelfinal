@@ -52,11 +52,11 @@ jobs:
 
       - name: Validate VPS secrets
         run: |
-          if [ -z '${{ secrets.VPS_HOST }}' ]; then echo 'Missing secret VPS_HOST'; exit 1; fi
-          if [ -z '${{ secrets.VPS_USER }}' ]; then echo 'Missing secret VPS_USER'; exit 1; fi
-          if [ -z '${{ secrets.VPS_APP_DIR }}' ]; then echo 'Missing secret VPS_APP_DIR'; exit 1; fi
-          if [ -z '${{ secrets.VPS_SSH_KEY }}' ]; then echo 'Missing secret VPS_SSH_KEY'; exit 1; fi
-          if [ -z '${{ secrets.GHCR_TOKEN }}' ]; then echo 'Missing secret GHCR_TOKEN (PAT with read:packages)'; exit 1; fi
+          if [ -z "${{ secrets.VPS_HOST }}" ]; then echo 'Missing secret VPS_HOST'; exit 1; fi
+          if [ -z "${{ secrets.VPS_USER }}" ]; then echo 'Missing secret VPS_USER'; exit 1; fi
+          if [ -z "${{ secrets.VPS_APP_DIR }}" ]; then echo 'Missing secret VPS_APP_DIR'; exit 1; fi
+          if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then echo 'Missing secret VPS_SSH_KEY'; exit 1; fi
+          if [ -z "${{ secrets.GHCR_TOKEN }}" ]; then echo 'Missing secret GHCR_TOKEN (PAT with read:packages)'; exit 1; fi
 
       - name: Write SSH key
         run: |
@@ -70,8 +70,8 @@ jobs:
           if [ -z "$PORT" ]; then PORT=22; fi
 
           HAS_DB_SECRETS=1
-          if [ -z '${{ secrets.MYSQL_PASSWORD }}' ]; then HAS_DB_SECRETS=0; fi
-          if [ -z '${{ secrets.MYSQL_ROOT_PASSWORD }}' ]; then HAS_DB_SECRETS=0; fi
+          if [ -z "${{ secrets.MYSQL_PASSWORD }}" ]; then HAS_DB_SECRETS=0; fi
+          if [ -z "${{ secrets.MYSQL_ROOT_PASSWORD }}" ]; then HAS_DB_SECRETS=0; fi
 
           if [ "$HAS_DB_SECRETS" = "1" ]; then
             exit 0
