@@ -6,6 +6,11 @@ import com.luxurytravel.backend.destination.Destination;
 import com.luxurytravel.backend.destination.DestinationRepository;
 import com.luxurytravel.backend.experience.Experience;
 import com.luxurytravel.backend.experience.ExperienceRepository;
+import com.luxurytravel.backend.room.Room;
+import com.luxurytravel.backend.room.RoomRepository;
+import com.luxurytravel.backend.roombooking.RoomBooking;
+import com.luxurytravel.backend.roombooking.RoomBookingRepository;
+import com.luxurytravel.backend.roombooking.RoomBookingStatus;
 import com.luxurytravel.backend.service.TravelService;
 import com.luxurytravel.backend.service.TravelServiceRepository;
 import com.luxurytravel.backend.user.Role;
@@ -17,6 +22,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Configuration
 public class DataSeeder {
@@ -26,6 +33,8 @@ public class DataSeeder {
             CategoryRepository categoryRepository,
             TravelServiceRepository travelServiceRepository,
             ExperienceRepository experienceRepository,
+            RoomRepository roomRepository,
+            RoomBookingRepository roomBookingRepository,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder
     ) {
@@ -134,6 +143,105 @@ public class DataSeeder {
                 ));
             }
 
+            if (roomRepository.count() == 0) {
+                roomRepository.save(buildRoom("P.101", "Deluxe City View", "Deluxe", 1, 2, 1, true, "Gan thang may"));
+                roomRepository.save(buildRoom("P.102", "Deluxe Twin", "Deluxe", 1, 2, 1, true, "2 giuong don"));
+                roomRepository.save(buildRoom("P.103", "Premium Double", "Premium", 1, 2, 1, true, ""));
+                roomRepository.save(buildRoom("P.104", "Family Triple", "Family", 1, 3, 2, true, "Hop cho gia dinh"));
+                roomRepository.save(buildRoom("P.201", "Suite Balcony", "Suite", 2, 2, 1, true, "View thanh pho"));
+                roomRepository.save(buildRoom("P.202", "Suite Corner", "Suite", 2, 2, 1, true, ""));
+                roomRepository.save(buildRoom("P.203", "Family Connecting", "Family", 2, 4, 2, true, "Phong noi thong"));
+                roomRepository.save(buildRoom("P.204", "Maintenance Backup", "Standard", 2, 2, 0, false, "Tam ngung ban"));
+            }
+
+            if (roomBookingRepository.count() == 0) {
+                LocalDate weekStart = LocalDate.now().minusDays(1);
+                roomBookingRepository.save(buildRoomBooking(
+                        "P.101",
+                        "Khach le - Zalo",
+                        "Zalo",
+                        "0901000101",
+                        weekStart.atTime(14, 0),
+                        weekStart.plusDays(2).atTime(12, 0),
+                        RoomBookingStatus.CONFIRMED,
+                        2,
+                        0,
+                        "Khach da coc"
+                ));
+                roomBookingRepository.save(buildRoomBooking(
+                        "P.102",
+                        "Khach le - Booking.com",
+                        "Booking.com",
+                        "0901000102",
+                        weekStart.plusDays(1).atTime(15, 0),
+                        weekStart.plusDays(5).atTime(12, 0),
+                        RoomBookingStatus.CHECKED_IN,
+                        2,
+                        1,
+                        "Check-in muon"
+                ));
+                roomBookingRepository.save(buildRoomBooking(
+                        "P.103",
+                        "Khach le - Agoda",
+                        "Agoda",
+                        "0901000103",
+                        weekStart.plusDays(2).atTime(14, 0),
+                        weekStart.plusDays(3).atTime(12, 0),
+                        RoomBookingStatus.PENDING,
+                        2,
+                        0,
+                        "Cho xac nhan thanh toan"
+                ));
+                roomBookingRepository.save(buildRoomBooking(
+                        "P.104",
+                        "Khach le - Booking.com",
+                        "Booking.com",
+                        "0901000104",
+                        weekStart.plusDays(3).atTime(14, 0),
+                        weekStart.plusDays(4).atTime(12, 0),
+                        RoomBookingStatus.CONFIRMED,
+                        1,
+                        0,
+                        ""
+                ));
+                roomBookingRepository.save(buildRoomBooking(
+                        "P.201",
+                        "Khach le - Walk in",
+                        "Walk in",
+                        "0901000201",
+                        weekStart.atTime(10, 0),
+                        weekStart.plusDays(1).atTime(12, 0),
+                        RoomBookingStatus.CHECKED_OUT,
+                        2,
+                        0,
+                        "Da tra phong"
+                ));
+                roomBookingRepository.save(buildRoomBooking(
+                        "P.202",
+                        "Khach le - Facebook",
+                        "Facebook",
+                        "0901000202",
+                        weekStart.plusDays(4).atTime(14, 0),
+                        weekStart.plusDays(6).atTime(12, 0),
+                        RoomBookingStatus.CONFIRMED,
+                        3,
+                        1,
+                        "Gia uu dai"
+                ));
+                roomBookingRepository.save(buildRoomBooking(
+                        "P.203",
+                        "Khach le - OTA",
+                        "OTA",
+                        "0901000203",
+                        weekStart.plusDays(5).atTime(14, 0),
+                        weekStart.plusDays(7).atTime(12, 0),
+                        RoomBookingStatus.CANCELLED,
+                        2,
+                        0,
+                        "Khach huy"
+                ));
+            }
+
             if (destinationRepository.count() > 0) {
                 return;
             }
@@ -197,5 +305,53 @@ public class DataSeeder {
         Experience experience = new Experience(name, description, priceFrom, imageUrl, videoUrls);
         experience.setType(type);
         return experience;
+    }
+
+    private RoomBooking buildRoomBooking(
+            String roomCode,
+            String guestName,
+            String source,
+            String phone,
+            LocalDateTime checkInAt,
+            LocalDateTime checkOutAt,
+            RoomBookingStatus status,
+            int adults,
+            int children,
+            String notes
+    ) {
+        RoomBooking booking = new RoomBooking();
+        booking.setRoomCode(roomCode);
+        booking.setGuestName(guestName);
+        booking.setSource(source);
+        booking.setPhone(phone);
+        booking.setCheckInAt(checkInAt);
+        booking.setCheckOutAt(checkOutAt);
+        booking.setStatus(status);
+        booking.setAdults(adults);
+        booking.setChildren(children);
+        booking.setNotes(notes);
+        return booking;
+    }
+
+    private Room buildRoom(
+            String code,
+            String name,
+            String type,
+            int floorNumber,
+            int maxAdults,
+            int maxChildren,
+            boolean active,
+            String notes
+    ) {
+        Room room = new Room();
+        room.setCode(code);
+        room.setName(name);
+        room.setType(type);
+        room.setFloorNumber(floorNumber);
+        room.setMaxAdults(maxAdults);
+        room.setMaxChildren(maxChildren);
+        room.setActive(active);
+        room.setNotes(notes);
+        return room;
     }
 }

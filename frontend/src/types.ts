@@ -106,6 +106,29 @@ export type ExperienceUpsertRequest = {
   videoUrls?: string[]
 }
 
+export type Room = {
+  id: number
+  code: string
+  name: string
+  type: string
+  floorNumber: number
+  maxAdults: number
+  maxChildren: number
+  active: boolean
+  notes: string
+}
+
+export type RoomUpsertRequest = {
+  code: string
+  name: string
+  type: string
+  floorNumber: number
+  maxAdults: number
+  maxChildren: number
+  active: boolean
+  notes?: string
+}
+
 export type BookingCreateRequest = {
   destinationId: number
   customerName: string
@@ -118,6 +141,37 @@ export type BookingCreateRequest = {
 }
 
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED'
+
+export type RoomBookingStatus = 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
+
+export type RoomBookingRequest = {
+  roomCode: string
+  guestName: string
+  source?: string
+  phone?: string
+  adults: number
+  children: number
+  checkInAt: string
+  checkOutAt: string
+  status: RoomBookingStatus
+  notes?: string
+}
+
+export type RoomBookingResponse = {
+  id: number
+  roomCode: string
+  guestName: string
+  source: string
+  phone: string
+  adults: number
+  children: number
+  checkInAt: string
+  checkOutAt: string
+  status: RoomBookingStatus
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
 
 export type BookingResponse = {
   id: number

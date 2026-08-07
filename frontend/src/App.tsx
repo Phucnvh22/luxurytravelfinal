@@ -4,6 +4,8 @@ import Layout from './components/Layout'
 import AdminBookingsPage from './pages/AdminBookingsPage'
 import AdminDestinationsPage from './pages/AdminDestinationsPage'
 import AdminExperienceRequestsPage from './pages/AdminExperienceRequestsPage'
+import AdminRoomBookingsPage from './pages/AdminRoomBookingsPage'
+import AdminRoomsPage from './pages/AdminRoomsPage'
 import AdminServiceRequestsPage from './pages/AdminServiceRequestsPage'
 import AdminServicesPage from './pages/AdminServicesPage'
 import AdminSellersPage from './pages/AdminSellersPage'
@@ -136,6 +138,16 @@ export default function App() {
           <Route path="/admin/bookings" element={
             <ProtectedRoute requiredRole="ADMIN">
               <AdminBookingsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/room-bookings" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminRoomBookingsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/rooms" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminRoomsPage />
             </ProtectedRoute>
           } />
           <Route path="/admin/services" element={

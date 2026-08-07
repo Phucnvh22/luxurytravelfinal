@@ -245,6 +245,20 @@ export default function Layout() {
                     {t('menu_bookings', 'Bookings')}
                   </NavLink>
                   <NavLink
+                    to="/admin/room-bookings"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_room_bookings', 'Room Schedule')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/rooms"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_rooms', 'Rooms')}
+                  </NavLink>
+                  <NavLink
                     to="/admin/service-requests"
                     className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
                     onClick={closeMenu}

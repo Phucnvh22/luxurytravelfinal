@@ -3,6 +3,8 @@ package com.luxurytravel.backend.common;
 import com.luxurytravel.backend.destination.DestinationNotFoundException;
 import com.luxurytravel.backend.experience.ExperienceNotFoundException;
 import com.luxurytravel.backend.experience.ExperienceRequestNotFoundException;
+import com.luxurytravel.backend.room.RoomNotFoundException;
+import com.luxurytravel.backend.roombooking.RoomBookingNotFoundException;
 import com.luxurytravel.backend.service.ServiceRequestNotFoundException;
 import com.luxurytravel.backend.service.TravelServiceNotFoundException;
 import com.luxurytravel.backend.user.UserNotFoundException;
@@ -41,6 +43,18 @@ public class RestExceptionHandler {
 
     @ExceptionHandler(ExperienceRequestNotFoundException.class)
     public ResponseEntity<ApiError> handleExperienceRequestNotFound(ExperienceRequestNotFoundException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(RoomBookingNotFoundException.class)
+    public ResponseEntity<ApiError> handleRoomBookingNotFound(RoomBookingNotFoundException ex) {
+        ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    @ExceptionHandler(RoomNotFoundException.class)
+    public ResponseEntity<ApiError> handleRoomNotFound(RoomNotFoundException ex) {
         ApiError body = new ApiError(ex.getMessage(), Instant.now(), null);
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }

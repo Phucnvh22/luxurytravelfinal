@@ -111,6 +111,9 @@ export default function AdminBookingsPage() {
             <Link to="/admin/destinations" className="btn">
               Destinations
             </Link>
+            <Link to="/admin/room-bookings" className="btn">
+              Room schedule
+            </Link>
           </div>
           <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
             Reload
