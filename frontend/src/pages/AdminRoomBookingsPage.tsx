@@ -11,6 +11,7 @@ type StatusMeta = {
 }
 
 type VisibleRoomBookingStatus = 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT'
+type BookingModalMode = 'create' | 'details' | 'edit'
 type ScheduleBooking = RoomBookingResponse & {
   displayStatus: VisibleRoomBookingStatus
 }
@@ -157,10 +158,6 @@ function formatMonthLabel(value: Date) {
   }).format(value)
 }
 
-function toMonthInputValue(value: Date) {
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}`
-}
-
 function formatDateTime(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
@@ -248,6 +245,9 @@ export default function AdminRoomBookingsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeStatuses, setActiveStatuses] = useState<VisibleRoomBookingStatus[]>(ALL_STATUSES)
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null)
+  const [bookingModalMode, setBookingModalMode] = useState<BookingModalMode | null>(null)
+  const [showConfirmInformation, setShowConfirmInformation] = useState(false)
   const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfMonth(new Date())))
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -256,14 +256,36 @@ export default function AdminRoomBookingsPage() {
 
   const monthStart = useMemo(() => startOfMonth(monthCursor), [monthCursor])
   const monthEnd = useMemo(() => endOfMonth(monthCursor), [monthCursor])
+  const monthValue = monthCursor.getMonth()
+  const yearValue = monthCursor.getFullYear()
   const monthDays = useMemo(() => {
     const totalDays = monthEnd.getDate()
     return Array.from({ length: totalDays }, (_, index) => addDays(monthStart, index))
   }, [monthEnd, monthStart])
+  const monthOptions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, monthIndex) => ({
+        value: monthIndex,
+        label: new Intl.DateTimeFormat('vi-VN', { month: 'long' }).format(new Date(2026, monthIndex, 1)),
+      })),
+    [],
+  )
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    return Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)
+  }, [])
   const roomByCode = useMemo(() => {
     const entries = roomsCatalog.map((room) => [room.code, room] as const)
     return Object.fromEntries(entries) as Record<string, Room>
   }, [roomsCatalog])
+  const selectedBooking = useMemo(
+    () => bookings.find((booking) => booking.id === selectedBookingId) ?? null,
+    [bookings, selectedBookingId],
+  )
+
+  const updateMonthCursor = (nextMonth: number, nextYear: number) => {
+    setMonthCursor(new Date(nextYear, nextMonth, 1))
+  }
 
   async function load(opts?: { silent?: boolean }) {
     if (loadingRef.current) return
@@ -304,6 +326,15 @@ export default function AdminRoomBookingsPage() {
       return { ...current, roomCode: roomsCatalog[0].code }
     })
   }, [editingId, roomsCatalog])
+
+  useEffect(() => {
+    if (!selectedBookingId) return
+    if (bookings.some((booking) => booking.id === selectedBookingId)) return
+    setSelectedBookingId(null)
+    setBookingModalMode(null)
+    setEditingId(null)
+    setShowConfirmInformation(false)
+  }, [bookings, selectedBookingId])
 
   const statusCounts = useMemo(() => {
     return bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
@@ -397,9 +428,35 @@ export default function AdminRoomBookingsPage() {
     setFormError(null)
   }
 
+  const closeBookingModal = () => {
+    setBookingModalMode(null)
+    setSelectedBookingId(null)
+    setShowConfirmInformation(false)
+    setFormError(null)
+    setEditingId(null)
+  }
+
+  const openCreateBookingModal = () => {
+    resetForm()
+    setSelectedBookingId(null)
+    setBookingModalMode('create')
+    setShowConfirmInformation(false)
+  }
+
+  const openBookingDetails = (booking: RoomBookingResponse) => {
+    setSelectedBookingId(booking.id)
+    setBookingModalMode('details')
+    setShowConfirmInformation(false)
+    setFormError(null)
+    setEditingId(null)
+  }
+
   const editBooking = (booking: RoomBookingResponse) => {
     setEditingId(booking.id)
+    setSelectedBookingId(booking.id)
     setForm(mapBookingToForm(booking))
+    setBookingModalMode('edit')
+    setShowConfirmInformation(false)
     setFormError(null)
   }
 
@@ -438,8 +495,11 @@ export default function AdminRoomBookingsPage() {
         body: JSON.stringify(payload),
       })
       setEditingId(saved.id)
+      setSelectedBookingId(saved.id)
       setForm(mapBookingToForm(saved))
-      await load()
+      setBookingModalMode('details')
+      setShowConfirmInformation(false)
+      await load({ silent: true })
     } catch (e: unknown) {
       setFormError(getErrorMessage(e, 'Khong the luu dat phong'))
     } finally {
@@ -456,13 +516,36 @@ export default function AdminRoomBookingsPage() {
     try {
       await apiFetch<void>(`/api/admin/room-bookings/${editingId}`, { method: 'DELETE' })
       resetForm()
-      await load()
+      setSelectedBookingId(null)
+      closeBookingModal()
+      await load({ silent: true })
     } catch (e: unknown) {
       setFormError(getErrorMessage(e, 'Khong the xoa dat phong'))
     } finally {
       setDeleting(false)
     }
   }
+
+  const confirmationSource =
+    bookingModalMode === 'details' && selectedBooking
+      ? {
+          roomCode: selectedBooking.roomCode,
+          guestName: selectedBooking.guestName,
+          source: selectedBooking.source,
+          phone: selectedBooking.phone,
+          adults: selectedBooking.adults,
+          children: selectedBooking.children,
+          checkInAt: selectedBooking.checkInAt,
+          checkOutAt: selectedBooking.checkOutAt,
+          status: normalizeEditableStatus(selectedBooking.status),
+          notes: selectedBooking.notes,
+        }
+      : form
+
+  const selectedStatusMeta =
+    selectedBooking && bookingModalMode === 'details'
+      ? STATUS_META[normalizeEditableStatus(selectedBooking.status)]
+      : STATUS_META[normalizeEditableStatus(confirmationSource.status)]
 
   return (
     <section className="section">
@@ -483,7 +566,7 @@ export default function AdminRoomBookingsPage() {
             <button className="btn" type="button" onClick={() => setMonthCursor(startOfMonth(new Date()))}>
               Thang hien tai
             </button>
-            <button className="btn primary" type="button" onClick={resetForm}>
+            <button className="btn primary" type="button" onClick={openCreateBookingModal}>
               Them dat phong
             </button>
           </div>
@@ -511,32 +594,60 @@ export default function AdminRoomBookingsPage() {
             </div>
 
             <div className="room-bookings-week-nav">
-              <button className="btn" type="button" onClick={() => setMonthCursor((current) => addMonths(current, -1))}>
-                ←
-              </button>
-              <div className="room-bookings-week-label">
-                <div className="room-bookings-week-title">Chon thang</div>
-                <div className="room-bookings-week-range">{formatMonthLabel(monthCursor)}</div>
+              <div className="room-bookings-nav-strip">
+                <button
+                  className="btn room-bookings-nav-btn"
+                  type="button"
+                  onClick={() => setMonthCursor((current) => addMonths(current, -1))}
+                >
+                  ←
+                </button>
+                <div className="room-bookings-week-label room-bookings-current-month">
+                  <div className="room-bookings-week-title">Chon thang</div>
+                  <div className="room-bookings-week-range">{formatMonthLabel(monthCursor)}</div>
+                </div>
+                <button
+                  className="btn room-bookings-nav-btn"
+                  type="button"
+                  onClick={() => setMonthCursor((current) => addMonths(current, 1))}
+                >
+                  →
+                </button>
               </div>
-              <label className="field room-bookings-month-field">
-                <input
-                  className="input"
-                  type="month"
-                  value={toMonthInputValue(monthCursor)}
-                  onChange={(e) => {
-                    const [year, month] = e.target.value.split('-').map(Number)
-                    if (!year || !month) return
-                    setMonthCursor(new Date(year, month - 1, 1))
-                  }}
-                />
-              </label>
+              <div className="room-bookings-picker-group">
+                <label className="field room-bookings-month-field">
+                  <div className="field-label">Thang</div>
+                  <select
+                    className="select"
+                    value={monthValue}
+                    onChange={(e) => updateMonthCursor(Number(e.target.value), yearValue)}
+                  >
+                    {monthOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field room-bookings-month-field room-bookings-year-field">
+                  <div className="field-label">Nam</div>
+                  <select
+                    className="select"
+                    value={yearValue}
+                    onChange={(e) => updateMonthCursor(monthValue, Number(e.target.value))}
+                  >
+                    {yearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <div className="room-bookings-week-label room-bookings-range-pill">
                 <div className="room-bookings-week-title">Pham vi</div>
                 <div className="room-bookings-week-range">{formatDateRange(monthStart, monthEnd)}</div>
               </div>
-              <button className="btn" type="button" onClick={() => setMonthCursor((current) => addMonths(current, 1))}>
-                →
-              </button>
             </div>
           </div>
 
@@ -560,7 +671,7 @@ export default function AdminRoomBookingsPage() {
           </div>
         </div>
 
-        <div className="room-bookings-layout">
+        <div className="room-bookings-stack">
           <div className="card detail-card room-schedule-card">
             {loading ? (
               <div className="card detail-card muted">Dang tai lich dat phong...</div>
@@ -623,9 +734,9 @@ export default function AdminRoomBookingsPage() {
                               <button
                                 key={booking.id}
                                 type="button"
-                                className={`room-booking-bar ${meta.toneClass} ${editingId === booking.id ? 'selected' : ''}`}
+                                className={`room-booking-bar ${meta.toneClass} ${selectedBookingId === booking.id ? 'selected' : ''}`}
                                 style={{ left: `${layout.left}%`, width: `${layout.width}%` }}
-                                onClick={() => editBooking(booking)}
+                                onClick={() => openBookingDetails(booking)}
                               >
                                 <div className="room-booking-bar-title">{booking.guestName}</div>
                                 <div className="room-booking-bar-meta">
@@ -662,161 +773,6 @@ export default function AdminRoomBookingsPage() {
             )}
           </div>
 
-          <div className="room-bookings-side">
-            <div className="card detail-card room-booking-editor">
-              <div className="room-booking-editor-head">
-                <div>
-                  <div className="room-booking-editor-title">{editingId ? 'Cap nhat dat phong' : 'Tao dat phong moi'}</div>
-                  <div className="muted">
-                    {editingId ? `Ma lich #${editingId}` : 'Nhap thong tin de them mot block vao lich theo phong.'}
-                  </div>
-                </div>
-                {editingId ? (
-                  <button className="btn" type="button" onClick={resetForm}>
-                    Tao moi
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="row">
-                <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                  <div className="field-label">Phong</div>
-                  <select
-                    className="select"
-                    value={form.roomCode}
-                    onChange={(e) => setForm((current) => ({ ...current, roomCode: e.target.value }))}
-                  >
-                    {roomOptions.map((roomCode) => {
-                      const room = roomByCode[roomCode]
-                      const suffix = room ? ` - ${room.name}` : ''
-                      return (
-                        <option key={roomCode} value={roomCode}>
-                          {roomCode}{suffix}
-                        </option>
-                      )
-                    })}
-                  </select>
-                </label>
-                <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                  <div className="field-label">Trang thai</div>
-                  <select
-                    className="select"
-                    value={form.status}
-                    onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as VisibleRoomBookingStatus }))}
-                  >
-                    {ALL_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {STATUS_META[status].label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              <label className="field">
-                <div className="field-label">Ten khach</div>
-                <input
-                  className="input"
-                  value={form.guestName}
-                  onChange={(e) => setForm((current) => ({ ...current, guestName: e.target.value }))}
-                  placeholder="Nguyen Van A"
-                />
-              </label>
-
-              <div className="row">
-                <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                  <div className="field-label">Nguon dat</div>
-                  <input
-                    className="input"
-                    value={form.source}
-                    onChange={(e) => setForm((current) => ({ ...current, source: e.target.value }))}
-                    placeholder="Booking.com / Zalo / Direct"
-                  />
-                </label>
-                <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                  <div className="field-label">So dien thoai</div>
-                  <input
-                    className="input"
-                    value={form.phone}
-                    onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))}
-                    placeholder="090..."
-                  />
-                </label>
-              </div>
-
-              <div className="row">
-                <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                  <div className="field-label">Check-in</div>
-                  <input
-                    className="input"
-                    type="datetime-local"
-                    value={form.checkInAt}
-                    onChange={(e) => setForm((current) => ({ ...current, checkInAt: e.target.value }))}
-                  />
-                </label>
-                <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                  <div className="field-label">Check-out</div>
-                  <input
-                    className="input"
-                    type="datetime-local"
-                    value={form.checkOutAt}
-                    onChange={(e) => setForm((current) => ({ ...current, checkOutAt: e.target.value }))}
-                  />
-                </label>
-              </div>
-
-              <div className="row">
-                <label className="field" style={{ flex: 1, minWidth: 120 }}>
-                  <div className="field-label">Nguoi lon</div>
-                  <input
-                    className="input"
-                    type="number"
-                    min={1}
-                    value={form.adults}
-                    onChange={(e) => setForm((current) => ({ ...current, adults: Number(e.target.value) }))}
-                  />
-                </label>
-                <label className="field" style={{ flex: 1, minWidth: 120 }}>
-                  <div className="field-label">Tre em</div>
-                  <input
-                    className="input"
-                    type="number"
-                    min={0}
-                    value={form.children}
-                    onChange={(e) => setForm((current) => ({ ...current, children: Number(e.target.value) }))}
-                  />
-                </label>
-              </div>
-
-              <label className="field">
-                <div className="field-label">Ghi chu</div>
-                <textarea
-                  className="textarea"
-                  value={form.notes}
-                  onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
-                  placeholder="Ghi chu noi bo, tinh trang coc, yeu cau khach..."
-                />
-              </label>
-
-              {formError ? (
-                <div className="card error" style={{ marginTop: 12 }}>
-                  <div className="error-title">Khong the luu</div>
-                  <div className="muted">{formError}</div>
-                </div>
-              ) : null}
-
-              <div className="row room-booking-editor-actions">
-                <button className="btn primary" type="button" onClick={() => void handleSave()} disabled={saving}>
-                  {saving ? 'Dang luu...' : editingId ? 'Cap nhat' : 'Tao dat phong'}
-                </button>
-                {editingId ? (
-                  <button className="btn danger" type="button" onClick={() => void handleDelete()} disabled={deleting}>
-                    {deleting ? 'Dang xoa...' : 'Xoa'}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
             <div className="card detail-card room-bookings-list">
               <div className="room-booking-editor-title">Danh sach trong thang</div>
               <div className="muted" style={{ marginBottom: 12 }}>
@@ -834,8 +790,8 @@ export default function AdminRoomBookingsPage() {
                         <button
                           key={booking.id}
                           type="button"
-                          className={`room-bookings-list-item ${editingId === booking.id ? 'active' : ''}`}
-                          onClick={() => editBooking(booking)}
+                          className={`room-bookings-list-item ${selectedBookingId === booking.id ? 'active' : ''}`}
+                          onClick={() => openBookingDetails(booking)}
                         >
                           <div className="room-bookings-list-top">
                             <strong>{booking.roomCode}</strong>
@@ -850,8 +806,285 @@ export default function AdminRoomBookingsPage() {
                 </div>
               )}
             </div>
-          </div>
         </div>
+
+        {bookingModalMode ? (
+          <div className="room-booking-modal-overlay" role="dialog" aria-modal="true" onClick={closeBookingModal}>
+            <div className="room-booking-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="room-booking-modal-head">
+                <div>
+                  <div className="room-booking-editor-title">
+                    {bookingModalMode === 'create'
+                      ? 'Dat phong moi'
+                      : bookingModalMode === 'edit'
+                        ? 'Cap nhat dat phong'
+                        : 'Thong tin dat phong'}
+                  </div>
+                  <div className="muted">
+                    {bookingModalMode === 'details' && selectedBooking
+                      ? `Ma lich #${selectedBooking.id} • ${selectedStatusMeta.label}`
+                      : 'Tat ca thao tac dat phong duoc xu ly trong popup nay.'}
+                  </div>
+                </div>
+                <div className="room-booking-modal-actions">
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setShowConfirmInformation((current) => !current)}
+                  >
+                    {showConfirmInformation ? 'An Confirm Information' : 'Confirm Information'}
+                  </button>
+                  {bookingModalMode === 'details' && selectedBooking ? (
+                    <button className="btn" type="button" onClick={() => editBooking(selectedBooking)}>
+                      Chinh sua
+                    </button>
+                  ) : null}
+                  <button className="btn" type="button" onClick={closeBookingModal}>
+                    Dong
+                  </button>
+                </div>
+              </div>
+
+              {bookingModalMode === 'details' && selectedBooking ? (
+                <div className="room-booking-modal-body">
+                  <div className="room-booking-details-grid">
+                    <div className="room-booking-detail-card">
+                      <div className="room-booking-detail-label">Khach hang</div>
+                      <strong>{selectedBooking.guestName}</strong>
+                      <div className="muted">{countGuests(selectedBooking)}</div>
+                    </div>
+                    <div className="room-booking-detail-card">
+                      <div className="room-booking-detail-label">Phong</div>
+                      <strong>{selectedBooking.roomCode}</strong>
+                      <div className="muted">{roomByCode[selectedBooking.roomCode]?.name ?? 'Chua co ten phong'}</div>
+                    </div>
+                    <div className="room-booking-detail-card">
+                      <div className="room-booking-detail-label">Check-in</div>
+                      <strong>{formatDateTime(selectedBooking.checkInAt)}</strong>
+                      <div className="muted">{selectedStatusMeta.label}</div>
+                    </div>
+                    <div className="room-booking-detail-card">
+                      <div className="room-booking-detail-label">Check-out</div>
+                      <strong>{formatDateTime(selectedBooking.checkOutAt)}</strong>
+                      <div className="muted">{selectedBooking.source}</div>
+                    </div>
+                  </div>
+
+                  <div className="room-booking-detail-panel">
+                    <div className="room-booking-detail-row">
+                      <span>Nguon dat</span>
+                      <strong>{selectedBooking.source || 'Direct'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>So dien thoai</span>
+                      <strong>{selectedBooking.phone || 'Chua cap nhat'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Trang thai</span>
+                      <span className={`room-bookings-list-badge ${selectedStatusMeta.toneClass}`}>{selectedStatusMeta.label}</span>
+                    </div>
+                    <div className="room-booking-detail-row room-booking-detail-notes">
+                      <span>Ghi chu</span>
+                      <strong>{selectedBooking.notes || 'Khong co ghi chu.'}</strong>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="room-booking-modal-body">
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Phong</div>
+                      <select
+                        className="select"
+                        value={form.roomCode}
+                        onChange={(e) => setForm((current) => ({ ...current, roomCode: e.target.value }))}
+                      >
+                        {roomOptions.map((roomCode) => {
+                          const room = roomByCode[roomCode]
+                          const suffix = room ? ` - ${room.name}` : ''
+                          return (
+                            <option key={roomCode} value={roomCode}>
+                              {roomCode}{suffix}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </label>
+                    <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                      <div className="field-label">Trang thai</div>
+                      <select
+                        className="select"
+                        value={form.status}
+                        onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as VisibleRoomBookingStatus }))}
+                      >
+                        {ALL_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {STATUS_META[status].label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <label className="field">
+                    <div className="field-label">Ten khach</div>
+                    <input
+                      className="input"
+                      value={form.guestName}
+                      onChange={(e) => setForm((current) => ({ ...current, guestName: e.target.value }))}
+                      placeholder="Nguyen Van A"
+                    />
+                  </label>
+
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Nguon dat</div>
+                      <input
+                        className="input"
+                        value={form.source}
+                        onChange={(e) => setForm((current) => ({ ...current, source: e.target.value }))}
+                        placeholder="Booking.com / Zalo / Direct"
+                      />
+                    </label>
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">So dien thoai</div>
+                      <input
+                        className="input"
+                        value={form.phone}
+                        onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))}
+                        placeholder="090..."
+                      />
+                    </label>
+                  </div>
+
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Check-in</div>
+                      <input
+                        className="input"
+                        type="datetime-local"
+                        value={form.checkInAt}
+                        onChange={(e) => setForm((current) => ({ ...current, checkInAt: e.target.value }))}
+                      />
+                    </label>
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Check-out</div>
+                      <input
+                        className="input"
+                        type="datetime-local"
+                        value={form.checkOutAt}
+                        onChange={(e) => setForm((current) => ({ ...current, checkOutAt: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 120 }}>
+                      <div className="field-label">Nguoi lon</div>
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        value={form.adults}
+                        onChange={(e) => setForm((current) => ({ ...current, adults: Number(e.target.value) }))}
+                      />
+                    </label>
+                    <label className="field" style={{ flex: 1, minWidth: 120 }}>
+                      <div className="field-label">Tre em</div>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        value={form.children}
+                        onChange={(e) => setForm((current) => ({ ...current, children: Number(e.target.value) }))}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="field">
+                    <div className="field-label">Ghi chu</div>
+                    <textarea
+                      className="textarea"
+                      value={form.notes}
+                      onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
+                      placeholder="Ghi chu noi bo, tinh trang coc, yeu cau khach..."
+                    />
+                  </label>
+
+                  {formError ? (
+                    <div className="card error" style={{ marginTop: 12 }}>
+                      <div className="error-title">Khong the luu</div>
+                      <div className="muted">{formError}</div>
+                    </div>
+                  ) : null}
+
+                  <div className="row room-booking-editor-actions">
+                    <button className="btn primary" type="button" onClick={() => void handleSave()} disabled={saving}>
+                      {saving ? 'Dang luu...' : editingId ? 'Cap nhat' : 'Tao dat phong'}
+                    </button>
+                    {editingId ? (
+                      <button className="btn danger" type="button" onClick={() => void handleDelete()} disabled={deleting}>
+                        {deleting ? 'Dang xoa...' : 'Xoa'}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        ) : null}
+
+        {bookingModalMode && showConfirmInformation ? (
+          <div
+            className="room-booking-confirm-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setShowConfirmInformation(false)}
+          >
+            <div className="room-booking-confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="room-booking-confirm-head">
+                <div className="room-booking-confirm-title">Confirm Information</div>
+                <span className={`room-bookings-list-badge ${selectedStatusMeta.toneClass}`}>{selectedStatusMeta.label}</span>
+              </div>
+              <div className="room-booking-confirm-grid">
+                <div>
+                  <div className="room-booking-detail-label">Khach hang</div>
+                  <strong>{confirmationSource.guestName || 'Dang cap nhat'}</strong>
+                </div>
+                <div>
+                  <div className="room-booking-detail-label">Phong</div>
+                  <strong>{confirmationSource.roomCode || 'Dang chon phong'}</strong>
+                </div>
+                <div>
+                  <div className="room-booking-detail-label">Check-in</div>
+                  <strong>{confirmationSource.checkInAt ? formatDateTime(confirmationSource.checkInAt) : 'Dang cap nhat'}</strong>
+                </div>
+                <div>
+                  <div className="room-booking-detail-label">Check-out</div>
+                  <strong>{confirmationSource.checkOutAt ? formatDateTime(confirmationSource.checkOutAt) : 'Dang cap nhat'}</strong>
+                </div>
+                <div>
+                  <div className="room-booking-detail-label">Nguon dat</div>
+                  <strong>{confirmationSource.source || 'Direct'}</strong>
+                </div>
+                <div>
+                  <div className="room-booking-detail-label">Lien he</div>
+                  <strong>{confirmationSource.phone || 'Chua cap nhat'}</strong>
+                </div>
+              </div>
+              <div className="room-booking-confirm-foot">
+                Tong khach: {Number(confirmationSource.adults || 0) + Number(confirmationSource.children || 0)} •
+                Vui long kiem tra thong tin truoc khi gui cho khach.
+              </div>
+              <div className="room-booking-confirm-actions">
+                <button className="btn" type="button" onClick={() => setShowConfirmInformation(false)}>
+                  Dong
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   )
