@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
 import type { Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus } from '../types'
@@ -10,23 +10,32 @@ type StatusMeta = {
   toneClass: string
 }
 
-const STATUS_META: Record<RoomBookingStatus, StatusMeta> = {
-  PENDING: { label: 'Cho xac nhan', toneClass: 'pending' },
-  CONFIRMED: { label: 'Da xac nhan', toneClass: 'confirmed' },
-  CHECKED_IN: { label: 'Dang su dung', toneClass: 'checked-in' },
-  CHECKED_OUT: { label: 'Da tra phong', toneClass: 'checked-out' },
-  CANCELLED: { label: 'Da huy', toneClass: 'cancelled' },
+type VisibleRoomBookingStatus = 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT'
+type ScheduleBooking = RoomBookingResponse & {
+  displayStatus: VisibleRoomBookingStatus
 }
 
-const ALL_STATUSES = Object.keys(STATUS_META) as RoomBookingStatus[]
-const FALLBACK_ROOM_CODE = 'P.101'
-const TRACK_DURATION_MS = 7 * 24 * 60 * 60 * 1000
+const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
+  CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
+  CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
+  CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
+}
 
-function startOfWeek(base: Date) {
+const ALL_STATUSES = Object.keys(STATUS_META) as VisibleRoomBookingStatus[]
+const FALLBACK_ROOM_CODE = 'P.101'
+const DAY_DURATION_MS = 24 * 60 * 60 * 1000
+
+function startOfMonth(base: Date) {
   const value = new Date(base)
-  const day = value.getDay()
-  const delta = day === 0 ? -6 : 1 - day
-  value.setDate(value.getDate() + delta)
+  value.setDate(1)
+  value.setHours(0, 0, 0, 0)
+  return value
+}
+
+function endOfMonth(base: Date) {
+  const value = startOfMonth(base)
+  value.setMonth(value.getMonth() + 1)
+  value.setDate(0)
   value.setHours(0, 0, 0, 0)
   return value
 }
@@ -34,6 +43,18 @@ function startOfWeek(base: Date) {
 function addDays(base: Date, days: number) {
   const value = new Date(base)
   value.setDate(value.getDate() + days)
+  return value
+}
+
+function addMonths(base: Date, months: number) {
+  const value = startOfMonth(base)
+  value.setMonth(value.getMonth() + months)
+  return value
+}
+
+function startOfDay(base: Date) {
+  const value = new Date(base)
+  value.setHours(0, 0, 0, 0)
   return value
 }
 
@@ -56,8 +77,8 @@ function toInputValue(value?: string) {
   return toDateTimeLocalValue(parsed)
 }
 
-function buildDefaultForm(weekStart: Date, roomCode = FALLBACK_ROOM_CODE): RoomBookingRequest {
-  const checkInAt = new Date(weekStart)
+function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): RoomBookingRequest {
+  const checkInAt = new Date(monthStart)
   checkInAt.setHours(14, 0, 0, 0)
   const checkOutAt = addDays(checkInAt, 1)
   checkOutAt.setHours(12, 0, 0, 0)
@@ -71,9 +92,23 @@ function buildDefaultForm(weekStart: Date, roomCode = FALLBACK_ROOM_CODE): RoomB
     children: 0,
     checkInAt: toDateTimeLocalValue(checkInAt),
     checkOutAt: toDateTimeLocalValue(checkOutAt),
-    status: 'PENDING',
+    status: 'CONFIRMED',
     notes: '',
   }
+}
+
+function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingStatus | null {
+  if (status === 'CHECKED_IN' || status === 'CHECKED_OUT' || status === 'CONFIRMED') {
+    return status
+  }
+  if (status === 'PENDING') {
+    return 'CONFIRMED'
+  }
+  return null
+}
+
+function normalizeEditableStatus(status: RoomBookingStatus): VisibleRoomBookingStatus {
+  return normalizeDisplayStatus(status) ?? 'CONFIRMED'
 }
 
 function mapBookingToForm(booking: RoomBookingResponse): RoomBookingRequest {
@@ -86,7 +121,7 @@ function mapBookingToForm(booking: RoomBookingResponse): RoomBookingRequest {
     children: booking.children,
     checkInAt: toInputValue(booking.checkInAt),
     checkOutAt: toInputValue(booking.checkOutAt),
-    status: booking.status,
+    status: normalizeEditableStatus(booking.status),
     notes: booking.notes,
   }
 }
@@ -94,8 +129,12 @@ function mapBookingToForm(booking: RoomBookingResponse): RoomBookingRequest {
 function formatDayLabel(value: Date) {
   return new Intl.DateTimeFormat('vi-VN', {
     weekday: 'short',
+  }).format(value)
+}
+
+function formatDayNumber(value: Date) {
+  return new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
-    month: '2-digit',
   }).format(value)
 }
 
@@ -109,6 +148,17 @@ function formatDateRange(start: Date, end: Date) {
     month: '2-digit',
     year: 'numeric',
   }).format(end)}`
+}
+
+function formatMonthLabel(value: Date) {
+  return new Intl.DateTimeFormat('vi-VN', {
+    month: 'long',
+    year: 'numeric',
+  }).format(value)
+}
+
+function toMonthInputValue(value: Date) {
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}`
 }
 
 function formatDateTime(value: string) {
@@ -136,6 +186,51 @@ function countGuests(booking: RoomBookingResponse) {
   return `${total} khach`
 }
 
+function sortBookingsByTime<T extends RoomBookingResponse>(items: T[]) {
+  return [...items].sort(
+    (a, b) => new Date(a.checkInAt).getTime() - new Date(b.checkInAt).getTime() || a.id - b.id,
+  )
+}
+
+function getBookingBarLayout(booking: RoomBookingResponse, trackStartMs: number, trackDurationMs: number) {
+  const start = startOfDay(new Date(booking.checkInAt)).getTime()
+  const endCandidate = startOfDay(new Date(booking.checkOutAt)).getTime()
+  const end = endCandidate > start ? endCandidate : start + DAY_DURATION_MS
+  const trackEndMs = trackStartMs + trackDurationMs
+  const clampedStart = Math.max(start, trackStartMs)
+  const clampedEnd = Math.min(end, trackEndMs)
+
+  if (clampedEnd <= clampedStart) return null
+
+  return {
+    left: ((clampedStart - trackStartMs) / trackDurationMs) * 100,
+    width: Math.max(((clampedEnd - clampedStart) / trackDurationMs) * 100, 4),
+  }
+}
+
+function getCleaningGapLayout(
+  currentBooking: RoomBookingResponse,
+  nextBooking: RoomBookingResponse,
+  trackStartMs: number,
+  trackDurationMs: number,
+) {
+  const gapStart = new Date(currentBooking.checkOutAt).getTime()
+  const gapEnd = new Date(nextBooking.checkInAt).getTime()
+  const trackEndMs = trackStartMs + trackDurationMs
+
+  if (gapEnd <= gapStart) return null
+
+  const clampedStart = Math.max(gapStart, trackStartMs)
+  const clampedEnd = Math.min(gapEnd, trackEndMs)
+  if (clampedEnd <= clampedStart) return null
+
+  return {
+    left: (((clampedStart + clampedEnd) / 2 - trackStartMs) / trackDurationMs) * 100,
+    compact: clampedEnd - clampedStart < DAY_DURATION_MS / 3,
+    title: `Don phong: ${formatDateTime(currentBooking.checkOutAt)} → ${formatDateTime(nextBooking.checkInAt)}`,
+  }
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
     if (error.body?.fields) return Object.values(error.body.fields).join(', ')
@@ -145,22 +240,26 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function AdminRoomBookingsPage() {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
+  const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
   const [roomsCatalog, setRoomsCatalog] = useState<Room[]>([])
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeStatuses, setActiveStatuses] = useState<RoomBookingStatus[]>(ALL_STATUSES)
+  const [activeStatuses, setActiveStatuses] = useState<VisibleRoomBookingStatus[]>(ALL_STATUSES)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfWeek(new Date())))
+  const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfMonth(new Date())))
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const loadingRef = useRef(false)
 
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart])
-  const weekEnd = weekDays[weekDays.length - 1]
+  const monthStart = useMemo(() => startOfMonth(monthCursor), [monthCursor])
+  const monthEnd = useMemo(() => endOfMonth(monthCursor), [monthCursor])
+  const monthDays = useMemo(() => {
+    const totalDays = monthEnd.getDate()
+    return Array.from({ length: totalDays }, (_, index) => addDays(monthStart, index))
+  }, [monthEnd, monthStart])
   const roomByCode = useMemo(() => {
     const entries = roomsCatalog.map((room) => [room.code, room] as const)
     return Object.fromEntries(entries) as Record<string, Room>
@@ -175,7 +274,7 @@ export default function AdminRoomBookingsPage() {
     }
     try {
       const [bookingsData, roomsData] = await Promise.all([
-        apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(weekStart)}&to=${toIsoDate(weekEnd)}`),
+        apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(monthStart)}&to=${toIsoDate(monthEnd)}`),
         apiFetch<Room[]>('/api/admin/rooms'),
       ])
       setBookings(bookingsData)
@@ -193,7 +292,7 @@ export default function AdminRoomBookingsPage() {
 
   useEffect(() => {
     void load()
-  }, [weekStart])
+  }, [monthStart, monthEnd])
 
   useEffect(() => {
     if (editingId) return
@@ -207,18 +306,23 @@ export default function AdminRoomBookingsPage() {
   }, [editingId, roomsCatalog])
 
   const statusCounts = useMemo(() => {
-    return bookings.reduce<Record<RoomBookingStatus, number>>((acc, booking) => {
-      acc[booking.status] = (acc[booking.status] ?? 0) + 1
+    return bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
+      const visibleStatus = normalizeDisplayStatus(booking.status)
+      if (!visibleStatus) return acc
+      acc[visibleStatus] = (acc[visibleStatus] ?? 0) + 1
       return acc
-    }, { PENDING: 0, CONFIRMED: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
+    }, { CONFIRMED: 0, CHECKED_IN: 0, CHECKED_OUT: 0 })
   }, [bookings])
 
   const filteredBookings = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
-    return bookings.filter((booking) => {
-      const matchesStatus = activeStatuses.includes(booking.status)
-      if (!matchesStatus) return false
-      if (!normalizedSearch) return true
+    return bookings.flatMap<ScheduleBooking>((booking) => {
+      const visibleStatus = normalizeDisplayStatus(booking.status)
+      if (!visibleStatus) return []
+
+      const matchesStatus = activeStatuses.includes(visibleStatus)
+      if (!matchesStatus) return []
+      if (!normalizedSearch) return [{ ...booking, displayStatus: visibleStatus }]
       const haystack = [
         booking.roomCode,
         roomByCode[booking.roomCode]?.name ?? '',
@@ -230,7 +334,8 @@ export default function AdminRoomBookingsPage() {
       ]
         .join(' ')
         .toLowerCase()
-      return haystack.includes(normalizedSearch)
+      if (!haystack.includes(normalizedSearch)) return []
+      return [{ ...booking, displayStatus: visibleStatus }]
     })
   }, [activeStatuses, bookings, roomByCode, searchTerm])
 
@@ -272,14 +377,23 @@ export default function AdminRoomBookingsPage() {
       })
   }, [bookings, roomByCode, roomsCatalog])
 
-  const trackStartMs = weekStart.getTime()
+  const trackStartMs = monthStart.getTime()
+  const trackDurationMs = monthDays.length * DAY_DURATION_MS
+  const scheduleGridStyle = useMemo(
+    () =>
+      ({
+        ['--day-count' as string]: monthDays.length,
+        ['--day-column-width' as string]: '56px',
+      }) as CSSProperties,
+    [monthDays.length],
+  )
   const today = new Date()
-  const isTodayInsideWeek = today >= weekStart && today < addDays(weekStart, 7)
-  const todayMarkerLeft = isTodayInsideWeek ? ((today.getTime() - trackStartMs) / TRACK_DURATION_MS) * 100 : null
+  const isTodayInsideMonth = today >= monthStart && today < addDays(monthEnd, 1)
+  const todayMarkerLeft = isTodayInsideMonth ? ((today.getTime() - trackStartMs) / trackDurationMs) * 100 : null
 
   const resetForm = () => {
     setEditingId(null)
-    setForm(buildDefaultForm(weekStart, roomsCatalog[0]?.code ?? FALLBACK_ROOM_CODE))
+    setForm(buildDefaultForm(monthStart, roomsCatalog[0]?.code ?? FALLBACK_ROOM_CODE))
     setFormError(null)
   }
 
@@ -289,7 +403,7 @@ export default function AdminRoomBookingsPage() {
     setFormError(null)
   }
 
-  const toggleStatus = (status: RoomBookingStatus) => {
+  const toggleStatus = (status: VisibleRoomBookingStatus) => {
     setActiveStatuses((current) => {
       if (current.includes(status)) {
         if (current.length === 1) return ALL_STATUSES
@@ -366,8 +480,8 @@ export default function AdminRoomBookingsPage() {
             </Link>
           </div>
           <div className="row">
-            <button className="btn" type="button" onClick={() => setWeekStart(startOfWeek(new Date()))}>
-              Tuan hien tai
+            <button className="btn" type="button" onClick={() => setMonthCursor(startOfMonth(new Date()))}>
+              Thang hien tai
             </button>
             <button className="btn primary" type="button" onClick={resetForm}>
               Them dat phong
@@ -378,7 +492,7 @@ export default function AdminRoomBookingsPage() {
         <div className="section-head" style={{ marginTop: 14 }}>
           <div>
             <h2>Admin • Lich dat phong</h2>
-            <div className="muted">Quan ly lich check-in / check-out theo tuan, co the tao sua xoa truc tiep.</div>
+            <div className="muted">Quan ly lich check-in / check-out theo thang, co cuon ngang va cap nhat truc tiep.</div>
           </div>
           <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
             Tai lai
@@ -397,14 +511,30 @@ export default function AdminRoomBookingsPage() {
             </div>
 
             <div className="room-bookings-week-nav">
-              <button className="btn" type="button" onClick={() => setWeekStart((current) => addDays(current, -7))}>
+              <button className="btn" type="button" onClick={() => setMonthCursor((current) => addMonths(current, -1))}>
                 ←
               </button>
               <div className="room-bookings-week-label">
-                <div className="room-bookings-week-title">Khung tuan</div>
-                <div className="room-bookings-week-range">{formatDateRange(weekStart, weekEnd)}</div>
+                <div className="room-bookings-week-title">Chon thang</div>
+                <div className="room-bookings-week-range">{formatMonthLabel(monthCursor)}</div>
               </div>
-              <button className="btn" type="button" onClick={() => setWeekStart((current) => addDays(current, 7))}>
+              <label className="field room-bookings-month-field">
+                <input
+                  className="input"
+                  type="month"
+                  value={toMonthInputValue(monthCursor)}
+                  onChange={(e) => {
+                    const [year, month] = e.target.value.split('-').map(Number)
+                    if (!year || !month) return
+                    setMonthCursor(new Date(year, month - 1, 1))
+                  }}
+                />
+              </label>
+              <div className="room-bookings-week-label room-bookings-range-pill">
+                <div className="room-bookings-week-title">Pham vi</div>
+                <div className="room-bookings-week-range">{formatDateRange(monthStart, monthEnd)}</div>
+              </div>
+              <button className="btn" type="button" onClick={() => setMonthCursor((current) => addMonths(current, 1))}>
                 →
               </button>
             </div>
@@ -432,20 +562,6 @@ export default function AdminRoomBookingsPage() {
 
         <div className="room-bookings-layout">
           <div className="card detail-card room-schedule-card">
-            <div className="room-schedule-header">
-              <div className="room-schedule-room-head">Phong</div>
-              <div className="room-schedule-days">
-                {weekDays.map((day) => {
-                  const isToday = toIsoDate(day) === toIsoDate(today)
-                  return (
-                    <div key={day.toISOString()} className={`room-schedule-day-head ${isToday ? 'is-today' : ''}`}>
-                      <div>{formatDayLabel(day)}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
             {loading ? (
               <div className="card detail-card muted">Dang tai lich dat phong...</div>
             ) : error ? (
@@ -456,63 +572,92 @@ export default function AdminRoomBookingsPage() {
             ) : rooms.length === 0 ? (
               <div className="card detail-card muted">Chua co phong nao trong bo loc hien tai.</div>
             ) : (
-              <div className="room-schedule-body">
-                {rooms.map((roomCode) => {
-                  const roomBookings = filteredBookings.filter((booking) => booking.roomCode === roomCode)
-                  return (
-                    <div key={roomCode} className="room-schedule-row">
-                      <div className="room-schedule-room-cell">
-                        <div>
-                          <div>{roomCode}</div>
-                          {roomByCode[roomCode]?.name ? (
-                            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                              {roomByCode[roomCode].name}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="room-schedule-track">
-                        <div className="room-schedule-grid">
-                          {weekDays.map((day) => (
-                            <div key={`${roomCode}-${day.toISOString()}`} className="room-schedule-grid-cell" />
-                          ))}
-                        </div>
-
-                        {todayMarkerLeft !== null ? (
-                          <div className="room-schedule-today-marker" style={{ left: `${todayMarkerLeft}%` }} />
-                        ) : null}
-
-                        {roomBookings.map((booking) => {
-                          const bookingStart = new Date(booking.checkInAt).getTime()
-                          const bookingEnd = new Date(booking.checkOutAt).getTime()
-                          const clampedStart = Math.max(bookingStart, trackStartMs)
-                          const clampedEnd = Math.min(bookingEnd, trackStartMs + TRACK_DURATION_MS)
-                          const left = ((clampedStart - trackStartMs) / TRACK_DURATION_MS) * 100
-                          const width = Math.max(((clampedEnd - clampedStart) / TRACK_DURATION_MS) * 100, 4)
-                          const meta = STATUS_META[booking.status]
-
-                          return (
-                            <button
-                              key={booking.id}
-                              type="button"
-                              className={`room-booking-bar ${meta.toneClass} ${editingId === booking.id ? 'selected' : ''}`}
-                              style={{ left: `${left}%`, width: `${width}%` }}
-                              onClick={() => editBooking(booking)}
-                            >
-                              <div className="room-booking-bar-title">{booking.guestName}</div>
-                              <div className="room-booking-bar-meta">
-                                <span>{booking.source}</span>
-                                <span>
-                                  {formatTime(booking.checkInAt)} - {formatTime(booking.checkOutAt)}
-                                </span>
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
+              <div className="room-schedule-body room-schedule-scroll">
+                <div className="room-schedule-table" style={scheduleGridStyle}>
+                  <div className="room-schedule-header">
+                    <div className="room-schedule-room-head">Phong</div>
+                    <div className="room-schedule-days">
+                      {monthDays.map((day) => {
+                        const isToday = toIsoDate(day) === toIsoDate(today)
+                        return (
+                          <div key={day.toISOString()} className={`room-schedule-day-head ${isToday ? 'is-today' : ''}`}>
+                            <span className="room-schedule-day-weekday">{formatDayLabel(day)}</span>
+                            <strong className="room-schedule-day-number">{formatDayNumber(day)}</strong>
+                          </div>
+                        )
+                      })}
                     </div>
-                  )
-                })}
+                  </div>
+
+                  {rooms.map((roomCode) => {
+                    const roomBookings = sortBookingsByTime(filteredBookings.filter((booking) => booking.roomCode === roomCode))
+                    return (
+                      <div key={roomCode} className="room-schedule-row">
+                        <div className="room-schedule-room-cell">
+                          <div>
+                            <div>{roomCode}</div>
+                            {roomByCode[roomCode]?.name ? (
+                              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                                {roomByCode[roomCode].name}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="room-schedule-track">
+                          <div className="room-schedule-grid">
+                            {monthDays.map((day) => (
+                              <div key={`${roomCode}-${day.toISOString()}`} className="room-schedule-grid-cell" />
+                            ))}
+                          </div>
+
+                          {todayMarkerLeft !== null ? (
+                            <div className="room-schedule-today-marker" style={{ left: `${todayMarkerLeft}%` }} />
+                          ) : null}
+
+                          {roomBookings.map((booking) => {
+                            const layout = getBookingBarLayout(booking, trackStartMs, trackDurationMs)
+                            if (!layout) return null
+                            const meta = STATUS_META[booking.displayStatus]
+
+                            return (
+                              <button
+                                key={booking.id}
+                                type="button"
+                                className={`room-booking-bar ${meta.toneClass} ${editingId === booking.id ? 'selected' : ''}`}
+                                style={{ left: `${layout.left}%`, width: `${layout.width}%` }}
+                                onClick={() => editBooking(booking)}
+                              >
+                                <div className="room-booking-bar-title">{booking.guestName}</div>
+                                <div className="room-booking-bar-meta">
+                                  <span>{booking.source}</span>
+                                  <span>
+                                    {formatTime(booking.checkInAt)} - {formatTime(booking.checkOutAt)}
+                                  </span>
+                                </div>
+                              </button>
+                            )
+                          })}
+
+                          {roomBookings.slice(0, -1).map((booking, index) => {
+                            const nextBooking = roomBookings[index + 1]
+                            const gapLayout = getCleaningGapLayout(booking, nextBooking, trackStartMs, trackDurationMs)
+                            if (!gapLayout) return null
+
+                            return (
+                              <div
+                                key={`cleaning-${booking.id}-${nextBooking.id}`}
+                                className={`room-cleaning-gap ${gapLayout.compact ? 'compact' : ''}`}
+                                style={{ left: `${gapLayout.left}%` }}
+                                title={gapLayout.title}
+                                aria-label={gapLayout.title}
+                              />
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -557,7 +702,7 @@ export default function AdminRoomBookingsPage() {
                   <select
                     className="select"
                     value={form.status}
-                    onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as RoomBookingStatus }))}
+                    onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as VisibleRoomBookingStatus }))}
                   >
                     {ALL_STATUSES.map((status) => (
                       <option key={status} value={status}>
@@ -673,7 +818,7 @@ export default function AdminRoomBookingsPage() {
             </div>
 
             <div className="card detail-card room-bookings-list">
-              <div className="room-booking-editor-title">Danh sach trong tuan</div>
+              <div className="room-booking-editor-title">Danh sach trong thang</div>
               <div className="muted" style={{ marginBottom: 12 }}>
                 {filteredBookings.length} lich hien thi theo bo loc hien tai.
               </div>
@@ -682,10 +827,9 @@ export default function AdminRoomBookingsPage() {
                 <div className="muted">Khong co dat phong nao khop bo loc.</div>
               ) : (
                 <div className="room-bookings-list-items">
-                  {[...filteredBookings]
-                    .sort((a, b) => new Date(a.checkInAt).getTime() - new Date(b.checkInAt).getTime() || a.id - b.id)
+                  {sortBookingsByTime(filteredBookings)
                     .map((booking) => {
-                      const meta = STATUS_META[booking.status]
+                      const meta = STATUS_META[booking.displayStatus]
                       return (
                         <button
                           key={booking.id}

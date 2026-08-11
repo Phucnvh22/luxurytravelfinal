@@ -45,6 +45,12 @@ public class RoomBooking {
     @Column(nullable = false)
     private LocalDateTime checkOutAt;
 
+    @Column(length = 100)
+    private String externalSystem;
+
+    @Column(length = 100)
+    private String externalReservationId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RoomBookingStatus status = RoomBookingStatus.PENDING;
@@ -142,6 +148,22 @@ public class RoomBooking {
 
     public void setCheckOutAt(LocalDateTime checkOutAt) {
         this.checkOutAt = checkOutAt;
+    }
+
+    public String getExternalSystem() {
+        return externalSystem;
+    }
+
+    public void setExternalSystem(String externalSystem) {
+        this.externalSystem = externalSystem;
+    }
+
+    public String getExternalReservationId() {
+        return externalReservationId;
+    }
+
+    public void setExternalReservationId(String externalReservationId) {
+        this.externalReservationId = externalReservationId;
     }
 
     public RoomBookingStatus getStatus() {

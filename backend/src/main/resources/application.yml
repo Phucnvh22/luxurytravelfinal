@@ -4,10 +4,10 @@ server:
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/travel_luxury?createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://180.93.43.149:3306/travel-luxury?createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    username: app
+    password: Pppp6868@
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
@@ -59,3 +59,15 @@ application:
       phone-number-id: ${WHATSAPP_CLOUD_API_PHONE_NUMBER_ID:}
       template-name: ${WHATSAPP_CLOUD_API_TEMPLATE_NAME:}
       template-language: ${WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE:en_US}
+  integrations:
+    ezcloud:
+      enabled: ${APPLICATION_INTEGRATIONS_EZCLOUD_ENABLED:false}
+      base-url: ${APPLICATION_INTEGRATIONS_EZCLOUD_BASE_URL:}
+      property-code: ${APPLICATION_INTEGRATIONS_EZCLOUD_PROPERTY_CODE:}
+      api-token: ${APPLICATION_INTEGRATIONS_EZCLOUD_API_TOKEN:}
+      auth-header-name: ${APPLICATION_INTEGRATIONS_EZCLOUD_AUTH_HEADER_NAME:X-API-Key}
+      webhook-token: ${APPLICATION_INTEGRATIONS_EZCLOUD_WEBHOOK_TOKEN:}
+      create-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_CREATE_RESERVATION_PATH:/api/v1/reservations}
+      update-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_UPDATE_RESERVATION_PATH:/api/v1/reservations/{reservationId}}
+      cancel-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_CANCEL_RESERVATION_PATH:/api/v1/reservations/{reservationId}/cancel}
+      pull-reservations-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_PULL_RESERVATIONS_PATH:/api/v1/reservations}

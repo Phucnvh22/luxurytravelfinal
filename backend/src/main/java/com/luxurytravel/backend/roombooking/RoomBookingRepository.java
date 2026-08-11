@@ -6,9 +6,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface RoomBookingRepository extends JpaRepository<RoomBooking, Long> {
     boolean existsByRoomCodeIgnoreCase(String roomCode);
+
+    Optional<RoomBooking> findByExternalSystemIgnoreCaseAndExternalReservationId(String externalSystem, String externalReservationId);
 
     @Query("""
             select rb

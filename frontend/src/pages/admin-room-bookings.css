@@ -13,12 +13,27 @@
 .room-bookings-week-nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+  justify-content: flex-end;
 }
 
 .room-bookings-week-label {
-  min-width: 240px;
+  min-width: 180px;
   text-align: center;
+}
+
+.room-bookings-month-field {
+  min-width: 150px;
+  margin: 0;
+}
+
+.room-bookings-month-field .input {
+  text-align: center;
+}
+
+.room-bookings-range-pill {
+  min-width: 220px;
 }
 
 .room-bookings-week-title {
@@ -69,17 +84,9 @@
   background: currentColor;
 }
 
-.room-bookings-status-pill.pending,
-.room-booking-bar.pending,
-.room-bookings-list-badge.pending {
-  color: #9a3412;
-  background: #fff2e8;
-  border-color: #f4c9aa;
-}
-
-.room-bookings-status-pill.confirmed,
-.room-booking-bar.confirmed,
-.room-bookings-list-badge.confirmed {
+.room-bookings-status-pill.reserved,
+.room-booking-bar.reserved,
+.room-bookings-list-badge.reserved {
   color: #166534;
   background: #e9f9ef;
   border-color: #b7dfc4;
@@ -101,14 +108,6 @@
   border-color: #cbd5e1;
 }
 
-.room-bookings-status-pill.cancelled,
-.room-booking-bar.cancelled,
-.room-bookings-list-badge.cancelled {
-  color: #991b1b;
-  background: #fdecec;
-  border-color: #f2b6b6;
-}
-
 .room-bookings-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.95fr);
@@ -117,31 +116,58 @@
 }
 
 .room-schedule-card {
+  padding: 0;
   overflow: hidden;
+}
+
+.room-schedule-scroll {
+  max-height: 72vh;
+  overflow: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.room-schedule-table {
+  min-width: calc(180px + (var(--day-count) * var(--day-column-width)));
 }
 
 .room-schedule-header,
 .room-schedule-row {
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
 }
 
 .room-schedule-header {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 8;
   background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .room-schedule-room-head,
 .room-schedule-room-cell {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
   padding: 14px 12px;
   border-right: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(248, 250, 252, 0.92);
+  background: rgba(248, 250, 252, 0.98);
+  box-shadow: 10px 0 20px rgba(15, 23, 42, 0.03);
+}
+
+.room-schedule-days,
+.room-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--day-count), minmax(var(--day-column-width), var(--day-column-width)));
+  min-width: calc(var(--day-count) * var(--day-column-width));
 }
 
 .room-schedule-room-head {
+  z-index: 10;
   font-size: 13px;
   font-weight: 800;
   color: var(--muted);
@@ -150,38 +176,37 @@
 }
 
 .room-schedule-room-cell {
-  display: flex;
-  align-items: center;
   font-weight: 800;
   color: #334155;
 }
 
-.room-schedule-days,
-.room-schedule-grid {
+.room-schedule-day-head {
+  min-height: 70px;
+  padding: 8px 4px;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  font-size: 12px;
+  border-left: 1px solid rgba(15, 23, 42, 0.06);
 }
 
-.room-schedule-day-head {
-  min-height: 64px;
-  padding: 10px 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  font-size: 13px;
+.room-schedule-day-weekday {
   font-weight: 700;
-  border-left: 1px solid rgba(15, 23, 42, 0.06);
+  text-transform: capitalize;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.room-schedule-day-number {
+  margin-top: 4px;
+  font-size: 18px;
+  line-height: 1;
 }
 
 .room-schedule-day-head.is-today {
   background: rgba(16, 185, 129, 0.1);
   color: #047857;
-}
-
-.room-schedule-body {
-  max-height: 70vh;
-  overflow: auto;
 }
 
 .room-schedule-row {
@@ -191,6 +216,7 @@
 .room-schedule-track {
   position: relative;
   min-height: 76px;
+  min-width: calc(var(--day-count) * var(--day-column-width));
   overflow: hidden;
 }
 
@@ -249,6 +275,34 @@
   gap: 8px;
   justify-content: space-between;
   white-space: nowrap;
+}
+
+.room-cleaning-gap {
+  position: absolute;
+  top: 16px;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.room-cleaning-gap::before {
+  content: '🧹';
+  font-size: 14px;
+  line-height: 1;
+}
+
+.room-cleaning-gap.compact {
+  top: 18px;
+  width: 24px;
+  height: 24px;
 }
 
 .room-bookings-side {
@@ -316,7 +370,7 @@
 @media (max-width: 768px) {
   .room-bookings-week-nav {
     width: 100%;
-    justify-content: space-between;
+    justify-content: stretch;
   }
 
   .room-bookings-week-label {
@@ -324,12 +378,29 @@
     flex: 1;
   }
 
-  .room-schedule-header,
-  .room-schedule-row {
-    grid-template-columns: 88px minmax(560px, 1fr);
+  .room-bookings-month-field {
+    width: 100%;
   }
 
-  .room-schedule-card {
-    overflow: auto;
+  .room-schedule-header,
+  .room-schedule-row {
+    grid-template-columns: 132px minmax(0, 1fr);
+  }
+
+  .room-schedule-table {
+    min-width: calc(132px + (var(--day-count) * 48px));
+  }
+
+  .room-schedule-room-head,
+  .room-schedule-room-cell {
+    padding: 12px 10px;
+  }
+
+  .room-schedule-day-weekday {
+    font-size: 11px;
+  }
+
+  .room-schedule-day-number {
+    font-size: 16px;
   }
 }

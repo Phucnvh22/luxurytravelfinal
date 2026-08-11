@@ -67,6 +67,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error", "/error/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/register", "/api/auth/register/", "/api/auth/login", "/api/auth/login/").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/integrations/ezcloud/webhook/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api-docs",
