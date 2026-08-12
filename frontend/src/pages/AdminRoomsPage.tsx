@@ -34,6 +34,12 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function formatGuestCapacity(maxAdults?: number, maxChildren?: number) {
+  const adults = maxAdults ?? 0
+  const children = maxChildren ?? 0
+  return children > 0 ? `${adults} / ${children}` : `${adults}`
+}
+
 export default function AdminRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
@@ -400,9 +406,7 @@ export default function AdminRoomsPage() {
                         </div>
                       </td>
                       <td>{room.type}</td>
-                      <td>
-                        {room.maxAdults} / {room.maxChildren}
-                      </td>
+                      <td>{formatGuestCapacity(room.maxAdults, room.maxChildren)}</td>
                       <td>{room.location || '-'}</td>
                       <td>{room.active ? 'Operating' : 'Paused'}</td>
                       <td>{room.notes || '-'}</td>
