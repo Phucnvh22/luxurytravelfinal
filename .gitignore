@@ -2,6 +2,7 @@ backend/target/
 backend/.classpath
 backend/.project
 backend/.settings/
+backend/src/main/resources/application-local.yml
 
 frontend/node_modules/
 frontend/dist/

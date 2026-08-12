@@ -45,6 +45,15 @@ public class RoomBooking {
     @Column(nullable = false)
     private LocalDateTime checkOutAt;
 
+    @Column
+    private Double villaRate;
+
+    @Column
+    private Double depositAmount;
+
+    @Column
+    private Double remainingAmount;
+
     @Column(length = 100)
     private String externalSystem;
 
@@ -63,6 +72,12 @@ public class RoomBooking {
 
     @Column(nullable = false)
     private Instant updatedAt;
+
+    @Column
+    private Instant checkedInMarkedAt;
+
+    @Column
+    private Instant checkedOutMarkedAt;
 
     @PrePersist
     void onCreate() {
@@ -150,6 +165,30 @@ public class RoomBooking {
         this.checkOutAt = checkOutAt;
     }
 
+    public Double getVillaRate() {
+        return villaRate;
+    }
+
+    public void setVillaRate(Double villaRate) {
+        this.villaRate = villaRate;
+    }
+
+    public Double getDepositAmount() {
+        return depositAmount;
+    }
+
+    public void setDepositAmount(Double depositAmount) {
+        this.depositAmount = depositAmount;
+    }
+
+    public Double getRemainingAmount() {
+        return remainingAmount;
+    }
+
+    public void setRemainingAmount(Double remainingAmount) {
+        this.remainingAmount = remainingAmount;
+    }
+
     public String getExternalSystem() {
         return externalSystem;
     }
@@ -196,5 +235,21 @@ public class RoomBooking {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Instant getCheckedInMarkedAt() {
+        return checkedInMarkedAt;
+    }
+
+    public void setCheckedInMarkedAt(Instant checkedInMarkedAt) {
+        this.checkedInMarkedAt = checkedInMarkedAt;
+    }
+
+    public Instant getCheckedOutMarkedAt() {
+        return checkedOutMarkedAt;
+    }
+
+    public void setCheckedOutMarkedAt(Instant checkedOutMarkedAt) {
+        this.checkedOutMarkedAt = checkedOutMarkedAt;
     }
 }

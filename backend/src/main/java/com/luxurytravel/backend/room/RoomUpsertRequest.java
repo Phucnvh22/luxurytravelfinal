@@ -15,6 +15,10 @@ public class RoomUpsertRequest {
     private String name;
 
     @NotBlank
+    @Size(max = 255)
+    private String host;
+
+    @NotBlank
     @Size(max = 100)
     private String type;
 
@@ -33,6 +37,21 @@ public class RoomUpsertRequest {
     @NotNull
     private Boolean active;
 
+    @Size(max = 255)
+    private String bedroomLayout;
+
+    @Size(max = 255)
+    private String location;
+
+    @Size(max = 255)
+    private String wifiName;
+
+    @Size(max = 255)
+    private String wifiPassword;
+
+    @Size(max = 255)
+    private String doorPassword;
+
     @Size(max = 1000)
     private String notes;
 
@@ -50,6 +69,14 @@ public class RoomUpsertRequest {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
     }
 
     public String getType() {
@@ -90,6 +117,46 @@ public class RoomUpsertRequest {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public String getBedroomLayout() {
+        return bedroomLayout;
+    }
+
+    public void setBedroomLayout(String bedroomLayout) {
+        this.bedroomLayout = bedroomLayout;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
+    public String getWifiName() {
+        return wifiName;
+    }
+
+    public void setWifiName(String wifiName) {
+        this.wifiName = wifiName;
+    }
+
+    public String getWifiPassword() {
+        return wifiPassword;
+    }
+
+    public void setWifiPassword(String wifiPassword) {
+        this.wifiPassword = wifiPassword;
+    }
+
+    public String getDoorPassword() {
+        return doorPassword;
+    }
+
+    public void setDoorPassword(String doorPassword) {
+        this.doorPassword = doorPassword;
     }
 
     public String getNotes() {

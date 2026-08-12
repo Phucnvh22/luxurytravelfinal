@@ -50,6 +50,16 @@ public class RoomBookingController {
         return roomBookingService.update(id, request);
     }
 
+    @PostMapping("/{id}/check-in")
+    public RoomBookingResponse markCheckIn(@PathVariable Long id) {
+        return roomBookingService.markCheckIn(id);
+    }
+
+    @PostMapping("/{id}/check-out")
+    public RoomBookingResponse markCheckOut(@PathVariable Long id) {
+        return roomBookingService.markCheckOut(id);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

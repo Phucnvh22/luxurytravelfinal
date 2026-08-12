@@ -68,11 +68,35 @@
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
   font-weight: 700;
   letter-spacing: 0.2px;
   text-decoration: none;
   color: var(--text);
   font-size: 16px;
+}
+
+.brand-stack {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.brand-logo {
+  width: 82px;
+  height: auto;
+  display: block;
+}
+
+.brand-caption {
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #35553d;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .nav {
@@ -130,6 +154,14 @@
 
   .lang-select {
     max-width: 130px;
+  }
+
+  .brand-logo {
+    width: 68px;
+  }
+
+  .brand-caption {
+    font-size: 8px;
   }
   
   .app-shell {
@@ -319,6 +351,14 @@
   font-weight: 900;
   letter-spacing: -0.3px;
   color: var(--text);
+}
+
+.footer-brand-logo {
+  width: 180px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin-bottom: 10px;
 }
 
 .footer-title {

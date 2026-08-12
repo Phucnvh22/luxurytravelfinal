@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
+import { useI18n } from '../contexts/I18nContext'
 import { apiFetch, HttpError } from '../lib/api'
 import type { Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus } from '../types'
 import './pages.css'
@@ -10,8 +11,11 @@ type StatusMeta = {
   toneClass: string
 }
 
+type RoomOperationalStatus = 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING'
+
 type VisibleRoomBookingStatus = 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT'
 type BookingModalMode = 'create' | 'details' | 'edit'
+type ConfirmationLanguage = 'en' | 'vi'
 type ScheduleBooking = RoomBookingResponse & {
   displayStatus: VisibleRoomBookingStatus
 }
@@ -23,8 +27,47 @@ const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
 }
 
 const ALL_STATUSES = Object.keys(STATUS_META) as VisibleRoomBookingStatus[]
-const FALLBACK_ROOM_CODE = 'P.101'
+const FALLBACK_ROOM_CODE = 'V107'
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
+const STANDARD_CHECK_IN_HOUR = 15
+const STANDARD_CHECK_OUT_HOUR = 11
+
+const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoomBookingStatus, string>> = {
+  en: {
+    CONFIRMED: 'Reserved',
+    CHECKED_IN: 'Checked in',
+    CHECKED_OUT: 'Checked out',
+  },
+  vi: {
+    CONFIRMED: 'Đã đặt',
+    CHECKED_IN: 'Đã nhận phòng',
+    CHECKED_OUT: 'Đã trả phòng',
+  },
+}
+
+const ROOM_OPERATIONAL_STATUS_META: Record<RoomOperationalStatus, StatusMeta> = {
+  READY: { label: 'Ready', toneClass: 'ready' },
+  CHECKED_IN: { label: 'Checked-in', toneClass: 'occupied' },
+  NEEDS_CLEANING: { label: 'Needs cleaning', toneClass: 'needs-cleaning' },
+}
+
+function compareRooms(a?: Room, b?: Room, fallbackA?: string, fallbackB?: string) {
+  if (a && b) {
+    return (
+      (a.host || '').localeCompare(b.host || '', 'vi-VN', { sensitivity: 'base' }) ||
+      a.floorNumber - b.floorNumber ||
+      a.code.localeCompare(b.code, 'vi-VN', { numeric: true })
+    )
+  }
+  if (a && fallbackA) return -1
+  if (b && fallbackB) return 1
+  return (fallbackA || '').localeCompare(fallbackB || '', 'vi-VN', { numeric: true })
+}
+
+function normalizeRoomOperationalStatus(status?: Room['operationalStatus']): RoomOperationalStatus {
+  if (status === 'CHECKED_IN' || status === 'NEEDS_CLEANING') return status
+  return 'READY'
+}
 
 function startOfMonth(base: Date) {
   const value = new Date(base)
@@ -71,6 +114,13 @@ function toDateTimeLocalValue(value: Date) {
   return `${toIsoDate(value)}T${pad(value.getHours())}:${pad(value.getMinutes())}`
 }
 
+function toDateInputValue(value?: string) {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return toIsoDate(parsed)
+}
+
 function toInputValue(value?: string) {
   if (!value) return ''
   const parsed = new Date(value)
@@ -78,11 +128,59 @@ function toInputValue(value?: string) {
   return toDateTimeLocalValue(parsed)
 }
 
+function toDateTimeValueForHour(dateValue: string, hour: number) {
+  if (!dateValue) return ''
+  return `${dateValue}T${pad(hour)}:00`
+}
+
+function nextCheckoutDateValue(checkInAt?: string) {
+  if (!checkInAt) return ''
+  const parsed = new Date(checkInAt)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return toIsoDate(addDays(parsed, 1))
+}
+
+function toMoneyInputValue(value?: number) {
+  if (value === undefined || value === null || Number.isNaN(value)) return ''
+  return new Intl.NumberFormat('vi-VN', {
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function parseMoneyInput(value?: number | string) {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : Number(
+          value
+            .replace(/[^\d]/g, '')
+            .trim(),
+        )
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function calculateRemainingAmount(totalAmount?: number, depositAmount?: number, fallbackAmount?: number) {
+  if (totalAmount === undefined || totalAmount === null || Number.isNaN(totalAmount)) {
+    return fallbackAmount
+  }
+  return Math.max(totalAmount - (depositAmount ?? 0), 0)
+}
+
+function formatMoney(value?: number, language: ConfirmationLanguage = 'vi') {
+  if (value === undefined || value === null || Number.isNaN(value)) return language === 'vi' ? 'TBA' : 'TBA'
+  return new Intl.NumberFormat(language === 'vi' ? 'vi-VN' : 'en-US', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
 function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): RoomBookingRequest {
   const checkInAt = new Date(monthStart)
-  checkInAt.setHours(14, 0, 0, 0)
+  checkInAt.setHours(STANDARD_CHECK_IN_HOUR, 0, 0, 0)
   const checkOutAt = addDays(checkInAt, 1)
-  checkOutAt.setHours(12, 0, 0, 0)
+  checkOutAt.setHours(STANDARD_CHECK_OUT_HOUR, 0, 0, 0)
 
   return {
     roomCode,
@@ -94,6 +192,9 @@ function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): Room
     checkInAt: toDateTimeLocalValue(checkInAt),
     checkOutAt: toDateTimeLocalValue(checkOutAt),
     status: 'CONFIRMED',
+    villaRate: undefined,
+    depositAmount: undefined,
+    remainingAmount: undefined,
     notes: '',
   }
 }
@@ -123,7 +224,33 @@ function mapBookingToForm(booking: RoomBookingResponse): RoomBookingRequest {
     checkInAt: toInputValue(booking.checkInAt),
     checkOutAt: toInputValue(booking.checkOutAt),
     status: normalizeEditableStatus(booking.status),
+    villaRate: booking.villaRate,
+    depositAmount: booking.depositAmount,
+    remainingAmount: booking.remainingAmount,
     notes: booking.notes,
+  }
+}
+
+function applyCheckInDateToForm(current: RoomBookingRequest, dateValue: string): RoomBookingRequest {
+  const nextCheckInAt = toDateTimeValueForHour(dateValue, STANDARD_CHECK_IN_HOUR)
+  const minCheckOutDate = nextCheckoutDateValue(nextCheckInAt)
+  const currentCheckOutDate = toDateInputValue(current.checkOutAt)
+  const nextCheckOutAt =
+    !currentCheckOutDate || !minCheckOutDate || currentCheckOutDate < minCheckOutDate
+      ? toDateTimeValueForHour(minCheckOutDate, STANDARD_CHECK_OUT_HOUR)
+      : toDateTimeValueForHour(currentCheckOutDate, STANDARD_CHECK_OUT_HOUR)
+
+  return {
+    ...current,
+    checkInAt: nextCheckInAt,
+    checkOutAt: nextCheckOutAt,
+  }
+}
+
+function applyCheckOutDateToForm(current: RoomBookingRequest, dateValue: string): RoomBookingRequest {
+  return {
+    ...current,
+    checkOutAt: toDateTimeValueForHour(dateValue, STANDARD_CHECK_OUT_HOUR),
   }
 }
 
@@ -169,6 +296,16 @@ function formatDateTime(value: string) {
   }).format(parsed)
 }
 
+function formatDateOnly(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(parsed)
+}
+
 function formatTime(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
@@ -180,7 +317,7 @@ function formatTime(value: string) {
 
 function countGuests(booking: RoomBookingResponse) {
   const total = booking.adults + booking.children
-  return `${total} khach`
+  return `${total} guests`
 }
 
 function sortBookingsByTime<T extends RoomBookingResponse>(items: T[]) {
@@ -201,30 +338,7 @@ function getBookingBarLayout(booking: RoomBookingResponse, trackStartMs: number,
 
   return {
     left: ((clampedStart - trackStartMs) / trackDurationMs) * 100,
-    width: Math.max(((clampedEnd - clampedStart) / trackDurationMs) * 100, 4),
-  }
-}
-
-function getCleaningGapLayout(
-  currentBooking: RoomBookingResponse,
-  nextBooking: RoomBookingResponse,
-  trackStartMs: number,
-  trackDurationMs: number,
-) {
-  const gapStart = new Date(currentBooking.checkOutAt).getTime()
-  const gapEnd = new Date(nextBooking.checkInAt).getTime()
-  const trackEndMs = trackStartMs + trackDurationMs
-
-  if (gapEnd <= gapStart) return null
-
-  const clampedStart = Math.max(gapStart, trackStartMs)
-  const clampedEnd = Math.min(gapEnd, trackEndMs)
-  if (clampedEnd <= clampedStart) return null
-
-  return {
-    left: (((clampedStart + clampedEnd) / 2 - trackStartMs) / trackDurationMs) * 100,
-    compact: clampedEnd - clampedStart < DAY_DURATION_MS / 3,
-    title: `Don phong: ${formatDateTime(currentBooking.checkOutAt)} → ${formatDateTime(nextBooking.checkInAt)}`,
+    width: ((clampedEnd - clampedStart) / trackDurationMs) * 100,
   }
 }
 
@@ -237,6 +351,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function AdminRoomBookingsPage() {
+  const { language } = useI18n()
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
   const [roomsCatalog, setRoomsCatalog] = useState<Room[]>([])
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
@@ -248,10 +363,14 @@ export default function AdminRoomBookingsPage() {
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null)
   const [bookingModalMode, setBookingModalMode] = useState<BookingModalMode | null>(null)
   const [showConfirmInformation, setShowConfirmInformation] = useState(false)
+  const [confirmationLanguage, setConfirmationLanguage] = useState<ConfirmationLanguage>(() =>
+    language === 'vi' ? 'vi' : 'en',
+  )
   const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfMonth(new Date())))
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const loadingRef = useRef(false)
 
   const monthStart = useMemo(() => startOfMonth(monthCursor), [monthCursor])
@@ -281,6 +400,10 @@ export default function AdminRoomBookingsPage() {
   const selectedBooking = useMemo(
     () => bookings.find((booking) => booking.id === selectedBookingId) ?? null,
     [bookings, selectedBookingId],
+  )
+  const selectedRoom = useMemo(
+    () => (selectedBooking ? roomByCode[selectedBooking.roomCode] ?? null : null),
+    [roomByCode, selectedBooking],
   )
 
   const updateMonthCursor = (nextMonth: number, nextYear: number) => {
@@ -336,6 +459,11 @@ export default function AdminRoomBookingsPage() {
     setShowConfirmInformation(false)
   }, [bookings, selectedBookingId])
 
+  useEffect(() => {
+    if (showConfirmInformation) return
+    setConfirmationLanguage(language === 'vi' ? 'vi' : 'en')
+  }, [language, showConfirmInformation])
+
   const statusCounts = useMemo(() => {
     return bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
       const visibleStatus = normalizeDisplayStatus(booking.status)
@@ -356,8 +484,11 @@ export default function AdminRoomBookingsPage() {
       if (!normalizedSearch) return [{ ...booking, displayStatus: visibleStatus }]
       const haystack = [
         booking.roomCode,
-        roomByCode[booking.roomCode]?.name ?? '',
-        roomByCode[booking.roomCode]?.type ?? '',
+                roomByCode[booking.roomCode]?.name ?? '',
+                roomByCode[booking.roomCode]?.type ?? '',
+                roomByCode[booking.roomCode]?.host ?? '',
+                roomByCode[booking.roomCode]?.location ?? '',
+                roomByCode[booking.roomCode]?.bedroomLayout ?? '',
         booking.guestName,
         booking.source,
         booking.phone,
@@ -375,7 +506,9 @@ export default function AdminRoomBookingsPage() {
     const catalogCodes = roomsCatalog
       .filter((room) => {
         if (!normalizedSearch) return true
-        const haystack = [room.code, room.name, room.type, room.notes].join(' ').toLowerCase()
+        const haystack = [room.code, room.name, room.type, room.host, room.location, room.bedroomLayout, room.notes]
+          .join(' ')
+          .toLowerCase()
         return haystack.includes(normalizedSearch)
       })
       .map((room) => room.code)
@@ -385,12 +518,7 @@ export default function AdminRoomBookingsPage() {
     return uniqueRooms.sort((a, b) => {
       const roomA = roomByCode[a]
       const roomB = roomByCode[b]
-      if (roomA && roomB) {
-        return roomA.floorNumber - roomB.floorNumber || roomA.code.localeCompare(roomB.code, 'vi-VN', { numeric: true })
-      }
-      if (roomA) return -1
-      if (roomB) return 1
-      return a.localeCompare(b, 'vi-VN', { numeric: true })
+      return compareRooms(roomA, roomB, a, b)
     })
   }, [filteredBookings, roomByCode, roomsCatalog, searchTerm])
 
@@ -399,14 +527,28 @@ export default function AdminRoomBookingsPage() {
       .sort((a, b) => {
         const roomA = roomByCode[a]
         const roomB = roomByCode[b]
-        if (roomA && roomB) {
-          return roomA.floorNumber - roomB.floorNumber || roomA.code.localeCompare(roomB.code, 'vi-VN', { numeric: true })
-        }
-        if (roomA) return -1
-        if (roomB) return 1
-        return a.localeCompare(b, 'vi-VN', { numeric: true })
+        return compareRooms(roomA, roomB, a, b)
       })
   }, [bookings, roomByCode, roomsCatalog])
+
+  const groupedScheduleRows = useMemo(() => {
+    const groups: Array<{ type: 'host'; host: string; count: number } | { type: 'villa'; roomCode: string; host: string }> = []
+    const hostCounts = rooms.reduce<Record<string, number>>((acc, code) => {
+      const host = roomByCode[code]?.host?.trim() || 'Unassigned host'
+      acc[host] = (acc[host] ?? 0) + 1
+      return acc
+    }, {})
+    let currentHost = ''
+    rooms.forEach((roomCode) => {
+      const host = roomByCode[roomCode]?.host?.trim() || 'Unassigned host'
+      if (host !== currentHost) {
+        currentHost = host
+        groups.push({ type: 'host', host, count: hostCounts[host] ?? 0 })
+      }
+      groups.push({ type: 'villa', roomCode, host })
+    })
+    return groups
+  }, [roomByCode, rooms])
 
   const trackStartMs = monthStart.getTime()
   const trackDurationMs = monthDays.length * DAY_DURATION_MS
@@ -473,6 +615,9 @@ export default function AdminRoomBookingsPage() {
   const handleSave = async () => {
     setSaving(true)
     setFormError(null)
+    const villaRate = parseMoneyInput(form.villaRate)
+    const depositAmount = parseMoneyInput(form.depositAmount)
+    const remainingAmount = calculateRemainingAmount(villaRate, depositAmount, parseMoneyInput(form.remainingAmount))
 
     const payload: RoomBookingRequest = {
       roomCode: form.roomCode.trim(),
@@ -484,6 +629,9 @@ export default function AdminRoomBookingsPage() {
       checkInAt: form.checkInAt,
       checkOutAt: form.checkOutAt,
       status: form.status,
+      villaRate,
+      depositAmount,
+      remainingAmount,
       notes: form.notes?.trim() || '',
     }
 
@@ -526,6 +674,42 @@ export default function AdminRoomBookingsPage() {
     }
   }
 
+  const runBookingAction = async (action: 'check-in' | 'check-out') => {
+    if (!selectedBooking) return
+    setActionLoading(action)
+    setFormError(null)
+    try {
+      await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${selectedBooking.id}/${action}`, {
+        method: 'POST',
+      })
+      await load({ silent: true })
+    } catch (e: unknown) {
+      setFormError(getErrorMessage(e, `Khong the ${action} booking`))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleMarkReady = async () => {
+    if (!selectedRoom) return
+    setActionLoading('mark-ready')
+    setFormError(null)
+    try {
+      await apiFetch<Room>(`/api/admin/rooms/${selectedRoom.id}/mark-ready`, {
+        method: 'POST',
+      })
+      await load({ silent: true })
+    } catch (e: unknown) {
+      setFormError(getErrorMessage(e, 'Khong the cap nhat trang thai san sang'))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const checkInDateValue = toDateInputValue(form.checkInAt)
+  const checkOutDateValue = toDateInputValue(form.checkOutAt)
+  const minCheckOutDateValue = nextCheckoutDateValue(form.checkInAt)
+
   const confirmationSource =
     bookingModalMode === 'details' && selectedBooking
       ? {
@@ -535,6 +719,9 @@ export default function AdminRoomBookingsPage() {
           phone: selectedBooking.phone,
           adults: selectedBooking.adults,
           children: selectedBooking.children,
+          villaRate: selectedBooking.villaRate,
+          depositAmount: selectedBooking.depositAmount,
+          remainingAmount: selectedBooking.remainingAmount,
           checkInAt: selectedBooking.checkInAt,
           checkOutAt: selectedBooking.checkOutAt,
           status: normalizeEditableStatus(selectedBooking.status),
@@ -546,6 +733,98 @@ export default function AdminRoomBookingsPage() {
     selectedBooking && bookingModalMode === 'details'
       ? STATUS_META[normalizeEditableStatus(selectedBooking.status)]
       : STATUS_META[normalizeEditableStatus(confirmationSource.status)]
+  const selectedRoomStatus = normalizeRoomOperationalStatus(selectedRoom?.operationalStatus)
+  const selectedRoomStatusMeta = ROOM_OPERATIONAL_STATUS_META[selectedRoomStatus]
+  const confirmationRoomName = roomByCode[confirmationSource.roomCode]?.name || 'Luxury Villa'
+  const confirmationCheckInMs = new Date(confirmationSource.checkInAt).getTime()
+  const confirmationCheckOutMs = new Date(confirmationSource.checkOutAt).getTime()
+  const confirmationNights =
+    Number.isNaN(confirmationCheckInMs) || Number.isNaN(confirmationCheckOutMs)
+      ? 0
+      : Math.max(1, Math.round((confirmationCheckOutMs - confirmationCheckInMs) / DAY_DURATION_MS))
+  const confirmationNotes = confirmationSource.notes?.trim() || ''
+  const confirmationRoom = roomByCode[confirmationSource.roomCode]
+  const confirmationStatusLabel =
+    CONFIRMATION_STATUS_LABELS[confirmationLanguage][normalizeEditableStatus(confirmationSource.status)]
+  const confirmationBookingId = selectedBooking?.id ? `#${selectedBooking.id}` : confirmationLanguage === 'vi' ? 'TBA' : 'TBA'
+  const confirmationVillaType = [confirmationRoom?.type, confirmationRoom?.location].filter(Boolean).join(' • ') ||
+    (confirmationLanguage === 'vi' ? 'Chưa cập nhật' : 'TBA')
+  const confirmationVillaRateValue = parseMoneyInput(confirmationSource.villaRate)
+  const confirmationDepositAmountValue = parseMoneyInput(confirmationSource.depositAmount)
+  const confirmationRemainingAmountValue = calculateRemainingAmount(
+    confirmationVillaRateValue,
+    confirmationDepositAmountValue,
+    parseMoneyInput(confirmationSource.remainingAmount),
+  )
+  const confirmationTotalAmountValue = confirmationVillaRateValue
+  const confirmationVillaRate = formatMoney(confirmationVillaRateValue, confirmationLanguage)
+  const confirmationTotalAmount = formatMoney(confirmationTotalAmountValue, confirmationLanguage)
+  const confirmationDepositAmount = formatMoney(confirmationDepositAmountValue, confirmationLanguage)
+  const confirmationRemainingAmount = formatMoney(confirmationRemainingAmountValue, confirmationLanguage)
+  const confirmationPaymentStatus =
+    confirmationRemainingAmountValue !== undefined && confirmationRemainingAmountValue <= 0
+      ? confirmationLanguage === 'vi'
+        ? 'Đã thanh toán đủ'
+        : 'Paid in full'
+      : confirmationDepositAmountValue !== undefined && confirmationDepositAmountValue > 0
+        ? confirmationLanguage === 'vi'
+          ? 'Đã cọc'
+          : 'Deposit paid'
+        : confirmationLanguage === 'vi'
+          ? 'Chưa cập nhật'
+          : 'Pending update'
+  const confirmationSupportText =
+    confirmationLanguage === 'vi'
+      ? 'Hỗ trợ 24/7 qua WhatsApp.'
+      : '24/7 support via WhatsApp.'
+  const confirmationIncludedText =
+    confirmationLanguage === 'vi'
+      ? 'Trái cây và nước uống ngày nhận phòng, internet, hồ bơi riêng, dọn phòng hằng ngày, buggy 08:00 - 22:00.'
+      : 'Welcome fruit and drinks, internet, private pool, daily housekeeping, buggy 08:00 - 22:00.'
+  const confirmationImportantText =
+    confirmationLanguage === 'vi'
+      ? 'Nhận phòng sau 15:00, trả phòng trước 11:00, không hút thuốc, giữ yên lặng 22:00 - 06:00.'
+      : 'Check-in after 15:00, check-out before 11:00, no smoking, quiet hours 22:00 - 06:00.'
+  const confirmationPrimaryRows =
+    confirmationLanguage === 'vi'
+      ? [
+          ['Nơi lưu trú', confirmationRoomName],
+          ['Mã xác nhận', confirmationBookingId],
+          ['Tên khách', confirmationSource.guestName || 'TBA'],
+          ['Ngày nhận phòng', confirmationSource.checkInAt ? formatDateOnly(confirmationSource.checkInAt) : 'TBA'],
+          ['Ngày trả phòng', confirmationSource.checkOutAt ? formatDateOnly(confirmationSource.checkOutAt) : 'TBA'],
+          ['Số đêm lưu trú', `${confirmationNights || 0}`],
+          ['Số lượng biệt thự', '1'],
+        ]
+      : [
+          ['Accommodation', confirmationRoomName],
+          ['Confirmation No.', confirmationBookingId],
+          ['Guest', confirmationSource.guestName || 'TBA'],
+          ['Check-in date', confirmationSource.checkInAt ? formatDateOnly(confirmationSource.checkInAt) : 'TBA'],
+          ['Check-out date', confirmationSource.checkOutAt ? formatDateOnly(confirmationSource.checkOutAt) : 'TBA'],
+          ['Length of stay', `${confirmationNights || 0}`],
+          ['Number of villas', '1'],
+        ]
+  const confirmationSecondaryRows =
+    confirmationLanguage === 'vi'
+      ? [
+          ['Mã biệt thự', confirmationSource.roomCode || 'TBA'],
+          ['Loại biệt thự', confirmationVillaType],
+          ['Giá biệt thự', confirmationVillaRate],
+          ['Tổng tiền', confirmationTotalAmount],
+          ['Đã cọc', confirmationDepositAmount],
+          ['Còn lại', confirmationRemainingAmount],
+          ['Tình trạng thanh toán', confirmationPaymentStatus],
+        ]
+      : [
+          ['Villa code', confirmationSource.roomCode || 'TBA'],
+          ['Villa type', confirmationVillaType],
+          ['Villa rate', confirmationVillaRate],
+          ['Total amount', confirmationTotalAmount],
+          ['Deposit paid', confirmationDepositAmount],
+          ['Remaining balance', confirmationRemainingAmount],
+          ['Payment status', confirmationPaymentStatus],
+        ]
 
   return (
     <section className="section">
@@ -559,26 +838,26 @@ export default function AdminRoomBookingsPage() {
               Bookings
             </Link>
             <Link to="/admin/rooms" className="btn">
-              Danh muc phong
+              Villa list
             </Link>
           </div>
           <div className="row">
             <button className="btn" type="button" onClick={() => setMonthCursor(startOfMonth(new Date()))}>
-              Thang hien tai
+              Current month
             </button>
             <button className="btn primary" type="button" onClick={openCreateBookingModal}>
-              Them dat phong
+              Add booking
             </button>
           </div>
         </div>
 
         <div className="section-head" style={{ marginTop: 14 }}>
           <div>
-            <h2>Admin • Lich dat phong</h2>
-            <div className="muted">Quan ly lich check-in / check-out theo thang, co cuon ngang va cap nhat truc tiep.</div>
+            <h2>Admin • Villa booking calendar</h2>
+            <div className="muted">Grouped by host, separated by villa cluster, with monthly check-in / check-out tracking.</div>
           </div>
           <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
-            Tai lai
+            Reload
           </button>
         </div>
 
@@ -589,7 +868,7 @@ export default function AdminRoomBookingsPage() {
                 className="input"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Tim khach hang, phong, nguon dat..."
+                placeholder="Search guest, villa, host, source..."
               />
             </div>
 
@@ -603,7 +882,7 @@ export default function AdminRoomBookingsPage() {
                   ←
                 </button>
                 <div className="room-bookings-week-label room-bookings-current-month">
-                  <div className="room-bookings-week-title">Chon thang</div>
+                  <div className="room-bookings-week-title">Month</div>
                   <div className="room-bookings-week-range">{formatMonthLabel(monthCursor)}</div>
                 </div>
                 <button
@@ -616,7 +895,7 @@ export default function AdminRoomBookingsPage() {
               </div>
               <div className="room-bookings-picker-group">
                 <label className="field room-bookings-month-field">
-                  <div className="field-label">Thang</div>
+                  <div className="field-label">Month</div>
                   <select
                     className="select"
                     value={monthValue}
@@ -630,7 +909,7 @@ export default function AdminRoomBookingsPage() {
                   </select>
                 </label>
                 <label className="field room-bookings-month-field room-bookings-year-field">
-                  <div className="field-label">Nam</div>
+                  <div className="field-label">Year</div>
                   <select
                     className="select"
                     value={yearValue}
@@ -645,7 +924,7 @@ export default function AdminRoomBookingsPage() {
                 </label>
               </div>
               <div className="room-bookings-week-label room-bookings-range-pill">
-                <div className="room-bookings-week-title">Pham vi</div>
+                <div className="room-bookings-week-title">Range</div>
                 <div className="room-bookings-week-range">{formatDateRange(monthStart, monthEnd)}</div>
               </div>
             </div>
@@ -674,19 +953,19 @@ export default function AdminRoomBookingsPage() {
         <div className="room-bookings-stack">
           <div className="card detail-card room-schedule-card">
             {loading ? (
-              <div className="card detail-card muted">Dang tai lich dat phong...</div>
+              <div className="card detail-card muted">Loading villa calendar...</div>
             ) : error ? (
               <div className="card error">
-                <div className="error-title">Khong the tai du lieu</div>
+                <div className="error-title">Could not load data</div>
                 <div className="muted">{error}</div>
               </div>
             ) : rooms.length === 0 ? (
-              <div className="card detail-card muted">Chua co phong nao trong bo loc hien tai.</div>
+              <div className="card detail-card muted">No villas match the current filters.</div>
             ) : (
               <div className="room-schedule-body room-schedule-scroll">
                 <div className="room-schedule-table" style={scheduleGridStyle}>
                   <div className="room-schedule-header">
-                    <div className="room-schedule-room-head">Phong</div>
+                    <div className="room-schedule-room-head">Villa</div>
                     <div className="room-schedule-days">
                       {monthDays.map((day) => {
                         const isToday = toIsoDate(day) === toIsoDate(today)
@@ -700,18 +979,35 @@ export default function AdminRoomBookingsPage() {
                     </div>
                   </div>
 
-                  {rooms.map((roomCode) => {
+                  {groupedScheduleRows.map((row) => {
+                    if (row.type === 'host') {
+                      return (
+                        <div key={`host-${row.host}`} className="room-schedule-host-row">
+                          <div className="room-schedule-host-cell">
+                            <span className="room-schedule-host-label">Host</span>
+                            <strong>{row.host}</strong>
+                          </div>
+                          <div className="room-schedule-host-track">{row.count} villas</div>
+                        </div>
+                      )
+                    }
+
+                    const roomCode = row.roomCode
+                    const room = roomByCode[roomCode]
                     const roomBookings = sortBookingsByTime(filteredBookings.filter((booking) => booking.roomCode === roomCode))
+
                     return (
                       <div key={roomCode} className="room-schedule-row">
                         <div className="room-schedule-room-cell">
-                          <div>
-                            <div>{roomCode}</div>
-                            {roomByCode[roomCode]?.name ? (
-                              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                                {roomByCode[roomCode].name}
-                              </div>
-                            ) : null}
+                          <div className="room-schedule-room-cell-content">
+                            <div>{room?.name || roomCode}</div>
+                            <span
+                              className={`room-bookings-list-badge ${
+                                ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(room?.operationalStatus)].toneClass
+                              }`}
+                            >
+                              {ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(room?.operationalStatus)].label}
+                            </span>
                           </div>
                         </div>
                         <div className="room-schedule-track">
@@ -748,22 +1044,6 @@ export default function AdminRoomBookingsPage() {
                               </button>
                             )
                           })}
-
-                          {roomBookings.slice(0, -1).map((booking, index) => {
-                            const nextBooking = roomBookings[index + 1]
-                            const gapLayout = getCleaningGapLayout(booking, nextBooking, trackStartMs, trackDurationMs)
-                            if (!gapLayout) return null
-
-                            return (
-                              <div
-                                key={`cleaning-${booking.id}-${nextBooking.id}`}
-                                className={`room-cleaning-gap ${gapLayout.compact ? 'compact' : ''}`}
-                                style={{ left: `${gapLayout.left}%` }}
-                                title={gapLayout.title}
-                                aria-label={gapLayout.title}
-                              />
-                            )
-                          })}
                         </div>
                       </div>
                     )
@@ -773,39 +1053,6 @@ export default function AdminRoomBookingsPage() {
             )}
           </div>
 
-            <div className="card detail-card room-bookings-list">
-              <div className="room-booking-editor-title">Danh sach trong thang</div>
-              <div className="muted" style={{ marginBottom: 12 }}>
-                {filteredBookings.length} lich hien thi theo bo loc hien tai.
-              </div>
-
-              {filteredBookings.length === 0 ? (
-                <div className="muted">Khong co dat phong nao khop bo loc.</div>
-              ) : (
-                <div className="room-bookings-list-items">
-                  {sortBookingsByTime(filteredBookings)
-                    .map((booking) => {
-                      const meta = STATUS_META[booking.displayStatus]
-                      return (
-                        <button
-                          key={booking.id}
-                          type="button"
-                          className={`room-bookings-list-item ${selectedBookingId === booking.id ? 'active' : ''}`}
-                          onClick={() => openBookingDetails(booking)}
-                        >
-                          <div className="room-bookings-list-top">
-                            <strong>{booking.roomCode}</strong>
-                            <span className={`room-bookings-list-badge ${meta.toneClass}`}>{meta.label}</span>
-                          </div>
-                          <div>{booking.guestName}</div>
-                          <div className="muted">{formatDateTime(booking.checkInAt)} → {formatDateTime(booking.checkOutAt)}</div>
-                          <div className="muted">{booking.source} • {countGuests(booking)}</div>
-                        </button>
-                      )
-                    })}
-                </div>
-              )}
-            </div>
         </div>
 
         {bookingModalMode ? (
@@ -815,15 +1062,15 @@ export default function AdminRoomBookingsPage() {
                 <div>
                   <div className="room-booking-editor-title">
                     {bookingModalMode === 'create'
-                      ? 'Dat phong moi'
+                      ? 'Create booking'
                       : bookingModalMode === 'edit'
-                        ? 'Cap nhat dat phong'
-                        : 'Thong tin dat phong'}
+                        ? 'Update booking'
+                        : 'Booking details'}
                   </div>
                   <div className="muted">
                     {bookingModalMode === 'details' && selectedBooking
-                      ? `Ma lich #${selectedBooking.id} • ${selectedStatusMeta.label}`
-                      : 'Tat ca thao tac dat phong duoc xu ly trong popup nay.'}
+                      ? `Booking #${selectedBooking.id} • ${selectedStatusMeta.label}`
+                      : 'Manage the selected villa booking in this popup.'}
                   </div>
                 </div>
                 <div className="room-booking-modal-actions">
@@ -832,15 +1079,45 @@ export default function AdminRoomBookingsPage() {
                     type="button"
                     onClick={() => setShowConfirmInformation((current) => !current)}
                   >
-                    {showConfirmInformation ? 'An Confirm Information' : 'Confirm Information'}
+                    {showConfirmInformation ? 'Hide Confirmation' : 'Confirmation'}
                   </button>
                   {bookingModalMode === 'details' && selectedBooking ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => void runBookingAction('check-in')}
+                      disabled={actionLoading !== null || selectedBooking.status === 'CHECKED_IN' || selectedBooking.status === 'CHECKED_OUT'}
+                    >
+                      {actionLoading === 'check-in' ? 'Checking in...' : 'Check-in'}
+                    </button>
+                  ) : null}
+                  {bookingModalMode === 'details' && selectedBooking ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => void runBookingAction('check-out')}
+                      disabled={actionLoading !== null || selectedBooking.status !== 'CHECKED_IN'}
+                    >
+                      {actionLoading === 'check-out' ? 'Checking out...' : 'Check-out'}
+                    </button>
+                  ) : null}
+                  {bookingModalMode === 'details' && selectedBooking && selectedRoom ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => void handleMarkReady()}
+                      disabled={actionLoading !== null || selectedRoomStatus !== 'NEEDS_CLEANING'}
+                    >
+                      {actionLoading === 'mark-ready' ? 'Updating...' : 'Done cleaning'}
+                    </button>
+                  ) : null}
+                  {bookingModalMode === 'details' && selectedBooking ? (
                     <button className="btn" type="button" onClick={() => editBooking(selectedBooking)}>
-                      Chinh sua
+                      Edit
                     </button>
                   ) : null}
                   <button className="btn" type="button" onClick={closeBookingModal}>
-                    Dong
+                    Close
                   </button>
                 </div>
               </div>
@@ -849,14 +1126,20 @@ export default function AdminRoomBookingsPage() {
                 <div className="room-booking-modal-body">
                   <div className="room-booking-details-grid">
                     <div className="room-booking-detail-card">
-                      <div className="room-booking-detail-label">Khach hang</div>
+                      <div className="room-booking-detail-label">Guest</div>
                       <strong>{selectedBooking.guestName}</strong>
                       <div className="muted">{countGuests(selectedBooking)}</div>
                     </div>
                     <div className="room-booking-detail-card">
-                      <div className="room-booking-detail-label">Phong</div>
+                      <div className="room-booking-detail-label">Villa</div>
                       <strong>{selectedBooking.roomCode}</strong>
-                      <div className="muted">{roomByCode[selectedBooking.roomCode]?.name ?? 'Chua co ten phong'}</div>
+                      <div className="muted">{selectedRoom?.name ?? 'No villa name yet'}</div>
+                      {selectedRoom?.host ? (
+                        <div className="muted">{selectedRoom.host}</div>
+                      ) : null}
+                      <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>
+                        {selectedRoomStatusMeta.label}
+                      </span>
                     </div>
                     <div className="room-booking-detail-card">
                       <div className="room-booking-detail-label">Check-in</div>
@@ -872,20 +1155,65 @@ export default function AdminRoomBookingsPage() {
 
                   <div className="room-booking-detail-panel">
                     <div className="room-booking-detail-row">
-                      <span>Nguon dat</span>
+                      <span>Source</span>
                       <strong>{selectedBooking.source || 'Direct'}</strong>
                     </div>
                     <div className="room-booking-detail-row">
-                      <span>So dien thoai</span>
-                      <strong>{selectedBooking.phone || 'Chua cap nhat'}</strong>
+                      <span>Phone</span>
+                      <strong>{selectedBooking.phone || 'Pending update'}</strong>
                     </div>
                     <div className="room-booking-detail-row">
-                      <span>Trang thai</span>
+                      <span>Host</span>
+                      <strong>{selectedRoom?.host || 'Unassigned host'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Villa status</span>
+                      <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>{selectedRoomStatusMeta.label}</span>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Status</span>
                       <span className={`room-bookings-list-badge ${selectedStatusMeta.toneClass}`}>{selectedStatusMeta.label}</span>
                     </div>
+                    <div className="room-booking-detail-row">
+                      <span>Checked-in at</span>
+                      <strong>{selectedBooking.checkedInMarkedAt ? formatDateTime(selectedBooking.checkedInMarkedAt) : 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Checked-out at</span>
+                      <strong>{selectedBooking.checkedOutMarkedAt ? formatDateTime(selectedBooking.checkedOutMarkedAt) : 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Cleaning requested</span>
+                      <strong>{selectedRoom?.cleaningRequestedAt ? formatDateTime(selectedRoom.cleaningRequestedAt) : 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Ready again</span>
+                      <strong>{selectedRoom?.lastReadyAt ? formatDateTime(selectedRoom.lastReadyAt) : 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Villa rate</span>
+                      <strong>{formatMoney(selectedBooking.villaRate, 'vi')}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Deposit</span>
+                      <strong>{formatMoney(selectedBooking.depositAmount, 'vi')}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Remaining</span>
+                      <strong>
+                        {formatMoney(
+                          calculateRemainingAmount(
+                            selectedBooking.villaRate,
+                            selectedBooking.depositAmount,
+                            selectedBooking.remainingAmount,
+                          ),
+                          'vi',
+                        )}
+                      </strong>
+                    </div>
                     <div className="room-booking-detail-row room-booking-detail-notes">
-                      <span>Ghi chu</span>
-                      <strong>{selectedBooking.notes || 'Khong co ghi chu.'}</strong>
+                      <span>Notes</span>
+                      <strong>{selectedBooking.notes || 'No notes.'}</strong>
                     </div>
                   </div>
                 </div>
@@ -893,7 +1221,7 @@ export default function AdminRoomBookingsPage() {
                 <div className="room-booking-modal-body">
                   <div className="row">
                     <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                      <div className="field-label">Phong</div>
+                      <div className="field-label">Villa</div>
                       <select
                         className="select"
                         value={form.roomCode}
@@ -901,7 +1229,7 @@ export default function AdminRoomBookingsPage() {
                       >
                         {roomOptions.map((roomCode) => {
                           const room = roomByCode[roomCode]
-                          const suffix = room ? ` - ${room.name}` : ''
+                          const suffix = room ? ` - ${room.name}${room.host ? ` (${room.host})` : ''}` : ''
                           return (
                             <option key={roomCode} value={roomCode}>
                               {roomCode}{suffix}
@@ -911,7 +1239,7 @@ export default function AdminRoomBookingsPage() {
                       </select>
                     </label>
                     <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                      <div className="field-label">Trang thai</div>
+                      <div className="field-label">Status</div>
                       <select
                         className="select"
                         value={form.status}
@@ -927,32 +1255,29 @@ export default function AdminRoomBookingsPage() {
                   </div>
 
                   <label className="field">
-                    <div className="field-label">Ten khach</div>
+                    <div className="field-label">Guest name</div>
                     <input
                       className="input"
                       value={form.guestName}
                       onChange={(e) => setForm((current) => ({ ...current, guestName: e.target.value }))}
-                      placeholder="Nguyen Van A"
                     />
                   </label>
 
                   <div className="row">
                     <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                      <div className="field-label">Nguon dat</div>
+                      <div className="field-label">Source</div>
                       <input
                         className="input"
                         value={form.source}
                         onChange={(e) => setForm((current) => ({ ...current, source: e.target.value }))}
-                        placeholder="Booking.com / Zalo / Direct"
                       />
                     </label>
                     <label className="field" style={{ flex: 1, minWidth: 160 }}>
-                      <div className="field-label">So dien thoai</div>
+                      <div className="field-label">Phone</div>
                       <input
                         className="input"
                         value={form.phone}
                         onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))}
-                        placeholder="090..."
                       />
                     </label>
                   </div>
@@ -962,25 +1287,28 @@ export default function AdminRoomBookingsPage() {
                       <div className="field-label">Check-in</div>
                       <input
                         className="input"
-                        type="datetime-local"
-                        value={form.checkInAt}
-                        onChange={(e) => setForm((current) => ({ ...current, checkInAt: e.target.value }))}
+                        type="date"
+                        value={checkInDateValue}
+                        onChange={(e) => setForm((current) => applyCheckInDateToForm(current, e.target.value))}
                       />
+                      <div className="muted">Check-in time: 15:00</div>
                     </label>
                     <label className="field" style={{ flex: 1, minWidth: 160 }}>
                       <div className="field-label">Check-out</div>
                       <input
                         className="input"
-                        type="datetime-local"
-                        value={form.checkOutAt}
-                        onChange={(e) => setForm((current) => ({ ...current, checkOutAt: e.target.value }))}
+                        type="date"
+                        value={checkOutDateValue}
+                        min={minCheckOutDateValue}
+                        onChange={(e) => setForm((current) => applyCheckOutDateToForm(current, e.target.value))}
                       />
+                      <div className="muted">Check-out time: 11:00</div>
                     </label>
                   </div>
 
                   <div className="row">
                     <label className="field" style={{ flex: 1, minWidth: 120 }}>
-                      <div className="field-label">Nguoi lon</div>
+                      <div className="field-label">Adults</div>
                       <input
                         className="input"
                         type="number"
@@ -990,7 +1318,7 @@ export default function AdminRoomBookingsPage() {
                       />
                     </label>
                     <label className="field" style={{ flex: 1, minWidth: 120 }}>
-                      <div className="field-label">Tre em</div>
+                      <div className="field-label">Children</div>
                       <input
                         className="input"
                         type="number"
@@ -1001,30 +1329,72 @@ export default function AdminRoomBookingsPage() {
                     </label>
                   </div>
 
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Villa rate</div>
+                      <input
+                        className="input"
+                        type="text"
+                        inputMode="numeric"
+                        value={toMoneyInputValue(form.villaRate)}
+                        onChange={(e) =>
+                          setForm((current) => ({ ...current, villaRate: parseMoneyInput(e.target.value) }))
+                        }
+                      />
+                    </label>
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Deposit paid</div>
+                      <input
+                        className="input"
+                        type="text"
+                        inputMode="numeric"
+                        value={toMoneyInputValue(form.depositAmount)}
+                        onChange={(e) =>
+                          setForm((current) => ({ ...current, depositAmount: parseMoneyInput(e.target.value) }))
+                        }
+                      />
+                    </label>
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Remaining</div>
+                      <input
+                        className="input"
+                        type="text"
+                        inputMode="numeric"
+                        value={toMoneyInputValue(
+                          calculateRemainingAmount(
+                            parseMoneyInput(form.villaRate),
+                            parseMoneyInput(form.depositAmount),
+                            parseMoneyInput(form.remainingAmount),
+                          ),
+                        )}
+                        readOnly
+                      />
+                    </label>
+                  </div>
+
                   <label className="field">
-                    <div className="field-label">Ghi chu</div>
+                    <div className="field-label">Notes</div>
                     <textarea
                       className="textarea"
                       value={form.notes}
                       onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
-                      placeholder="Ghi chu noi bo, tinh trang coc, yeu cau khach..."
                     />
                   </label>
 
                   {formError ? (
                     <div className="card error" style={{ marginTop: 12 }}>
-                      <div className="error-title">Khong the luu</div>
+                      <div className="error-title">Could not save</div>
                       <div className="muted">{formError}</div>
                     </div>
                   ) : null}
 
                   <div className="row room-booking-editor-actions">
                     <button className="btn primary" type="button" onClick={() => void handleSave()} disabled={saving}>
-                      {saving ? 'Dang luu...' : editingId ? 'Cap nhat' : 'Tao dat phong'}
+                      {saving ? 'Saving...' : editingId ? 'Update booking' : 'Create booking'}
                     </button>
                     {editingId ? (
                       <button className="btn danger" type="button" onClick={() => void handleDelete()} disabled={deleting}>
-                        {deleting ? 'Dang xoa...' : 'Xoa'}
+                        {deleting ? 'Deleting...' : 'Delete'}
                       </button>
                     ) : null}
                   </div>
@@ -1043,44 +1413,98 @@ export default function AdminRoomBookingsPage() {
             onClick={() => setShowConfirmInformation(false)}
           >
             <div className="room-booking-confirm-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="room-booking-confirm-head">
-                <div className="room-booking-confirm-title">Confirm Information</div>
-                <span className={`room-bookings-list-badge ${selectedStatusMeta.toneClass}`}>{selectedStatusMeta.label}</span>
-              </div>
-              <div className="room-booking-confirm-grid">
-                <div>
-                  <div className="room-booking-detail-label">Khach hang</div>
-                  <strong>{confirmationSource.guestName || 'Dang cap nhat'}</strong>
-                </div>
-                <div>
-                  <div className="room-booking-detail-label">Phong</div>
-                  <strong>{confirmationSource.roomCode || 'Dang chon phong'}</strong>
-                </div>
-                <div>
-                  <div className="room-booking-detail-label">Check-in</div>
-                  <strong>{confirmationSource.checkInAt ? formatDateTime(confirmationSource.checkInAt) : 'Dang cap nhat'}</strong>
-                </div>
-                <div>
-                  <div className="room-booking-detail-label">Check-out</div>
-                  <strong>{confirmationSource.checkOutAt ? formatDateTime(confirmationSource.checkOutAt) : 'Dang cap nhat'}</strong>
-                </div>
-                <div>
-                  <div className="room-booking-detail-label">Nguon dat</div>
-                  <strong>{confirmationSource.source || 'Direct'}</strong>
-                </div>
-                <div>
-                  <div className="room-booking-detail-label">Lien he</div>
-                  <strong>{confirmationSource.phone || 'Chua cap nhat'}</strong>
-                </div>
-              </div>
-              <div className="room-booking-confirm-foot">
-                Tong khach: {Number(confirmationSource.adults || 0) + Number(confirmationSource.children || 0)} •
-                Vui long kiem tra thong tin truoc khi gui cho khach.
-              </div>
               <div className="room-booking-confirm-actions">
+                <div className="room-booking-confirm-language-switch" role="tablist" aria-label="Confirmation language">
+                  <button
+                    className={`btn ${confirmationLanguage === 'vi' ? 'primary' : ''}`}
+                    type="button"
+                    onClick={() => setConfirmationLanguage('vi')}
+                  >
+                    VI
+                  </button>
+                  <button
+                    className={`btn ${confirmationLanguage === 'en' ? 'primary' : ''}`}
+                    type="button"
+                    onClick={() => setConfirmationLanguage('en')}
+                  >
+                    EN
+                  </button>
+                </div>
                 <button className="btn" type="button" onClick={() => setShowConfirmInformation(false)}>
-                  Dong
+                  {confirmationLanguage === 'vi' ? 'Đóng' : 'Close'}
                 </button>
+              </div>
+
+              <div className="room-booking-confirm-sheet">
+                <div className="room-booking-confirm-brand">
+                  <img
+                    src="/logo.png"
+                    alt="Da Nang Luxury Travel"
+                    className="room-booking-confirm-logo"
+                  />
+                  <div className="room-booking-confirm-brand-main">
+                    {confirmationLanguage === 'vi' ? 'Xác nhận đặt phòng' : 'Booking confirmation'}
+                  </div>
+                  <div className="room-booking-confirm-brand-sub">
+                    {`${confirmationStatusLabel} • DaNang Luxury Travel`}
+                  </div>
+                </div>
+
+                <div className="room-booking-confirm-content">
+                  <div className="room-booking-confirm-top-grid">
+                    <div className="room-booking-confirm-top-card">
+                      {confirmationPrimaryRows.map(([label, value]) => (
+                        <div key={label} className="room-booking-confirm-top-row">
+                          <div className="room-booking-confirm-fact-label">{label}</div>
+                          <div className="room-booking-confirm-fact-value">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="room-booking-confirm-top-card">
+                      {confirmationSecondaryRows.map(([label, value]) => (
+                        <div key={label} className="room-booking-confirm-top-row">
+                          <div className="room-booking-confirm-fact-label">{label}</div>
+                          <div className="room-booking-confirm-fact-value">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="room-booking-confirm-side">
+                    <div className="room-booking-confirm-side-card">
+                      <div className="room-booking-confirm-side-title">
+                        {confirmationLanguage === 'vi' ? 'Dịch vụ bao gồm' : 'Included services'}
+                      </div>
+                      <div className="room-booking-confirm-side-text">{confirmationIncludedText}</div>
+                    </div>
+
+                    <div className="room-booking-confirm-side-card">
+                      <div className="room-booking-confirm-side-title">
+                        {confirmationLanguage === 'vi' ? 'Lưu ý quan trọng' : 'Important notes'}
+                      </div>
+                      <div className="room-booking-confirm-side-text">{confirmationImportantText}</div>
+                    </div>
+
+                    <div className="room-booking-confirm-side-card">
+                      <div className="room-booking-confirm-side-title">
+                        {confirmationLanguage === 'vi'
+                          ? 'Hỗ trợ khách hàng qua WhatsApp'
+                          : 'Guest support via WhatsApp'}
+                      </div>
+                      <div className="room-booking-confirm-side-text">{confirmationSupportText}</div>
+                    </div>
+
+                    {confirmationNotes ? (
+                      <div className="room-booking-confirm-side-card">
+                        <div className="room-booking-confirm-side-title">
+                          {confirmationLanguage === 'vi' ? 'Ghi chú thêm' : 'Additional notes'}
+                        </div>
+                        <div className="room-booking-confirm-side-text">{confirmationNotes}</div>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

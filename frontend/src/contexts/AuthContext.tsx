@@ -14,6 +14,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthResponse | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('customerPreview') === '1') {
+      return null
+    }
+
     const storedUser = localStorage.getItem('user')
     if (storedUser) {
       try {

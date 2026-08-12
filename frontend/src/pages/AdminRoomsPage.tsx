@@ -4,16 +4,25 @@ import { apiFetch, HttpError } from '../lib/api'
 import type { Room, RoomUpsertRequest } from '../types'
 import './pages.css'
 
-const ROOM_TYPES = ['Standard', 'Deluxe', 'Premium', 'Suite', 'Family']
+function deriveSortOrderFromCode(code: string) {
+  const numeric = Number(code.replace(/\D/g, ''))
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 1
+}
 
 const INITIAL_FORM: RoomUpsertRequest = {
-  code: 'P.101',
+  code: 'V107',
   name: '',
-  type: ROOM_TYPES[0],
-  floorNumber: 1,
-  maxAdults: 2,
+  host: '',
+  type: '4BR',
+  floorNumber: 107,
+  maxAdults: 8,
   maxChildren: 0,
   active: true,
+  bedroomLayout: '',
+  location: '',
+  wifiName: '',
+  wifiPassword: '',
+  doorPassword: '',
   notes: '',
 }
 
@@ -37,7 +46,13 @@ export default function AdminRoomsPage() {
   const loadingRef = useRef(false)
 
   const sortedRooms = useMemo(() => {
-    return [...rooms].sort((a, b) => a.floorNumber - b.floorNumber || a.code.localeCompare(b.code, 'vi-VN', { numeric: true }))
+    return [...rooms].sort((a, b) => {
+      return (
+        a.host.localeCompare(b.host, 'vi-VN', { sensitivity: 'base' }) ||
+        a.floorNumber - b.floorNumber ||
+        a.code.localeCompare(b.code, 'vi-VN', { numeric: true })
+      )
+    })
   }, [rooms])
 
   async function load(opts?: { silent?: boolean }) {
@@ -90,11 +105,17 @@ export default function AdminRoomsPage() {
     setForm({
       code: room.code,
       name: room.name,
+      host: room.host,
       type: room.type,
       floorNumber: room.floorNumber,
       maxAdults: room.maxAdults,
       maxChildren: room.maxChildren,
       active: room.active,
+      bedroomLayout: room.bedroomLayout,
+      location: room.location,
+      wifiName: room.wifiName,
+      wifiPassword: room.wifiPassword,
+      doorPassword: room.doorPassword,
       notes: room.notes,
     })
     setSaveError(null)
@@ -107,11 +128,17 @@ export default function AdminRoomsPage() {
       const payload: RoomUpsertRequest = {
         code: form.code.trim(),
         name: form.name.trim(),
+        host: form.host.trim(),
         type: form.type.trim(),
-        floorNumber: Number(form.floorNumber),
+        floorNumber: deriveSortOrderFromCode(form.code.trim()),
         maxAdults: Number(form.maxAdults),
         maxChildren: Number(form.maxChildren),
         active: Boolean(form.active),
+        bedroomLayout: form.bedroomLayout?.trim() || '',
+        location: form.location?.trim() || '',
+        wifiName: form.wifiName?.trim() || '',
+        wifiPassword: form.wifiPassword?.trim() || '',
+        doorPassword: form.doorPassword?.trim() || '',
         notes: form.notes?.trim() || '',
       }
 
@@ -130,21 +157,21 @@ export default function AdminRoomsPage() {
       resetForm()
       await load()
     } catch (e: unknown) {
-      setSaveError(getErrorMessage(e, 'Khong the luu phong'))
+      setSaveError(getErrorMessage(e, 'Khong the save villa'))
     } finally {
       setSaving(false)
     }
   }
 
   async function remove(id: number) {
-    if (!window.confirm('Xoa phong nay?')) return
+    if (!window.confirm('Delete this villa?')) return
     setBusyId(id)
     try {
       await apiFetch<void>(`/api/admin/rooms/${id}`, { method: 'DELETE' })
       setRooms((current) => current.filter((room) => room.id !== id))
       if (editingId === id) resetForm()
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Khong the xoa phong'))
+      setError(getErrorMessage(e, 'Khong the delete villa'))
     } finally {
       setBusyId(null)
     }
@@ -159,7 +186,7 @@ export default function AdminRoomsPage() {
               ← Home
             </Link>
             <Link to="/admin/room-bookings" className="btn">
-              Lich dat phong
+              Villa calendar
             </Link>
           </div>
           <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
@@ -170,61 +197,70 @@ export default function AdminRoomsPage() {
         <div className="section-head" style={{ marginTop: 14 }}>
           <div>
             <h2>Admin • Danh muc phong</h2>
-            <div className="muted">Quan ly ma phong, loai phong, suc chua va tinh trang khai thac.</div>
+            <div className="muted">Manage villa details, host groups, capacity, access info, and operating status.</div>
           </div>
         </div>
 
         <div className="card detail-card" style={{ marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, marginBottom: 10 }}>{editingId ? 'Cap nhat phong' : 'Tao phong moi'}</div>
+          <div style={{ fontWeight: 800, marginBottom: 10 }}>{editingId ? 'Update villa' : 'Create villa'}</div>
 
           <div className="row">
             <label className="field" style={{ width: 180 }}>
-              <div className="field-label">Ma phong</div>
+              <div className="field-label">Villa code</div>
               <input
                 className="input"
                 value={form.code}
-                onChange={(e) => setForm((current) => ({ ...current, code: e.target.value.toUpperCase() }))}
-                placeholder="P.101"
+                onChange={(e) =>
+                  setForm((current) => {
+                    const nextCode = e.target.value.toUpperCase()
+                    const nextOrder = deriveSortOrderFromCode(nextCode)
+                    return { ...current, code: nextCode, floorNumber: nextOrder, name: current.name || `Villa ${nextCode}` }
+                  })
+                }
+                placeholder="V107"
               />
             </label>
             <label className="field" style={{ flex: 1, minWidth: 220 }}>
-              <div className="field-label">Ten phong</div>
+              <div className="field-label">Villa name</div>
               <input
                 className="input"
                 value={form.name}
                 onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
-                placeholder="Deluxe City View"
+                placeholder="Villa V107"
               />
             </label>
             <label className="field" style={{ width: 180 }}>
-              <div className="field-label">Loai phong</div>
-              <select
-                className="select"
+              <div className="field-label">Villa type</div>
+              <input
+                className="input"
                 value={form.type}
                 onChange={(e) => setForm((current) => ({ ...current, type: e.target.value }))}
-              >
-                {ROOM_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
+                placeholder="5BR"
+              />
             </label>
           </div>
 
           <div className="row">
-            <label className="field" style={{ width: 160 }}>
-              <div className="field-label">Tang</div>
+            <label className="field" style={{ flex: 1, minWidth: 220 }}>
+              <div className="field-label">Host</div>
               <input
                 className="input"
-                type="number"
-                min={1}
-                value={form.floorNumber}
-                onChange={(e) => setForm((current) => ({ ...current, floorNumber: Number(e.target.value) }))}
+                value={form.host}
+                onChange={(e) => setForm((current) => ({ ...current, host: e.target.value }))}
+                placeholder="Mr Phuc - DN Luxury Travel"
+              />
+            </label>
+            <label className="field" style={{ width: 200 }}>
+              <div className="field-label">Location</div>
+              <input
+                className="input"
+                value={form.location}
+                onChange={(e) => setForm((current) => ({ ...current, location: e.target.value }))}
+                placeholder="Beach Front"
               />
             </label>
             <label className="field" style={{ width: 160 }}>
-              <div className="field-label">Nguoi lon toi da</div>
+              <div className="field-label">Guests</div>
               <input
                 className="input"
                 type="number"
@@ -234,7 +270,7 @@ export default function AdminRoomsPage() {
               />
             </label>
             <label className="field" style={{ width: 160 }}>
-              <div className="field-label">Tre em toi da</div>
+              <div className="field-label">Children</div>
               <input
                 className="input"
                 type="number"
@@ -243,83 +279,132 @@ export default function AdminRoomsPage() {
                 onChange={(e) => setForm((current) => ({ ...current, maxChildren: Number(e.target.value) }))}
               />
             </label>
+          </div>
+
+          <div className="row">
+            <label className="field" style={{ flex: 1, minWidth: 260 }}>
+              <div className="field-label">Bedroom layout</div>
+              <input
+                className="input"
+                value={form.bedroomLayout}
+                onChange={(e) => setForm((current) => ({ ...current, bedroomLayout: e.target.value }))}
+                placeholder="5BR | 2 Master + 2 DBL + 1 TWN"
+              />
+            </label>
             <label className="field" style={{ width: 180 }}>
-              <div className="field-label">Khai thac</div>
+              <div className="field-label">Active</div>
               <select
                 className="select"
                 value={String(form.active)}
                 onChange={(e) => setForm((current) => ({ ...current, active: e.target.value === 'true' }))}
               >
-                <option value="true">Dang khai thac</option>
-                <option value="false">Tam dung</option>
+                <option value="true">Operating</option>
+                <option value="false">Paused</option>
               </select>
             </label>
           </div>
 
+          <div className="row">
+            <label className="field" style={{ flex: 1, minWidth: 220 }}>
+              <div className="field-label">Wi-Fi name</div>
+              <input
+                className="input"
+                value={form.wifiName}
+                onChange={(e) => setForm((current) => ({ ...current, wifiName: e.target.value }))}
+                placeholder="JOYINTRIP"
+              />
+            </label>
+            <label className="field" style={{ flex: 1, minWidth: 220 }}>
+              <div className="field-label">Wi-Fi password</div>
+              <input
+                className="input"
+                value={form.wifiPassword}
+                onChange={(e) => setForm((current) => ({ ...current, wifiPassword: e.target.value }))}
+                placeholder="********"
+              />
+            </label>
+            <label className="field" style={{ width: 160 }}>
+              <div className="field-label">Door password</div>
+              <input
+                className="input"
+                value={form.doorPassword}
+                onChange={(e) => setForm((current) => ({ ...current, doorPassword: e.target.value }))}
+                placeholder="360360#"
+              />
+            </label>
+          </div>
+
           <label className="field">
-            <div className="field-label">Ghi chu</div>
+            <div className="field-label">Operational notes</div>
             <textarea
               className="textarea"
               value={form.notes}
               onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
-              placeholder="Ghi chu van hanh, view, huong phong..."
+              placeholder="Housekeeping notes, bedding detail, special instructions..."
             />
           </label>
 
           {saveError ? (
             <div className="card error" style={{ marginTop: 12 }}>
-              <div className="error-title">Khong the luu</div>
+              <div className="error-title">Could not save</div>
               <div className="muted">{saveError}</div>
             </div>
           ) : null}
 
           <div className="row" style={{ marginTop: 12 }}>
             <button className="btn primary" type="button" onClick={() => void save()} disabled={saving}>
-              {saving ? 'Dang luu...' : editingId ? 'Cap nhat' : 'Tao phong'}
+              {saving ? 'Saving...' : editingId ? 'Update villa' : 'Create villa'}
             </button>
             {editingId ? (
               <button className="btn" type="button" onClick={resetForm}>
-                Tao moi
+                Create new
               </button>
             ) : null}
           </div>
         </div>
 
         {loading ? (
-          <div className="card detail-card muted">Dang tai danh sach phong...</div>
+          <div className="card detail-card muted">Loading villa list...</div>
         ) : error ? (
           <div className="card error">
-            <div className="error-title">Khong the tai du lieu</div>
+            <div className="error-title">Could not load data</div>
             <div className="muted">{error}</div>
           </div>
         ) : (
           <div className="card detail-card">
-            <div style={{ fontWeight: 800, marginBottom: 10 }}>Danh sach phong</div>
+            <div style={{ fontWeight: 800, marginBottom: 10 }}>Villa list</div>
             <div className="table-wrap">
               <table className="table">
                 <thead>
                   <tr>
-                    <th style={{ width: 90 }}>Ma</th>
-                    <th>Ten phong</th>
-                    <th style={{ width: 120 }}>Loai</th>
-                    <th style={{ width: 80 }}>Tang</th>
-                    <th style={{ width: 130 }}>Suc chua</th>
-                    <th style={{ width: 120 }}>Trang thai</th>
-                    <th>Ghi chu</th>
-                    <th style={{ width: 150 }}>Thao tac</th>
+                    <th style={{ width: 90 }}>Code</th>
+                    <th style={{ width: 190 }}>Host</th>
+                    <th>Villa</th>
+                    <th style={{ width: 120 }}>Type</th>
+                    <th style={{ width: 90 }}>Guests</th>
+                    <th style={{ width: 160 }}>Location</th>
+                    <th style={{ width: 120 }}>Status</th>
+                    <th>Notes</th>
+                    <th style={{ width: 150 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedRooms.map((room) => (
                     <tr key={room.id}>
                       <td>{room.code}</td>
-                      <td>{room.name}</td>
-                      <td>{room.type}</td>
-                      <td>{room.floorNumber}</td>
+                      <td>{room.host || '-'}</td>
                       <td>
-                        {room.maxAdults} NL / {room.maxChildren} TE
+                        <div style={{ fontWeight: 700 }}>{room.name}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {room.bedroomLayout || '-'}
+                        </div>
                       </td>
-                      <td>{room.active ? 'Dang khai thac' : 'Tam dung'}</td>
+                      <td>{room.type}</td>
+                      <td>
+                        {room.maxAdults} / {room.maxChildren}
+                      </td>
+                      <td>{room.location || '-'}</td>
+                      <td>{room.active ? 'Operating' : 'Paused'}</td>
                       <td>{room.notes || '-'}</td>
                       <td>
                         <button
@@ -328,7 +413,7 @@ export default function AdminRoomsPage() {
                           type="button"
                           onClick={() => handleEdit(room)}
                         >
-                          Sua
+                          Edit
                         </button>
                         <button
                           className="btn danger"
@@ -337,7 +422,7 @@ export default function AdminRoomsPage() {
                           onClick={() => void remove(room.id)}
                           disabled={busyId === room.id}
                         >
-                          {busyId === room.id ? '...' : 'Xoa'}
+                          {busyId === room.id ? '...' : 'Delete'}
                         </button>
                       </td>
                     </tr>

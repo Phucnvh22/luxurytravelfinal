@@ -110,22 +110,40 @@ export type Room = {
   id: number
   code: string
   name: string
+  host: string
   type: string
   floorNumber: number
   maxAdults: number
   maxChildren: number
   active: boolean
+  bedroomLayout: string
+  location: string
+  wifiName: string
+  wifiPassword: string
+  doorPassword: string
   notes: string
+  operationalStatus?: 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING' | null
+  statusUpdatedAt?: string
+  lastCheckInMarkedAt?: string
+  lastCheckOutMarkedAt?: string
+  cleaningRequestedAt?: string
+  lastReadyAt?: string
 }
 
 export type RoomUpsertRequest = {
   code: string
   name: string
+  host: string
   type: string
   floorNumber: number
   maxAdults: number
   maxChildren: number
   active: boolean
+  bedroomLayout?: string
+  location?: string
+  wifiName?: string
+  wifiPassword?: string
+  doorPassword?: string
   notes?: string
 }
 
@@ -154,6 +172,9 @@ export type RoomBookingRequest = {
   checkInAt: string
   checkOutAt: string
   status: RoomBookingStatus
+  villaRate?: number
+  depositAmount?: number
+  remainingAmount?: number
   notes?: string
 }
 
@@ -168,9 +189,14 @@ export type RoomBookingResponse = {
   checkInAt: string
   checkOutAt: string
   status: RoomBookingStatus
+  villaRate?: number
+  depositAmount?: number
+  remainingAmount?: number
   notes: string
   createdAt: string
   updatedAt: string
+  checkedInMarkedAt?: string
+  checkedOutMarkedAt?: string
 }
 
 export type BookingResponse = {

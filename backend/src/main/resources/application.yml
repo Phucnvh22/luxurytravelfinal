@@ -3,11 +3,15 @@ server:
   forward-headers-strategy: framework
 
 spring:
+  config:
+    import: optional:classpath:application-local.yml
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://180.93.43.149:3306/travel-luxury?createDatabaseIfNotExist=true&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/travel-luxury?createDatabaseIfNotExist=true&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: app
-    password: Pppp6868@
+    username: ${SPRING_DATASOURCE_USERNAME:app}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
   jpa:
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
@@ -15,6 +19,8 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+        jdbc:
+          time_zone: Asia/Ho_Chi_Minh
     open-in-view: false
 
 springdoc:

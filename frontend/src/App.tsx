@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes, Navigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import Layout from './components/Layout'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminBookingsPage from './pages/AdminBookingsPage'
 import AdminDestinationsPage from './pages/AdminDestinationsPage'
 import AdminExperienceRequestsPage from './pages/AdminExperienceRequestsPage'
@@ -120,6 +121,11 @@ export default function App() {
           } />
           
           {/* Admin routes */}
+          <Route path="/admin" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminDashboardPage />
+            </ProtectedRoute>
+          } />
           <Route path="/admin/destinations" element={
             <ProtectedRoute requiredRole="ADMIN">
               <AdminDestinationsPage />

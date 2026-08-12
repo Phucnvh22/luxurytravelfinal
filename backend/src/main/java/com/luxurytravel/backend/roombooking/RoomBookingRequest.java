@@ -39,6 +39,15 @@ public class RoomBookingRequest {
     @NotNull
     private RoomBookingStatus status;
 
+    @Min(0)
+    private Double villaRate;
+
+    @Min(0)
+    private Double depositAmount;
+
+    @Min(0)
+    private Double remainingAmount;
+
     @Size(max = 2000)
     private String notes;
 
@@ -112,6 +121,30 @@ public class RoomBookingRequest {
 
     public void setStatus(RoomBookingStatus status) {
         this.status = status;
+    }
+
+    public Double getVillaRate() {
+        return villaRate;
+    }
+
+    public void setVillaRate(Double villaRate) {
+        this.villaRate = villaRate;
+    }
+
+    public Double getDepositAmount() {
+        return depositAmount;
+    }
+
+    public void setDepositAmount(Double depositAmount) {
+        this.depositAmount = depositAmount;
+    }
+
+    public Double getRemainingAmount() {
+        return remainingAmount;
+    }
+
+    public void setRemainingAmount(Double remainingAmount) {
+        this.remainingAmount = remainingAmount;
     }
 
     public String getNotes() {

@@ -39,6 +39,11 @@ public class RoomController {
         return roomService.update(id, request);
     }
 
+    @PostMapping("/{id}/mark-ready")
+    public Room markReady(@PathVariable Long id) {
+        return roomService.markReady(id);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {

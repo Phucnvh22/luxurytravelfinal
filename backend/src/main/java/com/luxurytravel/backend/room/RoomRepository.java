@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RoomRepository extends JpaRepository<Room, Long> {
-    List<Room> findAllByOrderByFloorNumberAscCodeAsc();
+    List<Room> findAllByOrderByHostAscFloorNumberAscCodeAsc();
 
     Optional<Room> findByCodeIgnoreCase(String code);
 

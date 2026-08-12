@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { createPortal } from 'react-dom'
 import TopNav from './TopNav'
 import BottomNav from './BottomNav'
+import LuxuryTravelLogo from './LuxuryTravelLogo'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n, type Lang } from '../contexts/I18nContext'
 import { apiFetch } from '../lib/api'
@@ -141,7 +142,10 @@ export default function Layout() {
               navigate('/', { state: { homeResetToken: Date.now() } })
             }}
           >
-            {t('brand', 'Da Nang Luxury Travel')}
+            <span className="brand-stack">
+              <LuxuryTravelLogo className="brand-logo" title={t('brand', 'Da Nang Luxury Travel')} />
+              <span className="brand-caption">Da Nang Luxury Travel</span>
+            </span>
           </Link>
 
           <div className="header-actions">
@@ -202,6 +206,14 @@ export default function Layout() {
               {isAdmin && (
                 <>
                   <div className="menu-title">{t('menu_admin', 'Admin')}</div>
+                  <NavLink
+                    to="/admin"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                    end
+                  >
+                    {t('menu_dashboard', 'Dashboard')}
+                  </NavLink>
                   <NavLink
                     to="/admin/destinations"
                     className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
@@ -429,7 +441,7 @@ export default function Layout() {
         <footer className="app-footer">
           <div className="container footer-grid">
             <div>
-              <div className="footer-brand">{t('footer_brand', 'Da Nang Luxury Travel')}</div>
+              <LuxuryTravelLogo className="footer-brand-logo" title={t('footer_brand', 'Da Nang Luxury Travel')} />
               <div className="footer-text">
                 {t('footer_desc', 'Premium travel services with personalized experiences for every journey.')}
               </div>

@@ -133,6 +133,27 @@
   border-color: #cbd5e1;
 }
 
+.room-bookings-status-pill.ready,
+.room-bookings-list-badge.ready {
+  color: #166534;
+  background: #e9f9ef;
+  border-color: #b7dfc4;
+}
+
+.room-bookings-status-pill.occupied,
+.room-bookings-list-badge.occupied {
+  color: #0f766e;
+  background: #e6fffa;
+  border-color: #a8e7dd;
+}
+
+.room-bookings-status-pill.needs-cleaning,
+.room-bookings-list-badge.needs-cleaning {
+  color: #9a3412;
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
 .room-bookings-stack {
   display: grid;
   gap: 16px;
@@ -156,7 +177,8 @@
 }
 
 .room-schedule-header,
-.room-schedule-row {
+.room-schedule-row,
+.room-schedule-host-row {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
 }
@@ -170,7 +192,8 @@
 }
 
 .room-schedule-room-head,
-.room-schedule-room-cell {
+.room-schedule-room-cell,
+.room-schedule-host-cell {
   position: sticky;
   left: 0;
   z-index: 6;
@@ -201,6 +224,53 @@
 .room-schedule-room-cell {
   font-weight: 800;
   color: #334155;
+}
+
+.room-schedule-room-cell-content {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+
+.room-schedule-host-row {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.room-schedule-host-cell {
+  z-index: 7;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(241, 245, 249, 0.98);
+  padding: 10px 12px;
+}
+
+.room-schedule-host-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.room-schedule-host-cell strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.room-schedule-host-track {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #475569;
+  background:
+    linear-gradient(90deg, rgba(203, 213, 225, 0.35), rgba(226, 232, 240, 0.18)),
+    rgba(248, 250, 252, 0.98);
+  min-height: 40px;
 }
 
 .room-schedule-day-head {
@@ -238,7 +308,7 @@
 
 .room-schedule-track {
   position: relative;
-  min-height: 76px;
+  min-height: 60px;
   min-width: calc(var(--day-count) * var(--day-column-width));
   overflow: hidden;
 }
@@ -268,8 +338,8 @@
 
 .room-booking-bar {
   position: absolute;
-  top: 14px;
-  height: 48px;
+  top: 10px;
+  height: 40px;
   border-radius: 12px;
   border: 1px solid transparent;
   padding: 8px 10px;
@@ -292,40 +362,12 @@
 }
 
 .room-booking-bar-meta {
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 11px;
   display: flex;
   gap: 8px;
   justify-content: space-between;
   white-space: nowrap;
-}
-
-.room-cleaning-gap {
-  position: absolute;
-  top: 16px;
-  transform: translateX(-50%);
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  border: 1px solid #cbd5e1;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.room-cleaning-gap::before {
-  content: '🧹';
-  font-size: 14px;
-  line-height: 1;
-}
-
-.room-cleaning-gap.compact {
-  top: 18px;
-  width: 24px;
-  height: 24px;
 }
 
 .room-booking-editor-head,
@@ -487,32 +529,373 @@
 }
 
 .room-booking-confirm-modal {
-  width: min(620px, 100%);
-  border: 1px solid rgba(16, 185, 129, 0.18);
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(236, 253, 245, 0.99), rgba(255, 255, 255, 0.99));
+  width: min(520px, 100%);
+  border: 1px solid rgba(157, 111, 51, 0.24);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fffefb 0%, #fffdfa 100%);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
-  padding: 18px;
+  padding: 10px;
 }
 
-.room-booking-confirm-title {
-  font-size: 20px;
+.room-booking-confirm-sheet {
+  position: relative;
+  border: 1.5px solid rgba(189, 147, 87, 0.4);
+  border-radius: 14px;
+  padding: 10px;
+  background:
+    radial-gradient(circle at top left, rgba(219, 192, 143, 0.12), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(139, 111, 71, 0.1), transparent 30%),
+    #fffefb;
+}
+
+.room-booking-confirm-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(189, 147, 87, 0.28);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.room-booking-confirm-brand {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.room-booking-confirm-logo {
+  width: 68px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.room-booking-confirm-emblem {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(189, 147, 87, 0.55);
+  background: linear-gradient(180deg, #fffdf8, #f4ead8);
+  color: #8a6535;
+  font-size: 15px;
   font-weight: 900;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.12em;
+}
+
+.room-booking-confirm-brand-top {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8a6535;
+}
+
+.room-booking-confirm-brand-main {
+  font-size: 18px;
+  line-height: 1.02;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #173c2e;
+  text-transform: uppercase;
+}
+
+.room-booking-confirm-hero {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.room-booking-confirm-guest-card,
+.room-booking-confirm-preview,
+.room-booking-confirm-stay-card,
+.room-booking-confirm-info-card {
+  border: 1px solid rgba(189, 147, 87, 0.28);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 12px;
+}
+
+.room-booking-confirm-guest-name {
+  font-size: 20px;
+  line-height: 1.1;
+  font-weight: 900;
+  color: #173c2e;
+}
+
+.room-booking-confirm-guest-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.room-booking-confirm-guest-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(244, 234, 216, 0.8);
+  color: #6f4f2a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.room-booking-confirm-preview {
+  display: grid;
+  align-content: end;
+  min-height: 100px;
+  background:
+    linear-gradient(180deg, rgba(20, 54, 41, 0.84), rgba(20, 54, 41, 0.94)),
+    linear-gradient(135deg, #2d5a46, #19352a);
+  color: #fffdf7;
+}
+
+.room-booking-confirm-preview-label {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 247, 230, 0.78);
+}
+
+.room-booking-confirm-preview strong {
+  margin-top: 6px;
+  font-size: 19px;
+  line-height: 1.05;
+}
+
+.room-booking-confirm-preview span {
+  margin-top: 8px;
+  color: rgba(255, 247, 230, 0.84);
+  font-weight: 600;
+}
+
+.room-booking-confirm-stay-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.room-booking-confirm-stay-card {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.room-booking-confirm-stay-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #204935, #173c2e);
+  color: #fff8ea;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.room-booking-confirm-section {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 10px;
+}
+
+.room-booking-confirm-section-title {
+  margin-bottom: 8px;
+  font-size: 17px;
+  font-weight: 900;
+  color: #173c2e;
+}
+
+.room-booking-confirm-table {
+  display: grid;
+  grid-template-columns: 140px 1fr 1.2fr;
+  overflow: hidden;
+  border: 1px solid rgba(189, 147, 87, 0.32);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.room-booking-confirm-table-head,
+.room-booking-confirm-table-cell {
+  padding: 9px 11px;
+  border-right: 1px solid rgba(189, 147, 87, 0.24);
+}
+
+.room-booking-confirm-table-head:nth-child(3),
+.room-booking-confirm-table-cell:nth-child(6) {
+  border-right: 0;
+}
+
+.room-booking-confirm-table-head {
+  background: linear-gradient(180deg, #204935, #173c2e);
+  color: #fffdf9;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.room-booking-confirm-table-cell {
+  font-size: 14px;
+  color: #334155;
+}
+
+.room-booking-confirm-info-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.room-booking-confirm-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed rgba(189, 147, 87, 0.24);
+}
+
+.room-booking-confirm-info-row:last-child {
+  border-bottom: 0;
+}
+
+.room-booking-confirm-info-row span {
+  color: #6b7280;
+}
+
+.room-booking-confirm-note {
+  min-height: 0;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.room-booking-confirm-note-card {
+  grid-column: 1 / -1;
 }
 
 .room-booking-confirm-foot {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed rgba(15, 23, 42, 0.12);
-  font-size: 13px;
-  color: #334155;
+  margin-top: 10px;
+  position: relative;
+  z-index: 1;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(189, 147, 87, 0.4);
+  display: grid;
+  gap: 6px;
+  text-align: center;
+  font-size: 12px;
+  color: #4b5563;
 }
 
 .room-booking-confirm-actions {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.room-booking-confirm-language-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-booking-confirm-brand-sub {
+  font-size: 9px;
+  font-weight: 700;
+  color: #6f4f2a;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.room-booking-confirm-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.room-booking-confirm-top-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.room-booking-confirm-top-card {
+  border: 1px solid rgba(93, 74, 53, 0.24);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 7px 8px;
+}
+
+.room-booking-confirm-top-row + .room-booking-confirm-top-row {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(93, 74, 53, 0.18);
+}
+
+.room-booking-confirm-fact-label {
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6f4f2a;
+  margin-bottom: 3px;
+}
+
+.room-booking-confirm-fact-value {
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: #2f2418;
+}
+
+.room-booking-confirm-side {
+  display: grid;
+  gap: 6px;
+}
+
+.room-booking-confirm-side-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgba(93, 74, 53, 0.35);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 8px 9px;
+}
+
+.room-booking-confirm-side-title {
+  margin-bottom: 4px;
+  color: #173c2e;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.room-booking-confirm-side-text {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #2f2418;
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
@@ -601,6 +984,55 @@
     width: 100%;
     border-radius: 20px;
     padding: 16px;
+  }
+
+  .room-booking-confirm-sheet {
+    padding: 10px;
+  }
+
+  .room-booking-confirm-brand-main {
+    font-size: 18px;
+  }
+
+  .room-booking-confirm-logo {
+    width: 54px;
+  }
+
+  .room-booking-confirm-actions {
+    gap: 8px;
+  }
+
+  .room-booking-confirm-modal {
+    width: min(100%, 396px);
+    border-radius: 16px;
+    padding: 8px;
+  }
+
+  .room-booking-confirm-language-switch {
+    gap: 6px;
+  }
+
+  .room-booking-confirm-language-switch .btn,
+  .room-booking-confirm-actions > .btn {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .room-booking-confirm-top-grid {
+    gap: 5px;
+  }
+
+  .room-booking-confirm-top-card {
+    padding: 6px 7px;
+  }
+
+  .room-booking-confirm-fact-label {
+    font-size: 9px;
+  }
+
+  .room-booking-confirm-fact-value {
+    font-size: 11px;
   }
 
   .room-booking-modal-head,

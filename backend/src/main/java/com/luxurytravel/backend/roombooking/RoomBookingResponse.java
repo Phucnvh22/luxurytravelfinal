@@ -14,9 +14,14 @@ public record RoomBookingResponse(
         LocalDateTime checkInAt,
         LocalDateTime checkOutAt,
         RoomBookingStatus status,
+        Double villaRate,
+        Double depositAmount,
+        Double remainingAmount,
         String notes,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        Instant checkedInMarkedAt,
+        Instant checkedOutMarkedAt
 ) {
     public static RoomBookingResponse from(RoomBooking entity) {
         return new RoomBookingResponse(
@@ -30,9 +35,14 @@ public record RoomBookingResponse(
                 entity.getCheckInAt(),
                 entity.getCheckOutAt(),
                 entity.getStatus(),
+                entity.getVillaRate(),
+                entity.getDepositAmount(),
+                entity.getRemainingAmount(),
                 entity.getNotes(),
                 entity.getCreatedAt(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(),
+                entity.getCheckedInMarkedAt(),
+                entity.getCheckedOutMarkedAt()
         );
     }
 }
