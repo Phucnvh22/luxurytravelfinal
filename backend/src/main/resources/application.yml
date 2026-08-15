@@ -77,3 +77,4 @@ application:
       update-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_UPDATE_RESERVATION_PATH:/api/v1/reservations/{reservationId}}
       cancel-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_CANCEL_RESERVATION_PATH:/api/v1/reservations/{reservationId}/cancel}
       pull-reservations-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_PULL_RESERVATIONS_PATH:/api/v1/reservations}
+

@@ -20,6 +20,7 @@ import LoginPage from './pages/LoginPage'
 import OAuth2SuccessPage from './pages/OAuth2SuccessPage'
 import RegisterPage from './pages/RegisterPage'
 import NotFoundPage from './pages/NotFoundPage'
+import PublicRoomCalendarPage from './pages/PublicRoomCalendarPage'
 import SellerBookingsPage from './pages/SellerBookingsPage'
 import SellerExperienceRequestsPage from './pages/SellerExperienceRequestsPage'
 import SellerServiceRequestsPage from './pages/SellerServiceRequestsPage'
@@ -114,6 +115,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/oauth2/success" element={<OAuth2SuccessPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/calendar/:roomCodes" element={<PublicRoomCalendarPage />} />
           <Route path="/me/requests" element={
             <ProtectedRoute>
               <MyRequestsPage />

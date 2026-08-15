@@ -22,6 +22,9 @@ public class RoomUpsertRequest {
     @Size(max = 100)
     private String type;
 
+    @Size(max = 1000)
+    private String airbnbUrl;
+
     @NotNull
     @Min(1)
     private Integer floorNumber;
@@ -85,6 +88,14 @@ public class RoomUpsertRequest {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getAirbnbUrl() {
+        return airbnbUrl;
+    }
+
+    public void setAirbnbUrl(String airbnbUrl) {
+        this.airbnbUrl = airbnbUrl;
     }
 
     public Integer getFloorNumber() {

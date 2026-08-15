@@ -112,6 +112,7 @@ export type Room = {
   name: string
   host: string
   type: string
+  airbnbUrl: string
   floorNumber: number
   maxAdults: number
   maxChildren: number
@@ -135,6 +136,7 @@ export type RoomUpsertRequest = {
   name: string
   host: string
   type: string
+  airbnbUrl: string
   floorNumber: number
   maxAdults: number
   maxChildren: number
@@ -197,6 +199,27 @@ export type RoomBookingResponse = {
   updatedAt: string
   checkedInMarkedAt?: string
   checkedOutMarkedAt?: string
+}
+
+export type PublicRoomCalendarRoom = {
+  code: string
+  name: string
+  type: string
+  location: string
+  airbnbUrl: string
+}
+
+export type PublicRoomCalendarBooking = {
+  id: number
+  roomCode: string
+  checkInAt: string
+  checkOutAt: string
+  status: RoomBookingStatus
+}
+
+export type PublicRoomCalendarResponse = {
+  rooms: PublicRoomCalendarRoom[]
+  bookings: PublicRoomCalendarBooking[]
 }
 
 export type BookingResponse = {

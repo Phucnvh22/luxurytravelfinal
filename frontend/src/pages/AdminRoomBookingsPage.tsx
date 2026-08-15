@@ -3,6 +3,16 @@ import { Link } from 'react-router-dom'
 import { useI18n } from '../contexts/I18nContext'
 import { apiFetch, HttpError } from '../lib/api'
 import type { Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus } from '../types'
+import {
+  buildGroupedScheduleRows,
+  buildQuickBookingDateRange,
+  compareRoomsByLocation,
+  getBookedDateKeysForRoom,
+  sortRoomCodesByLocation,
+  toggleQuickBookingDate,
+  validateQuickBookingSelection,
+  type QuickBookingSelection,
+} from './AdminRoomBookingsPage.utils'
 import './pages.css'
 import './admin-room-bookings.css'
 
@@ -49,19 +59,6 @@ const ROOM_OPERATIONAL_STATUS_META: Record<RoomOperationalStatus, StatusMeta> = 
   READY: { label: 'Ready', toneClass: 'ready' },
   CHECKED_IN: { label: 'Checked-in', toneClass: 'occupied' },
   NEEDS_CLEANING: { label: 'Needs cleaning', toneClass: 'needs-cleaning' },
-}
-
-function compareRooms(a?: Room, b?: Room, fallbackA?: string, fallbackB?: string) {
-  if (a && b) {
-    return (
-      (a.host || '').localeCompare(b.host || '', 'vi-VN', { sensitivity: 'base' }) ||
-      a.floorNumber - b.floorNumber ||
-      a.code.localeCompare(b.code, 'vi-VN', { numeric: true })
-    )
-  }
-  if (a && fallbackA) return -1
-  if (b && fallbackB) return 1
-  return (fallbackA || '').localeCompare(fallbackB || '', 'vi-VN', { numeric: true })
 }
 
 function normalizeRoomOperationalStatus(status?: Room['operationalStatus']): RoomOperationalStatus {
@@ -266,6 +263,15 @@ function formatDayNumber(value: Date) {
   }).format(value)
 }
 
+function formatDayMonth(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+  }).format(parsed)
+}
+
 function formatDateRange(start: Date, end: Date) {
   return `${new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
@@ -306,15 +312,6 @@ function formatDateOnly(value: string) {
   }).format(parsed)
 }
 
-function formatTime(value: string) {
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(parsed)
-}
-
 function countGuests(booking: RoomBookingResponse) {
   const total = booking.adults + booking.children
   return `${total} guests`
@@ -342,6 +339,23 @@ function getBookingBarLayout(booking: RoomBookingResponse, trackStartMs: number,
   }
 }
 
+function getDateRangeLayout(checkInAt: string, checkOutAt: string, trackStartMs: number, trackDurationMs: number) {
+  const start = startOfDay(new Date(checkInAt)).getTime()
+  const endCandidate = startOfDay(new Date(checkOutAt)).getTime()
+  const end = endCandidate > start ? endCandidate : start + DAY_DURATION_MS
+  const trackEndMs = trackStartMs + trackDurationMs
+  const clampedStart = Math.max(start, trackStartMs)
+  const clampedEnd = Math.min(end, trackEndMs)
+
+  if (clampedEnd <= clampedStart) return null
+
+  return {
+    left: ((clampedStart - trackStartMs) / trackDurationMs) * 100,
+    width: ((clampedEnd - clampedStart) / trackDurationMs) * 100,
+    center: ((clampedStart + clampedEnd) / 2 - trackStartMs) / trackDurationMs * 100,
+  }
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
     if (error.body?.fields) return Object.values(error.body.fields).join(', ')
@@ -366,6 +380,7 @@ export default function AdminRoomBookingsPage() {
   const [confirmationLanguage, setConfirmationLanguage] = useState<ConfirmationLanguage>(() =>
     language === 'vi' ? 'vi' : 'en',
   )
+  const [quickSelection, setQuickSelection] = useState<QuickBookingSelection | null>(null)
   const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfMonth(new Date())))
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -464,6 +479,10 @@ export default function AdminRoomBookingsPage() {
     setConfirmationLanguage(language === 'vi' ? 'vi' : 'en')
   }, [language, showConfirmInformation])
 
+  useEffect(() => {
+    setQuickSelection(null)
+  }, [monthStart, monthEnd])
+
   const statusCounts = useMemo(() => {
     return bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
       const visibleStatus = normalizeDisplayStatus(booking.status)
@@ -484,11 +503,12 @@ export default function AdminRoomBookingsPage() {
       if (!normalizedSearch) return [{ ...booking, displayStatus: visibleStatus }]
       const haystack = [
         booking.roomCode,
-                roomByCode[booking.roomCode]?.name ?? '',
-                roomByCode[booking.roomCode]?.type ?? '',
-                roomByCode[booking.roomCode]?.host ?? '',
-                roomByCode[booking.roomCode]?.location ?? '',
-                roomByCode[booking.roomCode]?.bedroomLayout ?? '',
+        roomByCode[booking.roomCode]?.name ?? '',
+        roomByCode[booking.roomCode]?.type ?? '',
+        roomByCode[booking.roomCode]?.host ?? '',
+        roomByCode[booking.roomCode]?.location ?? '',
+        roomByCode[booking.roomCode]?.bedroomLayout ?? '',
+        roomByCode[booking.roomCode]?.airbnbUrl ?? '',
         booking.guestName,
         booking.source,
         booking.phone,
@@ -506,7 +526,7 @@ export default function AdminRoomBookingsPage() {
     const catalogCodes = roomsCatalog
       .filter((room) => {
         if (!normalizedSearch) return true
-        const haystack = [room.code, room.name, room.type, room.host, room.location, room.bedroomLayout, room.notes]
+        const haystack = [room.code, room.name, room.type, room.host, room.location, room.bedroomLayout, room.notes, room.airbnbUrl]
           .join(' ')
           .toLowerCase()
         return haystack.includes(normalizedSearch)
@@ -515,40 +535,24 @@ export default function AdminRoomBookingsPage() {
     const bookingCodes = filteredBookings.map((booking) => booking.roomCode)
     const uniqueRooms = Array.from(new Set([...catalogCodes, ...bookingCodes].filter(Boolean)))
 
-    return uniqueRooms.sort((a, b) => {
-      const roomA = roomByCode[a]
-      const roomB = roomByCode[b]
-      return compareRooms(roomA, roomB, a, b)
-    })
+    return sortRoomCodesByLocation(uniqueRooms, roomByCode)
   }, [filteredBookings, roomByCode, roomsCatalog, searchTerm])
 
   const roomOptions = useMemo(() => {
     return Array.from(new Set([...roomsCatalog.map((room) => room.code), ...bookings.map((booking) => booking.roomCode)]))
-      .sort((a, b) => {
-        const roomA = roomByCode[a]
-        const roomB = roomByCode[b]
-        return compareRooms(roomA, roomB, a, b)
-      })
+      .sort((a, b) => compareRoomsByLocation(roomByCode[a], roomByCode[b], a, b))
   }, [bookings, roomByCode, roomsCatalog])
 
   const groupedScheduleRows = useMemo(() => {
-    const groups: Array<{ type: 'host'; host: string; count: number } | { type: 'villa'; roomCode: string; host: string }> = []
-    const hostCounts = rooms.reduce<Record<string, number>>((acc, code) => {
-      const host = roomByCode[code]?.host?.trim() || 'Unassigned host'
-      acc[host] = (acc[host] ?? 0) + 1
-      return acc
-    }, {})
-    let currentHost = ''
-    rooms.forEach((roomCode) => {
-      const host = roomByCode[roomCode]?.host?.trim() || 'Unassigned host'
-      if (host !== currentHost) {
-        currentHost = host
-        groups.push({ type: 'host', host, count: hostCounts[host] ?? 0 })
-      }
-      groups.push({ type: 'villa', roomCode, host })
-    })
-    return groups
+    return buildGroupedScheduleRows(rooms, roomByCode)
   }, [roomByCode, rooms])
+
+  const bookedDateKeysByRoom = useMemo(() => {
+    return Object.fromEntries(rooms.map((roomCode) => [roomCode, getBookedDateKeysForRoom(bookings, roomCode)])) as Record<
+      string,
+      Set<string>
+    >
+  }, [bookings, rooms])
 
   const trackStartMs = monthStart.getTime()
   const trackDurationMs = monthDays.length * DAY_DURATION_MS
@@ -580,6 +584,34 @@ export default function AdminRoomBookingsPage() {
 
   const openCreateBookingModal = () => {
     resetForm()
+    setSelectedBookingId(null)
+    setBookingModalMode('create')
+    setShowConfirmInformation(false)
+  }
+
+  const handleQuickDateSelect = (roomCode: string, dateKey: string) => {
+    setQuickSelection((current) => toggleQuickBookingDate(current, roomCode, dateKey, bookedDateKeysByRoom[roomCode] ?? new Set()))
+  }
+
+  const openQuickCreateBookingModal = () => {
+    const validationError = validateQuickBookingSelection(quickSelection)
+    if (validationError) {
+      return
+    }
+    if (!quickSelection) return
+
+    const range = buildQuickBookingDateRange(quickSelection, STANDARD_CHECK_IN_HOUR, STANDARD_CHECK_OUT_HOUR)
+    if (!range) {
+      return
+    }
+
+    setForm({
+      ...buildDefaultForm(monthStart, quickSelection.roomCode),
+      roomCode: quickSelection.roomCode,
+      checkInAt: range.checkInAt,
+      checkOutAt: range.checkOutAt,
+    })
+    setFormError(null)
     setSelectedBookingId(null)
     setBookingModalMode('create')
     setShowConfirmInformation(false)
@@ -642,6 +674,7 @@ export default function AdminRoomBookingsPage() {
         method,
         body: JSON.stringify(payload),
       })
+      setQuickSelection(null)
       setEditingId(saved.id)
       setSelectedBookingId(saved.id)
       setForm(mapBookingToForm(saved))
@@ -709,6 +742,14 @@ export default function AdminRoomBookingsPage() {
   const checkInDateValue = toDateInputValue(form.checkInAt)
   const checkOutDateValue = toDateInputValue(form.checkOutAt)
   const minCheckOutDateValue = nextCheckoutDateValue(form.checkInAt)
+  const quickSelectionDates = quickSelection?.dates ?? []
+  const quickSelectionRoom = quickSelection ? roomByCode[quickSelection.roomCode] : null
+  const quickSelectionRange = quickSelection
+    ? buildQuickBookingDateRange(quickSelection, STANDARD_CHECK_IN_HOUR, STANDARD_CHECK_OUT_HOUR)
+    : null
+  const quickSelectionLayout = quickSelectionRange
+    ? getDateRangeLayout(quickSelectionRange.checkInAt, quickSelectionRange.checkOutAt, trackStartMs, trackDurationMs)
+    : null
 
   const confirmationSource =
     bookingModalMode === 'details' && selectedBooking
@@ -747,7 +788,7 @@ export default function AdminRoomBookingsPage() {
   const confirmationStatusLabel =
     CONFIRMATION_STATUS_LABELS[confirmationLanguage][normalizeEditableStatus(confirmationSource.status)]
   const confirmationBookingId = selectedBooking?.id ? `#${selectedBooking.id}` : confirmationLanguage === 'vi' ? 'TBA' : 'TBA'
-  const confirmationVillaType = [confirmationRoom?.type, confirmationRoom?.location].filter(Boolean).join(' • ') ||
+  const confirmationVillaType = [confirmationRoom?.location, confirmationRoom?.type].filter(Boolean).join(' • ') ||
     (confirmationLanguage === 'vi' ? 'Chưa cập nhật' : 'TBA')
   const confirmationVillaRateValue = parseMoneyInput(confirmationSource.villaRate)
   const confirmationDepositAmountValue = parseMoneyInput(confirmationSource.depositAmount)
@@ -854,7 +895,7 @@ export default function AdminRoomBookingsPage() {
         <div className="section-head" style={{ marginTop: 14 }}>
           <div>
             <h2>Admin • Villa booking calendar</h2>
-            <div className="muted">Grouped by host, separated by villa cluster, with monthly check-in / check-out tracking.</div>
+            <div className="muted">Grouped by location. For quick booking, click the first available day and then the last day on the same villa row.</div>
           </div>
           <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
             Reload
@@ -868,7 +909,7 @@ export default function AdminRoomBookingsPage() {
                 className="input"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search guest, villa, host, source..."
+                placeholder="Search guest, villa, type, Airbnb link..."
               />
             </div>
 
@@ -980,12 +1021,12 @@ export default function AdminRoomBookingsPage() {
                   </div>
 
                   {groupedScheduleRows.map((row) => {
-                    if (row.type === 'host') {
+                    if (row.type === 'location') {
                       return (
-                        <div key={`host-${row.host}`} className="room-schedule-host-row">
+                        <div key={`location-${row.location}`} className="room-schedule-host-row">
                           <div className="room-schedule-host-cell">
-                            <span className="room-schedule-host-label">Host</span>
-                            <strong>{row.host}</strong>
+                            <span className="room-schedule-host-label">Location</span>
+                            <strong>{row.location}</strong>
                           </div>
                           <div className="room-schedule-host-track">{row.count} villas</div>
                         </div>
@@ -995,30 +1036,79 @@ export default function AdminRoomBookingsPage() {
                     const roomCode = row.roomCode
                     const room = roomByCode[roomCode]
                     const roomBookings = sortBookingsByTime(filteredBookings.filter((booking) => booking.roomCode === roomCode))
+                    const disabledDateKeys = bookedDateKeysByRoom[roomCode] ?? new Set<string>()
+                    const selectedDateKeys =
+                      quickSelection?.roomCode === roomCode ? new Set(quickSelection.dates) : new Set<string>()
+                    const needsCleaning = normalizeRoomOperationalStatus(room?.operationalStatus) === 'NEEDS_CLEANING'
+                    const hasQuickAction =
+                      quickSelection?.roomCode === roomCode &&
+                      (quickSelection?.dates.length ?? 0) > 1 &&
+                      Boolean(quickSelectionRange) &&
+                      Boolean(quickSelectionLayout)
+                    const selectionRangeForRow = hasQuickAction ? quickSelectionRange : null
+                    const selectionLayoutForRow = hasQuickAction ? quickSelectionLayout : null
 
                     return (
-                      <div key={roomCode} className="room-schedule-row">
+                      <div key={roomCode} className={`room-schedule-row ${hasQuickAction ? 'has-quick-action' : ''}`}>
                         <div className="room-schedule-room-cell">
                           <div className="room-schedule-room-cell-content">
                             <div>{room?.name || roomCode}</div>
-                            <span
-                              className={`room-bookings-list-badge ${
-                                ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(room?.operationalStatus)].toneClass
-                              }`}
-                            >
-                              {ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(room?.operationalStatus)].label}
-                            </span>
+                            {room?.airbnbUrl ? (
+                              <a href={room.airbnbUrl} target="_blank" rel="noreferrer" className="room-schedule-room-link">
+                                Airbnb link
+                              </a>
+                            ) : (
+                              <div className="room-schedule-room-link muted">Airbnb link pending</div>
+                            )}
+                            {needsCleaning ? (
+                              <span className={`room-bookings-list-badge ${ROOM_OPERATIONAL_STATUS_META.NEEDS_CLEANING.toneClass}`}>
+                                {ROOM_OPERATIONAL_STATUS_META.NEEDS_CLEANING.label}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <div className="room-schedule-track">
                           <div className="room-schedule-grid">
-                            {monthDays.map((day) => (
-                              <div key={`${roomCode}-${day.toISOString()}`} className="room-schedule-grid-cell" />
-                            ))}
+                            {monthDays.map((day) => {
+                              const dayKey = toIsoDate(day)
+                              const isDisabled = disabledDateKeys.has(dayKey)
+                              const isSelected = selectedDateKeys.has(dayKey)
+                              return (
+                                <button
+                                  key={`${roomCode}-${day.toISOString()}`}
+                                  type="button"
+                                  className={`room-schedule-grid-cell room-schedule-select-cell ${isSelected ? 'is-selected' : ''}`}
+                                  disabled={isDisabled}
+                                  onClick={() => handleQuickDateSelect(roomCode, dayKey)}
+                                  aria-label={`Select ${dayKey} for ${roomCode}`}
+                                />
+                              )
+                            })}
                           </div>
 
                           {todayMarkerLeft !== null ? (
                             <div className="room-schedule-today-marker" style={{ left: `${todayMarkerLeft}%` }} />
+                          ) : null}
+
+                          {hasQuickAction ? (
+                            <div
+                              className="room-schedule-quick-action"
+                              style={{ left: `${Math.min(Math.max(selectionLayoutForRow!.center, 10), 90)}%` }}
+                            >
+                              <div className="room-schedule-quick-action-meta">
+                                <strong>{quickSelectionRoom?.name || quickSelection.roomCode}</strong>
+                                <span>
+                                  {formatDateOnly(selectionRangeForRow!.checkInAt)} → {formatDateOnly(selectionRangeForRow!.checkOutAt)} ·{' '}
+                                  {quickSelectionDates.length} night(s)
+                                </span>
+                              </div>
+                              <button className="btn primary" type="button" onClick={openQuickCreateBookingModal}>
+                                Tạo booking
+                              </button>
+                              <button className="btn" type="button" onClick={() => setQuickSelection(null)}>
+                                Bỏ chọn
+                              </button>
+                            </div>
                           ) : null}
 
                           {roomBookings.map((booking) => {
@@ -1034,12 +1124,10 @@ export default function AdminRoomBookingsPage() {
                                 style={{ left: `${layout.left}%`, width: `${layout.width}%` }}
                                 onClick={() => openBookingDetails(booking)}
                               >
-                                <div className="room-booking-bar-title">{booking.guestName}</div>
+                                <div className="room-booking-bar-title">{meta.label}</div>
                                 <div className="room-booking-bar-meta">
-                                  <span>{booking.source}</span>
-                                  <span>
-                                    {formatTime(booking.checkInAt)} - {formatTime(booking.checkOutAt)}
-                                  </span>
+                                  <span>CI {formatDayMonth(booking.checkInAt)}</span>
+                                  <span>CO {formatDayMonth(booking.checkOutAt)}</span>
                                 </div>
                               </button>
                             )
@@ -1229,7 +1317,7 @@ export default function AdminRoomBookingsPage() {
                       >
                         {roomOptions.map((roomCode) => {
                           const room = roomByCode[roomCode]
-                          const suffix = room ? ` - ${room.name}${room.host ? ` (${room.host})` : ''}` : ''
+                          const suffix = room ? ` - ${room.name}${room.location ? ` (${room.location})` : ''}` : ''
                           return (
                             <option key={roomCode} value={roomCode}>
                               {roomCode}{suffix}

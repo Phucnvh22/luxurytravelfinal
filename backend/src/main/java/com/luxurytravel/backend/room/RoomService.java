@@ -21,7 +21,7 @@ public class RoomService {
 
     @Transactional
     public List<Room> findAll() {
-        List<Room> rooms = roomRepository.findAllByOrderByHostAscFloorNumberAscCodeAsc();
+        List<Room> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc();
         boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
         if (changed) {
             roomRepository.saveAll(rooms);
@@ -87,6 +87,7 @@ public class RoomService {
         room.setName(request.getName().trim());
         room.setHost(request.getHost().trim());
         room.setType(request.getType().trim());
+        room.setAirbnbUrl(request.getAirbnbUrl() == null ? "" : request.getAirbnbUrl().trim());
         room.setFloorNumber(request.getFloorNumber());
         room.setMaxAdults(request.getMaxAdults());
         room.setMaxChildren(request.getMaxChildren());
@@ -122,6 +123,10 @@ public class RoomService {
         }
         if (room.getOperationalStatus() == RoomOperationalStatus.READY && room.getLastReadyAt() == null) {
             room.setLastReadyAt(room.getStatusUpdatedAt());
+            changed = true;
+        }
+        if (room.getAirbnbUrl() == null) {
+            room.setAirbnbUrl("");
             changed = true;
         }
         return changed;

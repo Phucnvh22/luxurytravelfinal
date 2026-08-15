@@ -81,6 +81,7 @@ public class SecurityConfig {
                                 "/api/services/**",
                                 "/api/categories/**",
                                 "/api/featured-cards/**",
+                                "/api/public/room-calendar/**",
                                 "/h2-console/**"
                         ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

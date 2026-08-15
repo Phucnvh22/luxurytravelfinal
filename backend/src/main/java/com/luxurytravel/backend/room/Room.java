@@ -31,6 +31,9 @@ public class Room {
     @Column(nullable = false)
     private String type;
 
+    @Column(length = 1000)
+    private String airbnbUrl = "";
+
     @Column(nullable = false)
     private Integer floorNumber;
 
@@ -132,6 +135,14 @@ public class Room {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getAirbnbUrl() {
+        return airbnbUrl;
+    }
+
+    public void setAirbnbUrl(String airbnbUrl) {
+        this.airbnbUrl = airbnbUrl;
     }
 
     public Integer getFloorNumber() {

@@ -11,7 +11,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class RoomBookingService {
@@ -25,23 +27,50 @@ public class RoomBookingService {
 
     @Transactional(readOnly = true)
     public List<RoomBookingResponse> list(LocalDate from, LocalDate to) {
-        LocalDate rangeStart = from;
-        LocalDate rangeEnd = to;
-        if (rangeStart != null && rangeEnd == null) {
-            rangeEnd = rangeStart.plusDays(6);
-        } else if (rangeStart == null && rangeEnd != null) {
-            rangeStart = rangeEnd.minusDays(6);
-        }
-        if (rangeStart != null && rangeEnd != null && rangeEnd.isBefore(rangeStart)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu");
-        }
+        DateRange range = buildRange(from, to);
 
-        LocalDateTime fromAt = rangeStart == null ? null : rangeStart.atStartOfDay();
-        LocalDateTime toAt = rangeEnd == null ? null : rangeEnd.plusDays(1).atStartOfDay();
-
-        return roomBookingRepository.findInRange(fromAt, toAt).stream()
+        return roomBookingRepository.findInRange(range.fromAt(), range.toAt()).stream()
                 .map(RoomBookingResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PublicRoomCalendarResponse listPublic(List<String> roomCodes, LocalDate from, LocalDate to) {
+        if (roomCodes == null || roomCodes.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vui lòng chọn ít nhất một villa");
+        }
+
+        Set<String> normalizedCodes = roomCodes.stream()
+                .map(value -> value == null ? "" : value.trim().toUpperCase())
+                .filter(value -> !value.isBlank())
+                .collect(LinkedHashSet::new, Set::add, Set::addAll);
+
+        if (normalizedCodes.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Danh sách villa không hợp lệ");
+        }
+
+        DateRange range = buildRange(from, to);
+        List<PublicRoomCalendarRoomResponse> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc().stream()
+                .filter(Room::isActive)
+                .filter(room -> normalizedCodes.contains(room.getCode().trim().toUpperCase()))
+                .map(PublicRoomCalendarRoomResponse::from)
+                .toList();
+
+        if (rooms.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy villa phù hợp");
+        }
+
+        Set<String> availableCodes = rooms.stream()
+                .map(room -> room.code().trim().toUpperCase())
+                .collect(LinkedHashSet::new, Set::add, Set::addAll);
+
+        List<PublicRoomCalendarBookingResponse> bookings = roomBookingRepository.findInRange(range.fromAt(), range.toAt()).stream()
+                .filter(booking -> booking.getStatus() != RoomBookingStatus.CANCELLED)
+                .filter(booking -> availableCodes.contains(booking.getRoomCode().trim().toUpperCase()))
+                .map(PublicRoomCalendarBookingResponse::from)
+                .toList();
+
+        return new PublicRoomCalendarResponse(rooms, bookings);
     }
 
     @Transactional(readOnly = true)
@@ -201,5 +230,25 @@ public class RoomBookingService {
         }
         double remaining = totalAmount - (depositAmount == null ? 0D : depositAmount);
         return Math.max(remaining, 0D);
+    }
+
+    private DateRange buildRange(LocalDate from, LocalDate to) {
+        LocalDate rangeStart = from;
+        LocalDate rangeEnd = to;
+        if (rangeStart != null && rangeEnd == null) {
+            rangeEnd = rangeStart.plusDays(6);
+        } else if (rangeStart == null && rangeEnd != null) {
+            rangeStart = rangeEnd.minusDays(6);
+        }
+        if (rangeStart != null && rangeEnd != null && rangeEnd.isBefore(rangeStart)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu");
+        }
+
+        LocalDateTime fromAt = rangeStart == null ? null : rangeStart.atStartOfDay();
+        LocalDateTime toAt = rangeEnd == null ? null : rangeEnd.plusDays(1).atStartOfDay();
+        return new DateRange(fromAt, toAt);
+    }
+
+    private record DateRange(LocalDateTime fromAt, LocalDateTime toAt) {
     }
 }
