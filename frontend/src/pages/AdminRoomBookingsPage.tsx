@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useI18n } from '../contexts/I18nContext'
 import { apiFetch, HttpError } from '../lib/api'
@@ -28,6 +28,20 @@ type BookingModalMode = 'create' | 'details' | 'edit'
 type ConfirmationLanguage = 'en' | 'vi'
 type ScheduleBooking = RoomBookingResponse & {
   displayStatus: VisibleRoomBookingStatus
+}
+type CalendarFeedback = {
+  tone: 'success' | 'error'
+  title: string
+  message: string
+}
+type TouchDragState = {
+  bookingId: number
+  pointerId: number
+  startX: number
+  startY: number
+  clientX: number
+  clientY: number
+  hasMoved: boolean
 }
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
@@ -339,6 +353,15 @@ function getBookingBarLayout(booking: RoomBookingResponse, trackStartMs: number,
   }
 }
 
+function getBookingBarStyle(layout: { left: number; width: number }): CSSProperties {
+  const insetPercent = layout.width * 0.025
+
+  return {
+    left: `${layout.left + insetPercent}%`,
+    width: `${Math.max(layout.width * 0.95, 0.75)}%`,
+  }
+}
+
 function getDateRangeLayout(checkInAt: string, checkOutAt: string, trackStartMs: number, trackDurationMs: number) {
   const start = startOfDay(new Date(checkInAt)).getTime()
   const endCandidate = startOfDay(new Date(checkOutAt)).getTime()
@@ -385,6 +408,79 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function mapBookingToPayload(booking: RoomBookingResponse, roomCode = booking.roomCode): RoomBookingRequest {
+  return {
+    roomCode,
+    guestName: booking.guestName,
+    source: booking.source,
+    phone: booking.phone,
+    adults: booking.adults,
+    children: booking.children,
+    checkInAt: toInputValue(booking.checkInAt),
+    checkOutAt: toInputValue(booking.checkOutAt),
+    status: booking.status,
+    villaRate: booking.villaRate,
+    depositAmount: booking.depositAmount,
+    remainingAmount: booking.remainingAmount,
+    notes: booking.notes,
+  }
+}
+
+function getBookingDurationDays(booking: RoomBookingResponse) {
+  const checkInStart = startOfDay(new Date(booking.checkInAt)).getTime()
+  const checkOutStart = startOfDay(new Date(booking.checkOutAt)).getTime()
+  if (Number.isNaN(checkInStart) || Number.isNaN(checkOutStart)) return 1
+  return Math.max(1, Math.round((checkOutStart - checkInStart) / DAY_DURATION_MS))
+}
+
+function buildMovedBookingPayload(booking: RoomBookingResponse, roomCode: string, checkInDateKey: string): RoomBookingRequest {
+  const nextCheckIn = new Date(`${checkInDateKey}T00:00:00`)
+  const originalCheckIn = new Date(booking.checkInAt)
+  const originalCheckOut = new Date(booking.checkOutAt)
+  const durationDays = getBookingDurationDays(booking)
+
+  nextCheckIn.setHours(originalCheckIn.getHours(), originalCheckIn.getMinutes(), 0, 0)
+
+  const nextCheckOut = new Date(`${checkInDateKey}T00:00:00`)
+  nextCheckOut.setDate(nextCheckOut.getDate() + durationDays)
+  nextCheckOut.setHours(originalCheckOut.getHours(), originalCheckOut.getMinutes(), 0, 0)
+
+  return {
+    ...mapBookingToPayload(booking, roomCode),
+    checkInAt: toDateTimeLocalValue(nextCheckIn),
+    checkOutAt: toDateTimeLocalValue(nextCheckOut),
+  }
+}
+
+function getDateKeyFromTrackPointer(
+  clientX: number,
+  trackElement: HTMLDivElement,
+  monthDays: Date[],
+) {
+  if (monthDays.length === 0) return null
+
+  const rect = trackElement.getBoundingClientRect()
+  const relativeX = Math.min(Math.max(clientX - rect.left, 0), rect.width)
+  const dayWidth = rect.width / monthDays.length || rect.width
+  const dayIndex = Math.min(monthDays.length - 1, Math.max(0, Math.floor(relativeX / Math.max(dayWidth, 1))))
+
+  return toIsoDate(monthDays[dayIndex])
+}
+
+function findScheduleDropTarget(clientX: number, clientY: number, monthDays: Date[]) {
+  const hit = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+  if (!hit) return { roomCode: null, dateKey: null }
+
+  const trackElement = hit.closest('[data-schedule-track="true"]') as HTMLDivElement | null
+  if (!trackElement) return { roomCode: null, dateKey: null }
+
+  const roomCode = trackElement.dataset.roomCode ?? null
+  const dateKeyFromCell = hit.closest('[data-day-key]')?.getAttribute('data-day-key') ?? null
+  const dateKey = dateKeyFromCell ?? getDateKeyFromTrackPointer(clientX, trackElement, monthDays)
+
+  return { roomCode, dateKey }
+}
+
 export default function AdminRoomBookingsPage() {
   const { language } = useI18n()
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
@@ -404,10 +500,23 @@ export default function AdminRoomBookingsPage() {
   const [quickSelection, setQuickSelection] = useState<QuickBookingSelection | null>(null)
   const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfMonth(new Date())))
   const [formError, setFormError] = useState<string | null>(null)
+  const [calendarFeedback, setCalendarFeedback] = useState<CalendarFeedback | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [draggingBookingId, setDraggingBookingId] = useState<number | null>(null)
+  const [dropTargetRoomCode, setDropTargetRoomCode] = useState<string | null>(null)
+  const [dropTargetDateKey, setDropTargetDateKey] = useState<string | null>(null)
+  const [movingBookingId, setMovingBookingId] = useState<number | null>(null)
+  const [touchDrag, setTouchDrag] = useState<TouchDragState | null>(null)
   const loadingRef = useRef(false)
+  const scheduleScrollRef = useRef<HTMLDivElement | null>(null)
+  const touchDragRef = useRef<TouchDragState | null>(null)
+  const draggedBookingRef = useRef<RoomBookingResponse | null>(null)
+  const dropTargetRoomCodeRef = useRef<string | null>(null)
+  const dropTargetDateKeyRef = useRef<string | null>(null)
+  const monthDaysRef = useRef<Date[]>([])
+  const ignoreNextClickBookingIdRef = useRef<number | null>(null)
 
   const monthStart = useMemo(() => startOfMonth(monthCursor), [monthCursor])
   const monthEnd = useMemo(() => endOfMonth(monthCursor), [monthCursor])
@@ -441,6 +550,30 @@ export default function AdminRoomBookingsPage() {
     () => (selectedBooking ? roomByCode[selectedBooking.roomCode] ?? null : null),
     [roomByCode, selectedBooking],
   )
+  const draggedBooking = useMemo(
+    () => bookings.find((booking) => booking.id === draggingBookingId) ?? null,
+    [bookings, draggingBookingId],
+  )
+
+  useEffect(() => {
+    touchDragRef.current = touchDrag
+  }, [touchDrag])
+
+  useEffect(() => {
+    draggedBookingRef.current = draggedBooking
+  }, [draggedBooking])
+
+  useEffect(() => {
+    dropTargetRoomCodeRef.current = dropTargetRoomCode
+  }, [dropTargetRoomCode])
+
+  useEffect(() => {
+    dropTargetDateKeyRef.current = dropTargetDateKey
+  }, [dropTargetDateKey])
+
+  useEffect(() => {
+    monthDaysRef.current = monthDays
+  }, [monthDays])
 
   const updateMonthCursor = (nextMonth: number, nextYear: number) => {
     setMonthCursor(new Date(nextYear, nextMonth, 1))
@@ -503,6 +636,12 @@ export default function AdminRoomBookingsPage() {
   useEffect(() => {
     setQuickSelection(null)
   }, [monthStart, monthEnd])
+
+  useEffect(() => {
+    if (!calendarFeedback || calendarFeedback.tone !== 'success') return
+    const timeoutId = window.setTimeout(() => setCalendarFeedback(null), 2400)
+    return () => window.clearTimeout(timeoutId)
+  }, [calendarFeedback])
 
   const statusCounts = useMemo(() => {
     return bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
@@ -586,8 +725,39 @@ export default function AdminRoomBookingsPage() {
     [monthDays.length],
   )
   const today = new Date()
+  const todayDateKey = toIsoDate(today)
   const isTodayInsideMonth = today >= monthStart && today < addDays(monthEnd, 1)
   const todayMarkerLeft = isTodayInsideMonth ? ((today.getTime() - trackStartMs) / trackDurationMs) * 100 : null
+
+  useEffect(() => {
+    if (loading || rooms.length === 0 || !isTodayInsideMonth) return
+
+    const scrollElement = scheduleScrollRef.current
+    if (!scrollElement) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      const roomHead = scrollElement.querySelector('.room-schedule-room-head') as HTMLElement | null
+      const dayHead = scrollElement.querySelector('.room-schedule-day-head') as HTMLElement | null
+      if (!roomHead || !dayHead) return
+
+      const todayIndex = monthDays.findIndex((day) => toIsoDate(day) === todayDateKey)
+      if (todayIndex < 0) return
+
+      const roomColumnWidth = roomHead.getBoundingClientRect().width
+      const dayColumnWidth = dayHead.getBoundingClientRect().width
+      const targetScrollLeft = Math.max(
+        roomColumnWidth + todayIndex * dayColumnWidth - (scrollElement.clientWidth - dayColumnWidth) / 2,
+        0,
+      )
+
+      scrollElement.scrollTo({
+        left: targetScrollLeft,
+        behavior: 'smooth',
+      })
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [isTodayInsideMonth, loading, monthDays, rooms.length, todayDateKey])
 
   const resetForm = () => {
     setEditingId(null)
@@ -612,6 +782,82 @@ export default function AdminRoomBookingsPage() {
 
   const handleQuickDateSelect = (roomCode: string, dateKey: string) => {
     setQuickSelection((current) => toggleQuickBookingDate(current, roomCode, dateKey, bookedDateKeysByRoom[roomCode] ?? new Set()))
+  }
+
+  const handleBookingDragStart = (booking: RoomBookingResponse) => {
+    setCalendarFeedback(null)
+    setQuickSelection(null)
+    setDraggingBookingId(booking.id)
+    setDropTargetRoomCode(booking.roomCode)
+    setDropTargetDateKey(toDateInputValue(booking.checkInAt))
+  }
+
+  const handleBookingDragEnd = () => {
+    setDraggingBookingId(null)
+    setDropTargetRoomCode(null)
+    setDropTargetDateKey(null)
+    setTouchDrag(null)
+  }
+
+  const handleBookingPointerDown = (booking: RoomBookingResponse, event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse' || movingBookingId === booking.id) return
+
+    event.preventDefault()
+    ignoreNextClickBookingIdRef.current = booking.id
+    handleBookingDragStart(booking)
+    const nextDrag = {
+      bookingId: booking.id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      hasMoved: false,
+    }
+    touchDragRef.current = nextDrag
+    setTouchDrag(nextDrag)
+  }
+
+  const handleBookingDrop = async (targetRoomCode: string, targetDateKey: string | null) => {
+    if (!draggedBooking || movingBookingId) return
+
+    setDropTargetRoomCode(null)
+    setDropTargetDateKey(null)
+    const nextDateKey = targetDateKey ?? toDateInputValue(draggedBooking.checkInAt)
+    const currentDateKey = toDateInputValue(draggedBooking.checkInAt)
+
+    if (draggedBooking.roomCode === targetRoomCode && currentDateKey === nextDateKey) {
+      setDraggingBookingId(null)
+      return
+    }
+
+    setMovingBookingId(draggedBooking.id)
+    setCalendarFeedback(null)
+    try {
+      const saved = await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${draggedBooking.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(buildMovedBookingPayload(draggedBooking, targetRoomCode, nextDateKey)),
+      })
+      setSelectedBookingId(saved.id)
+      if (editingId === saved.id) {
+        setForm(mapBookingToForm(saved))
+      }
+      await load({ silent: true })
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Booking updated',
+        message: `${saved.guestName} moved to ${roomByCode[saved.roomCode]?.name || saved.roomCode} from ${formatDateOnly(saved.checkInAt)} to ${formatDateOnly(saved.checkOutAt)}.`,
+      })
+    } catch (e: unknown) {
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'Could not move booking',
+        message: getErrorMessage(e, 'Khong the chuyen booking sang villa khac'),
+      })
+    } finally {
+      setDraggingBookingId(null)
+      setMovingBookingId(null)
+    }
   }
 
   const openQuickCreateBookingModal = () => {
@@ -654,6 +900,85 @@ export default function AdminRoomBookingsPage() {
     setShowConfirmInformation(false)
     setFormError(null)
   }
+
+  useEffect(() => {
+    if (!touchDrag) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const currentDrag = touchDragRef.current
+      if (!currentDrag || event.pointerId !== currentDrag.pointerId) return
+
+      const movedEnough =
+        currentDrag.hasMoved ||
+        Math.hypot(event.clientX - currentDrag.startX, event.clientY - currentDrag.startY) >= 8
+
+      if (movedEnough) {
+        event.preventDefault()
+      }
+
+      const scrollElement = scheduleScrollRef.current
+      if (scrollElement) {
+        const rect = scrollElement.getBoundingClientRect()
+        const edgeThreshold = 40
+        if (event.clientX > rect.right - edgeThreshold) {
+          scrollElement.scrollLeft += 18
+        } else if (event.clientX < rect.left + edgeThreshold) {
+          scrollElement.scrollLeft -= 18
+        }
+      }
+
+      const nextDrag = {
+        ...currentDrag,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        hasMoved: movedEnough,
+      }
+      touchDragRef.current = nextDrag
+      setTouchDrag(nextDrag)
+
+      const target = findScheduleDropTarget(event.clientX, event.clientY, monthDaysRef.current)
+      if (target.roomCode !== dropTargetRoomCodeRef.current) {
+        setDropTargetRoomCode(target.roomCode)
+      }
+      if (target.dateKey !== dropTargetDateKeyRef.current) {
+        setDropTargetDateKey(target.dateKey)
+      }
+    }
+
+    const finishTouchDrag = (event: PointerEvent) => {
+      const currentDrag = touchDragRef.current
+      if (!currentDrag || event.pointerId !== currentDrag.pointerId) return
+
+      const activeBooking = draggedBookingRef.current
+      const targetRoomCode = dropTargetRoomCodeRef.current
+      const targetDateKey = dropTargetDateKeyRef.current
+      const shouldMove = currentDrag.hasMoved && Boolean(activeBooking) && Boolean(targetRoomCode)
+
+      touchDragRef.current = null
+      setTouchDrag(null)
+
+      if (shouldMove && targetRoomCode) {
+        ignoreNextClickBookingIdRef.current = null
+        void handleBookingDrop(targetRoomCode, targetDateKey)
+        return
+      }
+
+      handleBookingDragEnd()
+      if (activeBooking) {
+        openBookingDetails(activeBooking)
+      }
+    }
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false })
+    window.addEventListener('pointerup', finishTouchDrag)
+    window.addEventListener('pointercancel', finishTouchDrag)
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', finishTouchDrag)
+      window.removeEventListener('pointercancel', finishTouchDrag)
+    }
+  }, [touchDrag, handleBookingDrop, openBookingDetails])
 
   const toggleStatus = (status: VisibleRoomBookingStatus) => {
     setActiveStatuses((current) => {
@@ -1015,6 +1340,28 @@ export default function AdminRoomBookingsPage() {
           </div>
         </div>
 
+        {calendarFeedback ? (
+          <div className={`card room-bookings-feedback ${calendarFeedback.tone}`} style={{ marginBottom: 16 }}>
+            <div className="error-title">{calendarFeedback.title}</div>
+            <div className="muted">{calendarFeedback.message}</div>
+          </div>
+        ) : null}
+
+        {touchDrag?.hasMoved && draggedBooking ? (
+          <div
+            className="room-booking-touch-ghost"
+            style={{
+              left: touchDrag.clientX,
+              top: touchDrag.clientY,
+            }}
+          >
+            <strong>{roomByCode[draggedBooking.roomCode]?.name || draggedBooking.roomCode}</strong>
+            <span>
+              {formatDateOnly(draggedBooking.checkInAt)} → {formatDateOnly(draggedBooking.checkOutAt)}
+            </span>
+          </div>
+        ) : null}
+
         <div className="room-bookings-stack">
           <div className="card detail-card room-schedule-card">
             {loading ? (
@@ -1027,10 +1374,10 @@ export default function AdminRoomBookingsPage() {
             ) : rooms.length === 0 ? (
               <div className="card detail-card muted">No villas match the current filters.</div>
             ) : (
-              <div className="room-schedule-body room-schedule-scroll">
+              <div ref={scheduleScrollRef} className="room-schedule-body room-schedule-scroll">
                 <div className="room-schedule-table" style={scheduleGridStyle}>
                   <div className="room-schedule-header">
-                    <div className="room-schedule-room-head">Villa</div>
+                    <div className="room-schedule-room-head" aria-label="Villa column" />
                     <div className="room-schedule-days">
                       {monthDays.map((day) => {
                         const isToday = toIsoDate(day) === toIsoDate(today)
@@ -1049,7 +1396,6 @@ export default function AdminRoomBookingsPage() {
                       return (
                         <div key={`location-${row.location}`} className="room-schedule-host-row">
                           <div className="room-schedule-host-cell">
-                            <span className="room-schedule-host-label">Location</span>
                             <strong>{row.location}</strong>
                           </div>
                           <div className="room-schedule-host-track">{row.count} villas</div>
@@ -1073,8 +1419,13 @@ export default function AdminRoomBookingsPage() {
                     const selectionLayoutForRow = hasQuickAction ? quickSelectionLayout : null
                     const quickActionStyleForRow = selectionLayoutForRow ? getQuickActionStyle(selectionLayoutForRow) : undefined
 
+                    const isDropTarget = dropTargetRoomCode === roomCode && draggingBookingId !== null
+
                     return (
-                      <div key={roomCode} className={`room-schedule-row ${hasQuickAction ? 'has-quick-action' : ''}`}>
+                      <div
+                        key={roomCode}
+                        className={`room-schedule-row ${hasQuickAction ? 'has-quick-action' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
+                      >
                         <div className="room-schedule-room-cell">
                           <div className="room-schedule-room-cell-content">
                             <div>{room?.name || roomCode}</div>
@@ -1092,17 +1443,42 @@ export default function AdminRoomBookingsPage() {
                             ) : null}
                           </div>
                         </div>
-                        <div className="room-schedule-track">
+                        <div
+                          className={`room-schedule-track ${isDropTarget ? 'is-drop-target' : ''}`}
+                          data-schedule-track="true"
+                          data-room-code={roomCode}
+                          onDragOver={(e) => {
+                            if (!draggedBooking || movingBookingId) return
+                            e.preventDefault()
+                            e.dataTransfer.dropEffect = 'move'
+                            const nextDateKey = getDateKeyFromTrackPointer(e.clientX, e.currentTarget, monthDays)
+                            if (dropTargetRoomCode !== roomCode) {
+                              setDropTargetRoomCode(roomCode)
+                            }
+                            if (dropTargetDateKey !== nextDateKey) {
+                              setDropTargetDateKey(nextDateKey)
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            const nextDateKey = getDateKeyFromTrackPointer(e.clientX, e.currentTarget, monthDays)
+                            void handleBookingDrop(roomCode, nextDateKey)
+                          }}
+                        >
                           <div className="room-schedule-grid">
                             {monthDays.map((day) => {
                               const dayKey = toIsoDate(day)
                               const isDisabled = disabledDateKeys.has(dayKey)
                               const isSelected = selectedDateKeys.has(dayKey)
+                              const isDragTargetDay = isDropTarget && dropTargetDateKey === dayKey
                               return (
                                 <button
                                   key={`${roomCode}-${day.toISOString()}`}
                                   type="button"
-                                  className={`room-schedule-grid-cell room-schedule-select-cell ${isSelected ? 'is-selected' : ''}`}
+                                  data-day-key={dayKey}
+                                  className={`room-schedule-grid-cell room-schedule-select-cell ${isSelected ? 'is-selected' : ''} ${
+                                    isDragTargetDay ? 'is-drop-target' : ''
+                                  }`}
                                   disabled={isDisabled}
                                   onClick={() => handleQuickDateSelect(roomCode, dayKey)}
                                   aria-label={`Select ${dayKey} for ${roomCode}`}
@@ -1145,9 +1521,26 @@ export default function AdminRoomBookingsPage() {
                               <button
                                 key={booking.id}
                                 type="button"
-                                className={`room-booking-bar ${meta.toneClass} ${selectedBookingId === booking.id ? 'selected' : ''}`}
-                                style={{ left: `${layout.left}%`, width: `${layout.width}%` }}
-                                onClick={() => openBookingDetails(booking)}
+                                className={`room-booking-bar ${meta.toneClass} ${selectedBookingId === booking.id ? 'selected' : ''} ${
+                                  draggingBookingId === booking.id ? 'is-dragging' : ''
+                                } ${movingBookingId === booking.id ? 'is-moving' : ''}`}
+                                style={getBookingBarStyle(layout)}
+                                onClick={() => {
+                                  if (ignoreNextClickBookingIdRef.current === booking.id) {
+                                    ignoreNextClickBookingIdRef.current = null
+                                    return
+                                  }
+                                  openBookingDetails(booking)
+                                }}
+                                onPointerDown={(e) => handleBookingPointerDown(booking, e)}
+                                draggable={movingBookingId !== booking.id}
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = 'move'
+                                  e.dataTransfer.setData('text/plain', String(booking.id))
+                                  handleBookingDragStart(booking)
+                                }}
+                                onDragEnd={handleBookingDragEnd}
+                                title="Drag to move this booking to another villa"
                               >
                                 <div className="room-booking-bar-title">{meta.label}</div>
                                 <div className="room-booking-bar-meta">

@@ -312,13 +312,18 @@
 
 .room-schedule-track {
   position: relative;
-  min-height: 60px;
+  min-height: 62px;
   min-width: calc(var(--day-count) * var(--day-column-width));
   overflow: hidden;
 }
 
+.room-schedule-track.is-drop-target {
+  background: rgba(16, 185, 129, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
 .room-schedule-row.has-quick-action .room-schedule-track {
-  min-height: 88px;
+  min-height: 92px;
 }
 
 .room-schedule-grid {
@@ -344,12 +349,55 @@
   border-left: 0;
 }
 
+.room-bookings-feedback.success {
+  border-color: rgba(16, 185, 129, 0.26);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.room-booking-touch-ghost {
+  position: fixed;
+  z-index: 520;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+  max-width: min(260px, calc(100vw - 24px));
+  padding: 8px 10px;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.18);
+}
+
+.room-booking-touch-ghost strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-booking-touch-ghost span {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .room-schedule-select-cell:hover:not(:disabled) {
   background: rgba(183, 223, 196, 0.55);
 }
 
 .room-schedule-select-cell.is-selected {
   background: #e9f9ef;
+}
+
+.room-schedule-select-cell.is-drop-target:not(:disabled) {
+  background: rgba(16, 185, 129, 0.24);
+  box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.28);
 }
 
 .room-schedule-select-cell:disabled {
@@ -369,20 +417,42 @@
 
 .room-booking-bar {
   position: absolute;
-  top: 10px;
+  top: 2px;
   z-index: 3;
-  height: 40px;
+  height: calc(100% - 4px);
   border-radius: 12px;
   border: 1px solid transparent;
-  padding: 8px 10px;
+  padding: 10px 10px;
   text-align: left;
   cursor: pointer;
+  cursor: grab;
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
   overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.room-schedule-row.has-quick-action .room-booking-bar {
+  top: 6px;
+  height: 42px;
+}
+
+.room-booking-bar:active {
+  cursor: grabbing;
 }
 
 .room-booking-bar.selected {
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22), 0 12px 24px rgba(15, 23, 42, 0.1);
+}
+
+.room-booking-bar.is-dragging {
+  opacity: 0.45;
+}
+
+.room-booking-bar.is-moving {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .room-booking-bar-title {
@@ -1011,24 +1081,35 @@
   .room-schedule-header,
   .room-schedule-row,
   .room-schedule-host-row {
-    grid-template-columns: 132px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .room-schedule-table {
-    min-width: calc(132px + (var(--day-count) * 48px));
+    min-width: calc(96px + (var(--day-count) * 44px));
   }
 
   .room-schedule-room-head,
   .room-schedule-room-cell {
-    padding: 12px 10px;
+    padding: 10px 8px;
+  }
+
+  .room-schedule-room-cell-content {
+    gap: 4px;
+  }
+
+  .room-schedule-room-cell-content > div:first-child,
+  .room-schedule-room-link {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .room-schedule-day-weekday {
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .room-schedule-day-number {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .room-booking-modal-overlay {

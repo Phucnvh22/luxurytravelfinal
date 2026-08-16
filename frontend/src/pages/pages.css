@@ -666,6 +666,8 @@
   border: 1px solid rgba(16, 185, 129, 0.22);
   background: rgba(255, 255, 255, 0.85);
   color: var(--text);
+  font: inherit;
+  font-size: 16px;
   padding: 10px 12px;
   outline: none;
   transition: border-color 140ms ease, box-shadow 140ms ease;
