@@ -356,6 +356,27 @@ function getDateRangeLayout(checkInAt: string, checkOutAt: string, trackStartMs:
   }
 }
 
+function getQuickActionStyle(layout: { left: number; width: number; center: number }): CSSProperties {
+  if (layout.center <= 18) {
+    return {
+      left: `max(calc(${layout.left}% + 8px), 8px)`,
+      transform: 'translateX(0)',
+    }
+  }
+
+  if (layout.center >= 82) {
+    return {
+      left: `min(calc(${layout.left + layout.width}% - 8px), calc(100% - 8px))`,
+      transform: 'translateX(-100%)',
+    }
+  }
+
+  return {
+    left: `${layout.center}%`,
+    transform: 'translateX(-50%)',
+  }
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof HttpError) {
     if (error.body?.fields) return Object.values(error.body.fields).join(', ')
@@ -895,7 +916,10 @@ export default function AdminRoomBookingsPage() {
         <div className="section-head" style={{ marginTop: 14 }}>
           <div>
             <h2>Admin • Villa booking calendar</h2>
-            <div className="muted">Grouped by location. For quick booking, click the first available day and then the last day on the same villa row.</div>
+            <div className="muted">
+              Grouped by location. For quick booking, click the first available day to open booking immediately, or click the
+              last day on the same villa row to extend the stay.
+            </div>
           </div>
           <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
             Reload
@@ -1042,11 +1066,12 @@ export default function AdminRoomBookingsPage() {
                     const needsCleaning = normalizeRoomOperationalStatus(room?.operationalStatus) === 'NEEDS_CLEANING'
                     const hasQuickAction =
                       quickSelection?.roomCode === roomCode &&
-                      (quickSelection?.dates.length ?? 0) > 1 &&
+                      (quickSelection?.dates.length ?? 0) > 0 &&
                       Boolean(quickSelectionRange) &&
                       Boolean(quickSelectionLayout)
                     const selectionRangeForRow = hasQuickAction ? quickSelectionRange : null
                     const selectionLayoutForRow = hasQuickAction ? quickSelectionLayout : null
+                    const quickActionStyleForRow = selectionLayoutForRow ? getQuickActionStyle(selectionLayoutForRow) : undefined
 
                     return (
                       <div key={roomCode} className={`room-schedule-row ${hasQuickAction ? 'has-quick-action' : ''}`}>
@@ -1093,7 +1118,7 @@ export default function AdminRoomBookingsPage() {
                           {hasQuickAction ? (
                             <div
                               className="room-schedule-quick-action"
-                              style={{ left: `${Math.min(Math.max(selectionLayoutForRow!.center, 10), 90)}%` }}
+                              style={quickActionStyleForRow}
                             >
                               <div className="room-schedule-quick-action-meta">
                                 <strong>{quickSelectionRoom?.name || quickSelection.roomCode}</strong>
