@@ -162,7 +162,7 @@ export type BookingCreateRequest = {
 
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED'
 
-export type RoomBookingStatus = 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
+export type RoomBookingStatus = 'PENDING' | 'CONFIRMED' | 'AIRBNB_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
 
 export type RoomBookingRequest = {
   roomCode: string
@@ -220,6 +220,12 @@ export type PublicRoomCalendarBooking = {
 export type PublicRoomCalendarResponse = {
   rooms: PublicRoomCalendarRoom[]
   bookings: PublicRoomCalendarBooking[]
+}
+
+export type AirbnbSyncRunResponse = {
+  success: boolean
+  message: string
+  logs: string[]
 }
 
 export type BookingResponse = {

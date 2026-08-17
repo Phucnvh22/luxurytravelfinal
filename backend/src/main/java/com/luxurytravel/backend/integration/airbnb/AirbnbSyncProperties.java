@@ -1,0 +1,118 @@
+package com.luxurytravel.backend.integration.airbnb;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@ConfigurationProperties(prefix = "application.integrations.airbnb-sync")
+public class AirbnbSyncProperties {
+    private boolean enabled = true;
+    private List<String> roomCodes = new ArrayList<>();
+    private int horizonDays = 45;
+    private int probeNights = 1;
+    private int adults = 2;
+    private long fixedDelayMs = 7_200_000L;
+    private long initialDelayMs = 120_000L;
+    private long timeoutMs = 15_000L;
+    private String baseUrl = "https://www.airbnb.com.vn";
+    private String currency = "VND";
+    private String zoneId = "Asia/Ho_Chi_Minh";
+    private String userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public List<String> getRoomCodes() {
+        return roomCodes;
+    }
+
+    public void setRoomCodes(List<String> roomCodes) {
+        this.roomCodes = roomCodes == null ? new ArrayList<>() : roomCodes;
+    }
+
+    public int getHorizonDays() {
+        return horizonDays;
+    }
+
+    public void setHorizonDays(int horizonDays) {
+        this.horizonDays = horizonDays;
+    }
+
+    public int getProbeNights() {
+        return probeNights;
+    }
+
+    public void setProbeNights(int probeNights) {
+        this.probeNights = probeNights;
+    }
+
+    public int getAdults() {
+        return adults;
+    }
+
+    public void setAdults(int adults) {
+        this.adults = adults;
+    }
+
+    public long getFixedDelayMs() {
+        return fixedDelayMs;
+    }
+
+    public void setFixedDelayMs(long fixedDelayMs) {
+        this.fixedDelayMs = fixedDelayMs;
+    }
+
+    public long getInitialDelayMs() {
+        return initialDelayMs;
+    }
+
+    public void setInitialDelayMs(long initialDelayMs) {
+        this.initialDelayMs = initialDelayMs;
+    }
+
+    public long getTimeoutMs() {
+        return timeoutMs;
+    }
+
+    public void setTimeoutMs(long timeoutMs) {
+        this.timeoutMs = timeoutMs;
+    }
+
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+
+    public void setBaseUrl(String baseUrl) {
+        this.baseUrl = baseUrl;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
+    }
+
+    public String getZoneId() {
+        return zoneId;
+    }
+
+    public void setZoneId(String zoneId) {
+        this.zoneId = zoneId;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
+    }
+}

@@ -5,7 +5,7 @@ import type { PublicRoomCalendarBooking, PublicRoomCalendarResponse, PublicRoomC
 import './pages.css'
 import './admin-room-bookings.css'
 
-type VisibleRoomBookingStatus = 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT'
+type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT'
 
 type StatusMeta = {
   label: string
@@ -16,6 +16,7 @@ const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
+  AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
   CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
   CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
 }
@@ -102,7 +103,7 @@ function formatDayMonth(value: string) {
 }
 
 function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingStatus | null {
-  if (status === 'CHECKED_IN' || status === 'CHECKED_OUT' || status === 'CONFIRMED') return status
+  if (status === 'CHECKED_IN' || status === 'CHECKED_OUT' || status === 'CONFIRMED' || status === 'AIRBNB_BLOCK') return status
   if (status === 'PENDING') return 'CONFIRMED'
   return null
 }

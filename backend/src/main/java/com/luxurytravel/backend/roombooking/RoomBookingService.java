@@ -104,6 +104,9 @@ public class RoomBookingService {
         if (booking.getStatus() == RoomBookingStatus.CANCELLED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da bi huy");
         }
+        if (booking.getStatus() == RoomBookingStatus.AIRBNB_BLOCK) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block khong the check-in");
+        }
         if (booking.getStatus() == RoomBookingStatus.CHECKED_OUT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da check-out");
         }
@@ -126,6 +129,9 @@ public class RoomBookingService {
         RoomBooking booking = findEntity(id);
         if (booking.getStatus() == RoomBookingStatus.CANCELLED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da bi huy");
+        }
+        if (booking.getStatus() == RoomBookingStatus.AIRBNB_BLOCK) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block khong the check-out");
         }
         if (booking.getStatus() == RoomBookingStatus.CHECKED_OUT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da check-out");

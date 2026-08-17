@@ -125,6 +125,14 @@
   border-color: #fcd34d;
 }
 
+.room-bookings-status-pill.airbnb-block,
+.room-booking-bar.airbnb-block,
+.room-bookings-list-badge.airbnb-block {
+  color: #6d28d9;
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+}
+
 .room-bookings-status-pill.checked-out,
 .room-booking-bar.checked-out,
 .room-bookings-list-badge.checked-out {
@@ -354,6 +362,21 @@
   background: rgba(16, 185, 129, 0.1);
 }
 
+.room-bookings-feedback-log {
+  margin: 12px 0 0;
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .room-booking-touch-ghost {
   position: fixed;
   z-index: 520;
@@ -425,12 +448,19 @@
   padding: 10px 10px;
   text-align: left;
   cursor: pointer;
-  cursor: grab;
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
   overflow: hidden;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.room-booking-bar.is-movable {
+  cursor: grab;
+}
+
+.room-booking-bar.is-static {
+  cursor: pointer;
 }
 
 .room-schedule-row.has-quick-action .room-booking-bar {
@@ -1085,7 +1115,7 @@
   }
 
   .room-schedule-table {
-    min-width: calc(96px + (var(--day-count) * 44px));
+    min-width: calc(96px + (var(--day-count) * var(--day-column-width)));
   }
 
   .room-schedule-room-head,

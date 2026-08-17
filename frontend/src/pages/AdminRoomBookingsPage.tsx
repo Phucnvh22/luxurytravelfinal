@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import { Link } from 'react-router-dom'
 import { useI18n } from '../contexts/I18nContext'
 import { apiFetch, HttpError } from '../lib/api'
-import type { Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus } from '../types'
+import type { AirbnbSyncRunResponse, Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus } from '../types'
 import {
   buildGroupedScheduleRows,
   buildQuickBookingDateRange,
@@ -23,7 +23,7 @@ type StatusMeta = {
 
 type RoomOperationalStatus = 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING'
 
-type VisibleRoomBookingStatus = 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT'
+type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT'
 type BookingModalMode = 'create' | 'details' | 'edit'
 type ConfirmationLanguage = 'en' | 'vi'
 type ScheduleBooking = RoomBookingResponse & {
@@ -33,6 +33,7 @@ type CalendarFeedback = {
   tone: 'success' | 'error'
   title: string
   message: string
+  details?: string[]
 }
 type TouchDragState = {
   bookingId: number
@@ -46,9 +47,11 @@ type TouchDragState = {
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
+  AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
   CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
   CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
 }
+const MOVABLE_BOOKING_STATUSES = new Set<VisibleRoomBookingStatus>(['CONFIRMED', 'CHECKED_IN'])
 
 const ALL_STATUSES = Object.keys(STATUS_META) as VisibleRoomBookingStatus[]
 const FALLBACK_ROOM_CODE = 'V107'
@@ -59,11 +62,13 @@ const STANDARD_CHECK_OUT_HOUR = 11
 const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoomBookingStatus, string>> = {
   en: {
     CONFIRMED: 'Reserved',
+    AIRBNB_BLOCK: 'AirBnbBlock',
     CHECKED_IN: 'Checked in',
     CHECKED_OUT: 'Checked out',
   },
   vi: {
     CONFIRMED: 'Đã đặt',
+    AIRBNB_BLOCK: 'AirBnbBlock',
     CHECKED_IN: 'Đã nhận phòng',
     CHECKED_OUT: 'Đã trả phòng',
   },
@@ -211,7 +216,7 @@ function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): Room
 }
 
 function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingStatus | null {
-  if (status === 'CHECKED_IN' || status === 'CHECKED_OUT' || status === 'CONFIRMED') {
+  if (status === 'CHECKED_IN' || status === 'CHECKED_OUT' || status === 'CONFIRMED' || status === 'AIRBNB_BLOCK') {
     return status
   }
   if (status === 'PENDING') {
@@ -222,6 +227,15 @@ function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingSt
 
 function normalizeEditableStatus(status: RoomBookingStatus): VisibleRoomBookingStatus {
   return normalizeDisplayStatus(status) ?? 'CONFIRMED'
+}
+
+function canMoveBookingStatus(status: RoomBookingStatus): boolean {
+  const visibleStatus = normalizeDisplayStatus(status)
+  return visibleStatus ? MOVABLE_BOOKING_STATUSES.has(visibleStatus) : false
+}
+
+function canMoveVisibleBookingStatus(status: VisibleRoomBookingStatus): boolean {
+  return MOVABLE_BOOKING_STATUSES.has(status)
 }
 
 function mapBookingToForm(booking: RoomBookingResponse): RoomBookingRequest {
@@ -504,6 +518,7 @@ export default function AdminRoomBookingsPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [syncingAirbnb, setSyncingAirbnb] = useState(false)
   const [draggingBookingId, setDraggingBookingId] = useState<number | null>(null)
   const [dropTargetRoomCode, setDropTargetRoomCode] = useState<string | null>(null)
   const [dropTargetDateKey, setDropTargetDateKey] = useState<string | null>(null)
@@ -604,6 +619,35 @@ export default function AdminRoomBookingsPage() {
     }
   }
 
+  const handleAirbnbSync = async () => {
+    setSyncingAirbnb(true)
+    setCalendarFeedback(null)
+    try {
+      const params = new URLSearchParams({
+        from: toIsoDate(monthStart),
+        to: toIsoDate(monthEnd),
+      })
+      const result = await apiFetch<AirbnbSyncRunResponse>(`/api/admin/integrations/airbnb-sync/sync-now?${params.toString()}`, {
+        method: 'POST',
+      })
+      await load({ silent: true })
+      setCalendarFeedback({
+        tone: result.success ? 'success' : 'error',
+        title: result.success ? 'Airbnb sync completed' : 'Airbnb sync reported issues',
+        message: result.message,
+        details: result.logs,
+      })
+    } catch (e: unknown) {
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'Airbnb sync failed',
+        message: getErrorMessage(e, 'Khong the chay sync Airbnb'),
+      })
+    } finally {
+      setSyncingAirbnb(false)
+    }
+  }
+
   useEffect(() => {
     void load()
   }, [monthStart, monthEnd])
@@ -638,7 +682,7 @@ export default function AdminRoomBookingsPage() {
   }, [monthStart, monthEnd])
 
   useEffect(() => {
-    if (!calendarFeedback || calendarFeedback.tone !== 'success') return
+    if (!calendarFeedback || calendarFeedback.tone !== 'success' || calendarFeedback.details?.length) return
     const timeoutId = window.setTimeout(() => setCalendarFeedback(null), 2400)
     return () => window.clearTimeout(timeoutId)
   }, [calendarFeedback])
@@ -649,7 +693,7 @@ export default function AdminRoomBookingsPage() {
       if (!visibleStatus) return acc
       acc[visibleStatus] = (acc[visibleStatus] ?? 0) + 1
       return acc
-    }, { CONFIRMED: 0, CHECKED_IN: 0, CHECKED_OUT: 0 })
+    }, { CONFIRMED: 0, AIRBNB_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0 })
   }, [bookings])
 
   const filteredBookings = useMemo(() => {
@@ -720,7 +764,7 @@ export default function AdminRoomBookingsPage() {
     () =>
       ({
         ['--day-count' as string]: monthDays.length,
-        ['--day-column-width' as string]: '56px',
+        ['--day-column-width' as string]: 'clamp(42px, 12vw, 56px)',
       }) as CSSProperties,
     [monthDays.length],
   )
@@ -785,6 +829,7 @@ export default function AdminRoomBookingsPage() {
   }
 
   const handleBookingDragStart = (booking: RoomBookingResponse) => {
+    if (!canMoveBookingStatus(booking.status)) return
     setCalendarFeedback(null)
     setQuickSelection(null)
     setDraggingBookingId(booking.id)
@@ -800,7 +845,7 @@ export default function AdminRoomBookingsPage() {
   }
 
   const handleBookingPointerDown = (booking: RoomBookingResponse, event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === 'mouse' || movingBookingId === booking.id) return
+    if (event.pointerType === 'mouse' || movingBookingId === booking.id || !canMoveBookingStatus(booking.status)) return
 
     event.preventDefault()
     ignoreNextClickBookingIdRef.current = booking.id
@@ -1246,9 +1291,14 @@ export default function AdminRoomBookingsPage() {
               last day on the same villa row to extend the stay.
             </div>
           </div>
-          <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
-            Reload
-          </button>
+          <div className="row" style={{ gap: 10 }}>
+            <button className="btn" type="button" onClick={() => void handleAirbnbSync()} disabled={syncingAirbnb}>
+              {syncingAirbnb ? 'Syncing Airbnb...' : 'Sync Airbnb'}
+            </button>
+            <button className="btn" type="button" onClick={() => void load()} disabled={loading || syncingAirbnb}>
+              Reload
+            </button>
+          </div>
         </div>
 
         <div className="room-bookings-toolbar card detail-card">
@@ -1344,6 +1394,9 @@ export default function AdminRoomBookingsPage() {
           <div className={`card room-bookings-feedback ${calendarFeedback.tone}`} style={{ marginBottom: 16 }}>
             <div className="error-title">{calendarFeedback.title}</div>
             <div className="muted">{calendarFeedback.message}</div>
+            {calendarFeedback.details && calendarFeedback.details.length > 0 ? (
+              <pre className="room-bookings-feedback-log">{calendarFeedback.details.join('\n')}</pre>
+            ) : null}
           </div>
         ) : null}
 
@@ -1398,7 +1451,7 @@ export default function AdminRoomBookingsPage() {
                           <div className="room-schedule-host-cell">
                             <strong>{row.location}</strong>
                           </div>
-                          <div className="room-schedule-host-track">{row.count} villas</div>
+                          <div className="room-schedule-host-track" />
                         </div>
                       )
                     }
@@ -1428,13 +1481,13 @@ export default function AdminRoomBookingsPage() {
                       >
                         <div className="room-schedule-room-cell">
                           <div className="room-schedule-room-cell-content">
-                            <div>{room?.name || roomCode}</div>
+                            <div>{roomCode}</div>
                             {room?.airbnbUrl ? (
                               <a href={room.airbnbUrl} target="_blank" rel="noreferrer" className="room-schedule-room-link">
-                                Airbnb link
+                                Link
                               </a>
                             ) : (
-                              <div className="room-schedule-room-link muted">Airbnb link pending</div>
+                              <div className="room-schedule-room-link muted">Pending</div>
                             )}
                             {needsCleaning ? (
                               <span className={`room-bookings-list-badge ${ROOM_OPERATIONAL_STATUS_META.NEEDS_CLEANING.toneClass}`}>
@@ -1516,6 +1569,7 @@ export default function AdminRoomBookingsPage() {
                             const layout = getBookingBarLayout(booking, trackStartMs, trackDurationMs)
                             if (!layout) return null
                             const meta = STATUS_META[booking.displayStatus]
+                            const canMoveBooking = canMoveVisibleBookingStatus(booking.displayStatus) && movingBookingId !== booking.id
 
                             return (
                               <button
@@ -1523,7 +1577,7 @@ export default function AdminRoomBookingsPage() {
                                 type="button"
                                 className={`room-booking-bar ${meta.toneClass} ${selectedBookingId === booking.id ? 'selected' : ''} ${
                                   draggingBookingId === booking.id ? 'is-dragging' : ''
-                                } ${movingBookingId === booking.id ? 'is-moving' : ''}`}
+                                } ${movingBookingId === booking.id ? 'is-moving' : ''} ${canMoveBooking ? 'is-movable' : 'is-static'}`}
                                 style={getBookingBarStyle(layout)}
                                 onClick={() => {
                                   if (ignoreNextClickBookingIdRef.current === booking.id) {
@@ -1533,14 +1587,18 @@ export default function AdminRoomBookingsPage() {
                                   openBookingDetails(booking)
                                 }}
                                 onPointerDown={(e) => handleBookingPointerDown(booking, e)}
-                                draggable={movingBookingId !== booking.id}
+                                draggable={canMoveBooking}
                                 onDragStart={(e) => {
+                                  if (!canMoveBooking) {
+                                    e.preventDefault()
+                                    return
+                                  }
                                   e.dataTransfer.effectAllowed = 'move'
                                   e.dataTransfer.setData('text/plain', String(booking.id))
                                   handleBookingDragStart(booking)
                                 }}
                                 onDragEnd={handleBookingDragEnd}
-                                title="Drag to move this booking to another villa"
+                                title={canMoveBooking ? 'Drag to move this booking to another villa' : 'Only Reserved and Check-in bookings can be moved'}
                               >
                                 <div className="room-booking-bar-title">{meta.label}</div>
                                 <div className="room-booking-bar-meta">
@@ -1592,7 +1650,12 @@ export default function AdminRoomBookingsPage() {
                       className="btn"
                       type="button"
                       onClick={() => void runBookingAction('check-in')}
-                      disabled={actionLoading !== null || selectedBooking.status === 'CHECKED_IN' || selectedBooking.status === 'CHECKED_OUT'}
+                      disabled={
+                        actionLoading !== null ||
+                        selectedBooking.status === 'AIRBNB_BLOCK' ||
+                        selectedBooking.status === 'CHECKED_IN' ||
+                        selectedBooking.status === 'CHECKED_OUT'
+                      }
                     >
                       {actionLoading === 'check-in' ? 'Checking in...' : 'Check-in'}
                     </button>
@@ -1617,7 +1680,7 @@ export default function AdminRoomBookingsPage() {
                       {actionLoading === 'mark-ready' ? 'Updating...' : 'Done cleaning'}
                     </button>
                   ) : null}
-                  {bookingModalMode === 'details' && selectedBooking ? (
+                  {bookingModalMode === 'details' && selectedBooking && selectedBooking.status !== 'AIRBNB_BLOCK' ? (
                     <button className="btn" type="button" onClick={() => editBooking(selectedBooking)}>
                       Edit
                     </button>

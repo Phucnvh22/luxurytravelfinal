@@ -16,6 +16,22 @@ public interface RoomBookingRepository extends JpaRepository<RoomBooking, Long> 
     @Query("""
             select rb
             from RoomBooking rb
+            where lower(rb.externalSystem) = lower(:externalSystem)
+              and lower(rb.roomCode) = lower(:roomCode)
+              and rb.checkInAt >= :fromAt
+              and rb.checkInAt < :toAt
+            order by rb.checkInAt asc, rb.id asc
+            """)
+    List<RoomBooking> findExternalBookingsForRoomInRange(
+            @Param("externalSystem") String externalSystem,
+            @Param("roomCode") String roomCode,
+            @Param("fromAt") LocalDateTime fromAt,
+            @Param("toAt") LocalDateTime toAt
+    );
+
+    @Query("""
+            select rb
+            from RoomBooking rb
             where (:fromAt is null or rb.checkInAt < :toAt)
               and (:toAt is null or rb.checkOutAt > :fromAt)
             order by rb.roomCode asc, rb.checkInAt asc, rb.id asc

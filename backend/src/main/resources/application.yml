@@ -66,6 +66,19 @@ application:
       template-name: ${WHATSAPP_CLOUD_API_TEMPLATE_NAME:}
       template-language: ${WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE:en_US}
   integrations:
+    airbnb-sync:
+      enabled: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_ENABLED:true}
+      room-codes: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_ROOM_CODES:V321}
+      horizon-days: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_HORIZON_DAYS:45}
+      probe-nights: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_PROBE_NIGHTS:1}
+      adults: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_ADULTS:2}
+      fixed-delay-ms: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_FIXED_DELAY_MS:7200000}
+      initial-delay-ms: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_INITIAL_DELAY_MS:120000}
+      timeout-ms: ${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_TIMEOUT_MS:15000}
+      base-url: "${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_BASE_URL:https://www.airbnb.com.vn}"
+      currency: "${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_CURRENCY:VND}"
+      zone-id: "${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_ZONE_ID:Asia/Ho_Chi_Minh}"
+      user-agent: "${APPLICATION_INTEGRATIONS_AIRBNB_SYNC_USER_AGENT:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36}"
     ezcloud:
       enabled: ${APPLICATION_INTEGRATIONS_EZCLOUD_ENABLED:false}
       base-url: ${APPLICATION_INTEGRATIONS_EZCLOUD_BASE_URL:}
@@ -77,4 +90,3 @@ application:
       update-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_UPDATE_RESERVATION_PATH:/api/v1/reservations/{reservationId}}
       cancel-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_CANCEL_RESERVATION_PATH:/api/v1/reservations/{reservationId}/cancel}
       pull-reservations-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_PULL_RESERVATIONS_PATH:/api/v1/reservations}
-
