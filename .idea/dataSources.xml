@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="travel-luxury@163.61.183.168" uuid="34df1bbd-68b6-4134-874c-a40e255110fc">
+    <data-source source="LOCAL" name="travel-luxury@180.93.43.149" uuid="fbb7d4c5-b909-4540-967c-1b39bd906585">
       <driver-ref>mysql.8</driver-ref>
       <synchronize>true</synchronize>
-      <imported>true</imported>
-      <remarks>$PROJECT_DIR$/backend/src/main/resources/application.yml</remarks>
       <jdbc-driver>com.mysql.cj.jdbc.Driver</jdbc-driver>
-      <jdbc-url>jdbc:mysql://163.61.183.168:3306/travel-luxury?createDatabaseIfNotExist=true&amp;serverTimezone=UTC&amp;allowPublicKeyRetrieval=true</jdbc-url>
-      <jdbc-additional-properties>
-        <property name="com.intellij.clouds.kubernetes.db.enabled" value="false" />
-      </jdbc-additional-properties>
+      <jdbc-url>jdbc:mysql://180.93.43.149:3306/travel-luxury</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
   </component>

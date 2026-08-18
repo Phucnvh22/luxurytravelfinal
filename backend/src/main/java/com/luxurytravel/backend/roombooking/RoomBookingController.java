@@ -56,8 +56,17 @@ public class RoomBookingController {
     }
 
     @PostMapping("/{id}/check-out")
-    public RoomBookingResponse markCheckOut(@PathVariable Long id) {
-        return roomBookingService.markCheckOut(id);
+    public RoomBookingResponse markCheckOut(
+            @PathVariable Long id,
+            @RequestBody(required = false) CheckOutPayload payload
+    ) {
+        Double collectedAmount = payload != null ? payload.collectedAmount() : null;
+        return roomBookingService.markCheckOut(id, collectedAmount);
+    }
+
+    @PostMapping("/{id}/cancel")
+    public RoomBookingResponse cancel(@PathVariable Long id) {
+        return roomBookingService.cancel(id);
     }
 
     @DeleteMapping("/{id}")
@@ -65,4 +74,6 @@ public class RoomBookingController {
     public void delete(@PathVariable Long id) {
         roomBookingService.delete(id);
     }
+
+    public record CheckOutPayload(Double collectedAmount) {}
 }

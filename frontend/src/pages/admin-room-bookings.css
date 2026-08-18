@@ -113,16 +113,16 @@
 .room-booking-bar.reserved,
 .room-bookings-list-badge.reserved {
   color: #166534;
-  background: #e9f9ef;
-  border-color: #b7dfc4;
+  background: #dcfce7;
+  border-color: #86efac;
 }
 
 .room-bookings-status-pill.checked-in,
 .room-booking-bar.checked-in,
 .room-bookings-list-badge.checked-in {
-  color: #92400e;
-  background: #fef3c7;
-  border-color: #fcd34d;
+  color: #1e40af;
+  background: #dbeafe;
+  border-color: #93c5fd;
 }
 
 .room-bookings-status-pill.airbnb-block,
@@ -136,9 +136,20 @@
 .room-bookings-status-pill.checked-out,
 .room-booking-bar.checked-out,
 .room-bookings-list-badge.checked-out {
-  color: #475569;
-  background: #edf2f7;
-  border-color: #cbd5e1;
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.room-bookings-status-pill.cancelled,
+.room-booking-bar.cancelled,
+.room-bookings-list-badge.cancelled {
+  color: #6b7280;
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(107, 114, 128, 0.7);
 }
 
 .room-bookings-status-pill.ready,
@@ -362,19 +373,37 @@
   background: rgba(16, 185, 129, 0.1);
 }
 
-.room-bookings-feedback-log {
-  margin: 12px 0 0;
-  padding: 12px;
-  max-height: 260px;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
+.room-bookings-feedback-popup-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.room-bookings-feedback-popup-title.success {
+  color: #059669;
+}
+
+.room-bookings-feedback-popup-title.error {
+  color: #dc2626;
+}
+
+.room-bookings-feedback-popup-message {
+  padding: 16px 20px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(255, 255, 255, 0.72);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.room-bookings-feedback-popup-message.success {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.22);
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.5;
+}
+
+.room-bookings-feedback-popup-message.error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  color: var(--text);
 }
 
 .room-booking-touch-ghost {

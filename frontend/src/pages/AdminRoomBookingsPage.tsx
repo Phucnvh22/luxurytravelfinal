@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { useI18n } from '../contexts/I18nContext'
 import { apiFetch, HttpError } from '../lib/api'
 import type { AirbnbSyncRunResponse, Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus } from '../types'
 import {
@@ -23,7 +22,7 @@ type StatusMeta = {
 
 type RoomOperationalStatus = 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING'
 
-type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT'
+type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
 type BookingModalMode = 'create' | 'details' | 'edit'
 type ConfirmationLanguage = 'en' | 'vi'
 type ScheduleBooking = RoomBookingResponse & {
@@ -33,7 +32,6 @@ type CalendarFeedback = {
   tone: 'success' | 'error'
   title: string
   message: string
-  details?: string[]
 }
 type TouchDragState = {
   bookingId: number
@@ -50,6 +48,7 @@ const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
   CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
   CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
+  CANCELLED: { label: 'Cancelled', toneClass: 'cancelled' },
 }
 const MOVABLE_BOOKING_STATUSES = new Set<VisibleRoomBookingStatus>(['CONFIRMED', 'CHECKED_IN'])
 
@@ -65,12 +64,14 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
     AIRBNB_BLOCK: 'AirBnbBlock',
     CHECKED_IN: 'Checked in',
     CHECKED_OUT: 'Checked out',
+    CANCELLED: 'Cancelled',
   },
   vi: {
-    CONFIRMED: 'Đã đặt',
+    CONFIRMED: 'Reserved',
     AIRBNB_BLOCK: 'AirBnbBlock',
-    CHECKED_IN: 'Đã nhận phòng',
-    CHECKED_OUT: 'Đã trả phòng',
+    CHECKED_IN: 'Checked in',
+    CHECKED_OUT: 'Checked out',
+    CANCELLED: 'Cancelled',
   },
 }
 
@@ -226,6 +227,7 @@ function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingSt
 }
 
 function normalizeEditableStatus(status: RoomBookingStatus): VisibleRoomBookingStatus {
+  if (status === 'CANCELLED') return 'CANCELLED'
   return normalizeDisplayStatus(status) ?? 'CONFIRMED'
 }
 
@@ -280,13 +282,13 @@ function applyCheckOutDateToForm(current: RoomBookingRequest, dateValue: string)
 }
 
 function formatDayLabel(value: Date) {
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat('en-GB', {
     weekday: 'short',
   }).format(value)
 }
 
 function formatDayNumber(value: Date) {
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
   }).format(value)
 }
@@ -294,18 +296,18 @@ function formatDayNumber(value: Date) {
 function formatDayMonth(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: '2-digit',
   }).format(parsed)
 }
 
 function formatDateRange(start: Date, end: Date) {
-  return `${new Intl.DateTimeFormat('vi-VN', {
+  return `${new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(start)} - ${new Intl.DateTimeFormat('vi-VN', {
+  }).format(start)} - ${new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -313,7 +315,7 @@ function formatDateRange(start: Date, end: Date) {
 }
 
 function formatMonthLabel(value: Date) {
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat('en-GB', {
     month: 'long',
     year: 'numeric',
   }).format(value)
@@ -322,7 +324,7 @@ function formatMonthLabel(value: Date) {
 function formatDateTime(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     day: '2-digit',
@@ -333,7 +335,7 @@ function formatDateTime(value: string) {
 function formatDateOnly(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -496,7 +498,6 @@ function findScheduleDropTarget(clientX: number, clientY: number, monthDays: Dat
 }
 
 export default function AdminRoomBookingsPage() {
-  const { language } = useI18n()
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
   const [roomsCatalog, setRoomsCatalog] = useState<Room[]>([])
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
@@ -508,9 +509,7 @@ export default function AdminRoomBookingsPage() {
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null)
   const [bookingModalMode, setBookingModalMode] = useState<BookingModalMode | null>(null)
   const [showConfirmInformation, setShowConfirmInformation] = useState(false)
-  const [confirmationLanguage, setConfirmationLanguage] = useState<ConfirmationLanguage>(() =>
-    language === 'vi' ? 'vi' : 'en',
-  )
+  const confirmationLanguage: ConfirmationLanguage = 'en'
   const [quickSelection, setQuickSelection] = useState<QuickBookingSelection | null>(null)
   const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfMonth(new Date())))
   const [formError, setFormError] = useState<string | null>(null)
@@ -518,6 +517,8 @@ export default function AdminRoomBookingsPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [checkoutCollectedAmount, setCheckoutCollectedAmount] = useState<string>('')
   const [syncingAirbnb, setSyncingAirbnb] = useState(false)
   const [draggingBookingId, setDraggingBookingId] = useState<number | null>(null)
   const [dropTargetRoomCode, setDropTargetRoomCode] = useState<string | null>(null)
@@ -545,7 +546,7 @@ export default function AdminRoomBookingsPage() {
     () =>
       Array.from({ length: 12 }, (_, monthIndex) => ({
         value: monthIndex,
-        label: new Intl.DateTimeFormat('vi-VN', { month: 'long' }).format(new Date(2026, monthIndex, 1)),
+        label: new Intl.DateTimeFormat('en-GB', { month: 'long' }).format(new Date(2026, monthIndex, 1)),
       })),
     [],
   )
@@ -611,7 +612,7 @@ export default function AdminRoomBookingsPage() {
       setError(null)
     } catch (e: unknown) {
       if (!opts?.silent) {
-        setError(getErrorMessage(e, 'Khong the tai lich dat phong'))
+        setError(getErrorMessage(e, 'Could not load booking calendar'))
       }
     } finally {
       if (!opts?.silent) setLoading(false)
@@ -635,13 +636,12 @@ export default function AdminRoomBookingsPage() {
         tone: result.success ? 'success' : 'error',
         title: result.success ? 'Airbnb sync completed' : 'Airbnb sync reported issues',
         message: result.message,
-        details: result.logs,
       })
     } catch (e: unknown) {
       setCalendarFeedback({
         tone: 'error',
         title: 'Airbnb sync failed',
-        message: getErrorMessage(e, 'Khong the chay sync Airbnb'),
+        message: getErrorMessage(e, 'Could not run Airbnb sync'),
       })
     } finally {
       setSyncingAirbnb(false)
@@ -673,19 +673,10 @@ export default function AdminRoomBookingsPage() {
   }, [bookings, selectedBookingId])
 
   useEffect(() => {
-    if (showConfirmInformation) return
-    setConfirmationLanguage(language === 'vi' ? 'vi' : 'en')
-  }, [language, showConfirmInformation])
-
-  useEffect(() => {
     setQuickSelection(null)
   }, [monthStart, monthEnd])
 
-  useEffect(() => {
-    if (!calendarFeedback || calendarFeedback.tone !== 'success' || calendarFeedback.details?.length) return
-    const timeoutId = window.setTimeout(() => setCalendarFeedback(null), 2400)
-    return () => window.clearTimeout(timeoutId)
-  }, [calendarFeedback])
+
 
   const statusCounts = useMemo(() => {
     return bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
@@ -693,7 +684,7 @@ export default function AdminRoomBookingsPage() {
       if (!visibleStatus) return acc
       acc[visibleStatus] = (acc[visibleStatus] ?? 0) + 1
       return acc
-    }, { CONFIRMED: 0, AIRBNB_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0 })
+    }, { CONFIRMED: 0, AIRBNB_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
   }, [bookings])
 
   const filteredBookings = useMemo(() => {
@@ -897,7 +888,7 @@ export default function AdminRoomBookingsPage() {
       setCalendarFeedback({
         tone: 'error',
         title: 'Could not move booking',
-        message: getErrorMessage(e, 'Khong the chuyen booking sang villa khac'),
+        message: getErrorMessage(e, 'Could not move booking to another villa'),
       })
     } finally {
       setDraggingBookingId(null)
@@ -1073,7 +1064,7 @@ export default function AdminRoomBookingsPage() {
       setShowConfirmInformation(false)
       await load({ silent: true })
     } catch (e: unknown) {
-      setFormError(getErrorMessage(e, 'Khong the luu dat phong'))
+      setFormError(getErrorMessage(e, 'Could not save booking'))
     } finally {
       setSaving(false)
     }
@@ -1081,7 +1072,7 @@ export default function AdminRoomBookingsPage() {
 
   const handleDelete = async () => {
     if (!editingId) return
-    if (!window.confirm('Xoa lich dat phong nay?')) return
+    if (!window.confirm('Delete this booking?')) return
 
     setDeleting(true)
     setFormError(null)
@@ -1092,23 +1083,90 @@ export default function AdminRoomBookingsPage() {
       closeBookingModal()
       await load({ silent: true })
     } catch (e: unknown) {
-      setFormError(getErrorMessage(e, 'Khong the xoa dat phong'))
+      setFormError(getErrorMessage(e, 'Could not delete booking'))
     } finally {
       setDeleting(false)
     }
   }
 
-  const runBookingAction = async (action: 'check-in' | 'check-out') => {
+  const handleCheckIn = async () => {
     if (!selectedBooking) return
-    setActionLoading(action)
+    setActionLoading('check-in')
     setFormError(null)
     try {
-      await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${selectedBooking.id}/${action}`, {
+      await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${selectedBooking.id}/check-in`, {
         method: 'POST',
       })
       await load({ silent: true })
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Check-in successful',
+        message: `Guest ${selectedBooking.guestName || '—'} checked in successfully at ${selectedBooking.roomCode}.`,
+      })
     } catch (e: unknown) {
-      setFormError(getErrorMessage(e, `Khong the ${action} booking`))
+      setFormError(getErrorMessage(e, 'Could not check in booking'))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const initiateCheckOut = async () => {
+    if (!selectedBooking) return
+    const currentRemaining =
+      calculateRemainingAmount(selectedBooking.villaRate, selectedBooking.depositAmount, selectedBooking.remainingAmount) ?? 0
+    if (currentRemaining > 0) {
+      setCheckoutCollectedAmount(toMoneyInputValue(currentRemaining))
+      setShowCheckoutModal(true)
+      return
+    }
+    await confirmCheckOut(null)
+  }
+
+  const confirmCheckOut = async (collectedRaw: number | null | undefined) => {
+    if (!selectedBooking) return
+    setActionLoading('check-out')
+    setFormError(null)
+    try {
+      const body = collectedRaw != null && !Number.isNaN(collectedRaw) ? { collectedAmount: collectedRaw } : null
+      const saved = await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${selectedBooking.id}/check-out`, {
+        method: 'POST',
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      setShowCheckoutModal(false)
+      setCheckoutCollectedAmount('')
+      await load({ silent: true })
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Check-out successful',
+        message: `Guest ${saved.guestName || '—'} checked out successfully at ${saved.roomCode}.`,
+      })
+    } catch (e: unknown) {
+      setFormError(getErrorMessage(e, 'Could not check out booking'))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleCancelBooking = async () => {
+    if (!selectedBooking) return
+    const ok = window.confirm(
+      `Cancel booking #${selectedBooking.id} - ${selectedBooking.guestName || 'Guest'}?\nThis villa will be available for sale again immediately.`,
+    )
+    if (!ok) return
+    setActionLoading('cancel')
+    setFormError(null)
+    try {
+      const saved = await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${selectedBooking.id}/cancel`, {
+        method: 'POST',
+      })
+      await load({ silent: true })
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Booking cancelled',
+        message: `Cancelled ${saved.guestName || '—'} at ${saved.roomCode}. The villa is now available again.`,
+      })
+    } catch (e: unknown) {
+      setFormError(getErrorMessage(e, 'Could not cancel booking'))
     } finally {
       setActionLoading(null)
     }
@@ -1124,7 +1182,7 @@ export default function AdminRoomBookingsPage() {
       })
       await load({ silent: true })
     } catch (e: unknown) {
-      setFormError(getErrorMessage(e, 'Khong the cap nhat trang thai san sang'))
+      setFormError(getErrorMessage(e, 'Could not update villa status'))
     } finally {
       setActionLoading(null)
     }
@@ -1178,9 +1236,9 @@ export default function AdminRoomBookingsPage() {
   const confirmationRoom = roomByCode[confirmationSource.roomCode]
   const confirmationStatusLabel =
     CONFIRMATION_STATUS_LABELS[confirmationLanguage][normalizeEditableStatus(confirmationSource.status)]
-  const confirmationBookingId = selectedBooking?.id ? `#${selectedBooking.id}` : confirmationLanguage === 'vi' ? 'TBA' : 'TBA'
+  const confirmationBookingId = selectedBooking?.id ? `#${selectedBooking.id}` : 'TBA'
   const confirmationVillaType = [confirmationRoom?.location, confirmationRoom?.type].filter(Boolean).join(' • ') ||
-    (confirmationLanguage === 'vi' ? 'Chưa cập nhật' : 'TBA')
+    'TBA'
   const confirmationVillaRateValue = parseMoneyInput(confirmationSource.villaRate)
   const confirmationDepositAmountValue = parseMoneyInput(confirmationSource.depositAmount)
   const confirmationRemainingAmountValue = calculateRemainingAmount(
@@ -1195,68 +1253,36 @@ export default function AdminRoomBookingsPage() {
   const confirmationRemainingAmount = formatMoney(confirmationRemainingAmountValue, confirmationLanguage)
   const confirmationPaymentStatus =
     confirmationRemainingAmountValue !== undefined && confirmationRemainingAmountValue <= 0
-      ? confirmationLanguage === 'vi'
-        ? 'Đã thanh toán đủ'
-        : 'Paid in full'
+      ? 'Paid in full'
       : confirmationDepositAmountValue !== undefined && confirmationDepositAmountValue > 0
-        ? confirmationLanguage === 'vi'
-          ? 'Đã cọc'
-          : 'Deposit paid'
-        : confirmationLanguage === 'vi'
-          ? 'Chưa cập nhật'
-          : 'Pending update'
+        ? 'Deposit paid'
+        : 'Pending update'
   const confirmationSupportText =
-    confirmationLanguage === 'vi'
-      ? 'Hỗ trợ 24/7 qua WhatsApp.'
-      : '24/7 support via WhatsApp.'
+    '24/7 support via WhatsApp.'
   const confirmationIncludedText =
-    confirmationLanguage === 'vi'
-      ? 'Trái cây và nước uống ngày nhận phòng, internet, hồ bơi riêng, dọn phòng hằng ngày, buggy 08:00 - 22:00.'
-      : 'Welcome fruit and drinks, internet, private pool, daily housekeeping, buggy 08:00 - 22:00.'
+    'Welcome fruit and drinks, internet, private pool, daily housekeeping, buggy 08:00 - 22:00.'
   const confirmationImportantText =
-    confirmationLanguage === 'vi'
-      ? 'Nhận phòng sau 15:00, trả phòng trước 11:00, không hút thuốc, giữ yên lặng 22:00 - 06:00.'
-      : 'Check-in after 15:00, check-out before 11:00, no smoking, quiet hours 22:00 - 06:00.'
+    'Check-in after 15:00, check-out before 11:00, no smoking, quiet hours 22:00 - 06:00.'
   const confirmationPrimaryRows =
-    confirmationLanguage === 'vi'
-      ? [
-          ['Nơi lưu trú', confirmationRoomName],
-          ['Mã xác nhận', confirmationBookingId],
-          ['Tên khách', confirmationSource.guestName || 'TBA'],
-          ['Ngày nhận phòng', confirmationSource.checkInAt ? formatDateOnly(confirmationSource.checkInAt) : 'TBA'],
-          ['Ngày trả phòng', confirmationSource.checkOutAt ? formatDateOnly(confirmationSource.checkOutAt) : 'TBA'],
-          ['Số đêm lưu trú', `${confirmationNights || 0}`],
-          ['Số lượng biệt thự', '1'],
-        ]
-      : [
-          ['Accommodation', confirmationRoomName],
-          ['Confirmation No.', confirmationBookingId],
-          ['Guest', confirmationSource.guestName || 'TBA'],
-          ['Check-in date', confirmationSource.checkInAt ? formatDateOnly(confirmationSource.checkInAt) : 'TBA'],
-          ['Check-out date', confirmationSource.checkOutAt ? formatDateOnly(confirmationSource.checkOutAt) : 'TBA'],
-          ['Length of stay', `${confirmationNights || 0}`],
-          ['Number of villas', '1'],
-        ]
+    [
+      ['Accommodation', confirmationRoomName],
+      ['Confirmation No.', confirmationBookingId],
+      ['Guest', confirmationSource.guestName || 'TBA'],
+      ['Check-in date', confirmationSource.checkInAt ? formatDateOnly(confirmationSource.checkInAt) : 'TBA'],
+      ['Check-out date', confirmationSource.checkOutAt ? formatDateOnly(confirmationSource.checkOutAt) : 'TBA'],
+      ['Length of stay', `${confirmationNights || 0}`],
+      ['Number of villas', '1'],
+    ]
   const confirmationSecondaryRows =
-    confirmationLanguage === 'vi'
-      ? [
-          ['Mã biệt thự', confirmationSource.roomCode || 'TBA'],
-          ['Loại biệt thự', confirmationVillaType],
-          ['Giá biệt thự', confirmationVillaRate],
-          ['Tổng tiền', confirmationTotalAmount],
-          ['Đã cọc', confirmationDepositAmount],
-          ['Còn lại', confirmationRemainingAmount],
-          ['Tình trạng thanh toán', confirmationPaymentStatus],
-        ]
-      : [
-          ['Villa code', confirmationSource.roomCode || 'TBA'],
-          ['Villa type', confirmationVillaType],
-          ['Villa rate', confirmationVillaRate],
-          ['Total amount', confirmationTotalAmount],
-          ['Deposit paid', confirmationDepositAmount],
-          ['Remaining balance', confirmationRemainingAmount],
-          ['Payment status', confirmationPaymentStatus],
-        ]
+    [
+      ['Villa code', confirmationSource.roomCode || 'TBA'],
+      ['Villa type', confirmationVillaType],
+      ['Villa rate', confirmationVillaRate],
+      ['Total amount', confirmationTotalAmount],
+      ['Deposit paid', confirmationDepositAmount],
+      ['Remaining balance', confirmationRemainingAmount],
+      ['Payment status', confirmationPaymentStatus],
+    ]
 
   return (
     <section className="section">
@@ -1390,15 +1416,7 @@ export default function AdminRoomBookingsPage() {
           </div>
         </div>
 
-        {calendarFeedback ? (
-          <div className={`card room-bookings-feedback ${calendarFeedback.tone}`} style={{ marginBottom: 16 }}>
-            <div className="error-title">{calendarFeedback.title}</div>
-            <div className="muted">{calendarFeedback.message}</div>
-            {calendarFeedback.details && calendarFeedback.details.length > 0 ? (
-              <pre className="room-bookings-feedback-log">{calendarFeedback.details.join('\n')}</pre>
-            ) : null}
-          </div>
-        ) : null}
+
 
         {touchDrag?.hasMoved && draggedBooking ? (
           <div
@@ -1557,10 +1575,10 @@ export default function AdminRoomBookingsPage() {
                                 </span>
                               </div>
                               <button className="btn primary" type="button" onClick={openQuickCreateBookingModal}>
-                                Tạo booking
+                                Create booking
                               </button>
                               <button className="btn" type="button" onClick={() => setQuickSelection(null)}>
-                                Bỏ chọn
+                                Clear
                               </button>
                             </div>
                           ) : null}
@@ -1600,10 +1618,9 @@ export default function AdminRoomBookingsPage() {
                                 onDragEnd={handleBookingDragEnd}
                                 title={canMoveBooking ? 'Drag to move this booking to another villa' : 'Only Reserved and Check-in bookings can be moved'}
                               >
-                                <div className="room-booking-bar-title">{meta.label}</div>
+                                <div className="room-booking-bar-title">{booking.source || 'Direct'}</div>
                                 <div className="room-booking-bar-meta">
-                                  <span>CI {formatDayMonth(booking.checkInAt)}</span>
-                                  <span>CO {formatDayMonth(booking.checkOutAt)}</span>
+                                  <span>{booking.guestName || '—'}</span>
                                 </div>
                               </button>
                             )
@@ -1649,12 +1666,13 @@ export default function AdminRoomBookingsPage() {
                     <button
                       className="btn"
                       type="button"
-                      onClick={() => void runBookingAction('check-in')}
+                      onClick={() => void handleCheckIn()}
                       disabled={
                         actionLoading !== null ||
                         selectedBooking.status === 'AIRBNB_BLOCK' ||
                         selectedBooking.status === 'CHECKED_IN' ||
-                        selectedBooking.status === 'CHECKED_OUT'
+                        selectedBooking.status === 'CHECKED_OUT' ||
+                        selectedBooking.status === 'CANCELLED'
                       }
                     >
                       {actionLoading === 'check-in' ? 'Checking in...' : 'Check-in'}
@@ -1664,7 +1682,7 @@ export default function AdminRoomBookingsPage() {
                     <button
                       className="btn"
                       type="button"
-                      onClick={() => void runBookingAction('check-out')}
+                      onClick={() => void initiateCheckOut()}
                       disabled={actionLoading !== null || selectedBooking.status !== 'CHECKED_IN'}
                     >
                       {actionLoading === 'check-out' ? 'Checking out...' : 'Check-out'}
@@ -1680,7 +1698,25 @@ export default function AdminRoomBookingsPage() {
                       {actionLoading === 'mark-ready' ? 'Updating...' : 'Done cleaning'}
                     </button>
                   ) : null}
-                  {bookingModalMode === 'details' && selectedBooking && selectedBooking.status !== 'AIRBNB_BLOCK' ? (
+                  {bookingModalMode === 'details' &&
+                  selectedBooking &&
+                  selectedBooking.status !== 'AIRBNB_BLOCK' &&
+                  selectedBooking.status !== 'CHECKED_OUT' &&
+                  selectedBooking.status !== 'CANCELLED' ? (
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => void handleCancelBooking()}
+                      disabled={actionLoading !== null}
+                      style={{ color: '#991b1b' }}
+                    >
+                      {actionLoading === 'cancel' ? 'Cancelling...' : 'Cancel booking'}
+                    </button>
+                  ) : null}
+                  {bookingModalMode === 'details' &&
+                  selectedBooking &&
+                  selectedBooking.status !== 'AIRBNB_BLOCK' &&
+                  selectedBooking.status !== 'CANCELLED' ? (
                     <button className="btn" type="button" onClick={() => editBooking(selectedBooking)}>
                       Edit
                     </button>
@@ -1983,24 +2019,8 @@ export default function AdminRoomBookingsPage() {
           >
             <div className="room-booking-confirm-modal" onClick={(e) => e.stopPropagation()}>
               <div className="room-booking-confirm-actions">
-                <div className="room-booking-confirm-language-switch" role="tablist" aria-label="Confirmation language">
-                  <button
-                    className={`btn ${confirmationLanguage === 'vi' ? 'primary' : ''}`}
-                    type="button"
-                    onClick={() => setConfirmationLanguage('vi')}
-                  >
-                    VI
-                  </button>
-                  <button
-                    className={`btn ${confirmationLanguage === 'en' ? 'primary' : ''}`}
-                    type="button"
-                    onClick={() => setConfirmationLanguage('en')}
-                  >
-                    EN
-                  </button>
-                </div>
                 <button className="btn" type="button" onClick={() => setShowConfirmInformation(false)}>
-                  {confirmationLanguage === 'vi' ? 'Đóng' : 'Close'}
+                  Close
                 </button>
               </div>
 
@@ -2012,7 +2032,7 @@ export default function AdminRoomBookingsPage() {
                     className="room-booking-confirm-logo"
                   />
                   <div className="room-booking-confirm-brand-main">
-                    {confirmationLanguage === 'vi' ? 'Xác nhận đặt phòng' : 'Booking confirmation'}
+                    Booking confirmation
                   </div>
                   <div className="room-booking-confirm-brand-sub">
                     {`${confirmationStatusLabel} • DaNang Luxury Travel`}
@@ -2043,23 +2063,21 @@ export default function AdminRoomBookingsPage() {
                   <div className="room-booking-confirm-side">
                     <div className="room-booking-confirm-side-card">
                       <div className="room-booking-confirm-side-title">
-                        {confirmationLanguage === 'vi' ? 'Dịch vụ bao gồm' : 'Included services'}
+                        Included services
                       </div>
                       <div className="room-booking-confirm-side-text">{confirmationIncludedText}</div>
                     </div>
 
                     <div className="room-booking-confirm-side-card">
                       <div className="room-booking-confirm-side-title">
-                        {confirmationLanguage === 'vi' ? 'Lưu ý quan trọng' : 'Important notes'}
+                        Important notes
                       </div>
                       <div className="room-booking-confirm-side-text">{confirmationImportantText}</div>
                     </div>
 
                     <div className="room-booking-confirm-side-card">
                       <div className="room-booking-confirm-side-title">
-                        {confirmationLanguage === 'vi'
-                          ? 'Hỗ trợ khách hàng qua WhatsApp'
-                          : 'Guest support via WhatsApp'}
+                        Guest support via WhatsApp
                       </div>
                       <div className="room-booking-confirm-side-text">{confirmationSupportText}</div>
                     </div>
@@ -2067,12 +2085,167 @@ export default function AdminRoomBookingsPage() {
                     {confirmationNotes ? (
                       <div className="room-booking-confirm-side-card">
                         <div className="room-booking-confirm-side-title">
-                          {confirmationLanguage === 'vi' ? 'Ghi chú thêm' : 'Additional notes'}
+                          Additional notes
                         </div>
                         <div className="room-booking-confirm-side-text">{confirmationNotes}</div>
                       </div>
                     ) : null}
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {showCheckoutModal && selectedBooking ? (
+          <div
+            className="room-booking-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => {
+              if (actionLoading === 'check-out') return
+              setShowCheckoutModal(false)
+              setCheckoutCollectedAmount('')
+            }}
+          >
+            <div className="room-booking-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+              <div className="room-booking-modal-head">
+                <div>
+                  <div className="room-bookings-feedback-popup-title error">
+                    ⚠ Payment required before check-out
+                  </div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    Booking #{selectedBooking.id} • {selectedBooking.guestName || 'Guest'} • {selectedBooking.roomCode}
+                  </div>
+                </div>
+                <div className="room-booking-modal-actions">
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => {
+                      setShowCheckoutModal(false)
+                      setCheckoutCollectedAmount('')
+                    }}
+                    disabled={actionLoading === 'check-out'}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="room-booking-modal-body">
+                <div className="row" style={{ gap: 12, marginBottom: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div className="field-label" style={{ fontSize: 13, marginBottom: 6 }}>Total villa rate</div>
+                    <strong style={{ fontSize: 18 }}>
+                      {formatMoney(selectedBooking.villaRate, 'vi')}
+                    </strong>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="field-label" style={{ fontSize: 13, marginBottom: 6 }}>Deposit paid</div>
+                    <strong style={{ fontSize: 18 }}>
+                      {formatMoney(selectedBooking.depositAmount, 'vi')}
+                    </strong>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="field-label" style={{ fontSize: 13, marginBottom: 6, color: '#991b1b' }}>
+                      Remaining balance
+                    </div>
+                    <strong style={{ fontSize: 20, color: '#991b1b' }}>
+                      {formatMoney(
+                        calculateRemainingAmount(
+                          selectedBooking.villaRate,
+                          selectedBooking.depositAmount,
+                          selectedBooking.remainingAmount,
+                        ),
+                        'vi',
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                <label className="field">
+                  <div className="field-label">Amount received at check-out (VND)</div>
+                  <input
+                    className="input"
+                    style={{ fontSize: 20, fontWeight: 700, height: 52 }}
+                    value={checkoutCollectedAmount}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^\d]/g, '')
+                      const formatted = digits ? toMoneyInputValue(Number(digits)) : ''
+                      setCheckoutCollectedAmount(formatted)
+                    }}
+                    placeholder="Enter amount received (e.g. 2.000.000)"
+                  />
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    Check-out is allowed only when the remaining balance becomes 0.
+                  </div>
+                </label>
+
+                {formError ? (
+                  <div className="card error" style={{ marginTop: 16 }}>
+                    <div className="error-title">Error</div>
+                    <div className="muted">{formError}</div>
+                  </div>
+                ) : null}
+
+                <div className="row" style={{ justifyContent: 'flex-end', marginTop: 20, gap: 10 }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => {
+                      setShowCheckoutModal(false)
+                      setCheckoutCollectedAmount('')
+                    }}
+                    disabled={actionLoading === 'check-out'}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    onClick={() => {
+                      setFormError(null)
+                      const parsed = parseMoneyInput(checkoutCollectedAmount)
+                      if (parsed === undefined || Number.isNaN(parsed) || parsed <= 0) {
+                        setFormError('Please enter a valid amount.')
+                        return
+                      }
+                      void confirmCheckOut(parsed)
+                    }}
+                    disabled={actionLoading === 'check-out'}
+                  >
+                    {actionLoading === 'check-out' ? 'Processing...' : 'Confirm & Check-out'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {calendarFeedback ? (
+          <div
+            className="room-booking-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setCalendarFeedback(null)}
+          >
+            <div className="room-booking-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="room-booking-modal-head">
+                <div>
+                  <div className={`room-bookings-feedback-popup-title ${calendarFeedback.tone}`}>
+                    {calendarFeedback.tone === 'success' ? '✓ ' : '✕ '}
+                    {calendarFeedback.title}
+                  </div>
+                </div>
+                <div className="room-booking-modal-actions">
+                  <button className="btn primary" type="button" onClick={() => setCalendarFeedback(null)}>
+                    OK
+                  </button>
+                </div>
+              </div>
+              <div className="room-booking-modal-body">
+                <div className={`room-bookings-feedback-popup-message ${calendarFeedback.tone}`}>
+                  {calendarFeedback.message}
                 </div>
               </div>
             </div>

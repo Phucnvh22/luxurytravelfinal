@@ -37,7 +37,7 @@ public class RoomBookingService {
     @Transactional(readOnly = true)
     public PublicRoomCalendarResponse listPublic(List<String> roomCodes, LocalDate from, LocalDate to) {
         if (roomCodes == null || roomCodes.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vui lòng chọn ít nhất một villa");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please select at least one villa");
         }
 
         Set<String> normalizedCodes = roomCodes.stream()
@@ -46,7 +46,7 @@ public class RoomBookingService {
                 .collect(LinkedHashSet::new, Set::add, Set::addAll);
 
         if (normalizedCodes.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Danh sách villa không hợp lệ");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid villa list");
         }
 
         DateRange range = buildRange(from, to);
@@ -57,7 +57,7 @@ public class RoomBookingService {
                 .toList();
 
         if (rooms.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy villa phù hợp");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No matching villa found");
         }
 
         Set<String> availableCodes = rooms.stream()
@@ -102,13 +102,13 @@ public class RoomBookingService {
     public RoomBookingResponse markCheckIn(Long id) {
         RoomBooking booking = findEntity(id);
         if (booking.getStatus() == RoomBookingStatus.CANCELLED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da bi huy");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has been cancelled");
         }
         if (booking.getStatus() == RoomBookingStatus.AIRBNB_BLOCK) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block khong the check-in");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block cannot be checked in");
         }
         if (booking.getStatus() == RoomBookingStatus.CHECKED_OUT) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da check-out");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has already been checked out");
         }
 
         Instant now = Instant.now();
@@ -125,16 +125,35 @@ public class RoomBookingService {
     }
 
     @Transactional
-    public RoomBookingResponse markCheckOut(Long id) {
+    public RoomBookingResponse markCheckOut(Long id, Double collectedAmount) {
         RoomBooking booking = findEntity(id);
         if (booking.getStatus() == RoomBookingStatus.CANCELLED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da bi huy");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has been cancelled");
         }
         if (booking.getStatus() == RoomBookingStatus.AIRBNB_BLOCK) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block khong the check-out");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block cannot be checked out");
         }
         if (booking.getStatus() == RoomBookingStatus.CHECKED_OUT) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking da check-out");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has already been checked out");
+        }
+        if (booking.getStatus() != RoomBookingStatus.CHECKED_IN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only checked-in bookings can be checked out");
+        }
+
+        Double normalizedCollected = normalizeMoney(collectedAmount);
+        double currentRemaining = booking.getRemainingAmount() == null ? 0D : booking.getRemainingAmount();
+
+        if (normalizedCollected != null && normalizedCollected > 0) {
+            double newRemaining = Math.max(currentRemaining - normalizedCollected, 0D);
+            booking.setRemainingAmount(newRemaining);
+            currentRemaining = newRemaining;
+        }
+
+        if (currentRemaining > 0.001) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Payment required. Please collect the remaining balance before check-out."
+            );
         }
 
         Instant now = Instant.now();
@@ -146,6 +165,34 @@ public class RoomBookingService {
         room.setStatusUpdatedAt(now);
         room.setLastCheckOutMarkedAt(now);
         room.setCleaningRequestedAt(now);
+        roomRepository.save(room);
+
+        return RoomBookingResponse.from(roomBookingRepository.save(booking));
+    }
+
+    @Transactional
+    public RoomBookingResponse cancel(Long id) {
+        RoomBooking booking = findEntity(id);
+        RoomBookingStatus oldStatus = booking.getStatus();
+        if (oldStatus == RoomBookingStatus.CANCELLED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has been cancelled");
+        }
+        if (oldStatus == RoomBookingStatus.AIRBNB_BLOCK) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block cannot be cancelled");
+        }
+        if (oldStatus == RoomBookingStatus.CHECKED_OUT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Checked-out booking cannot be cancelled");
+        }
+
+        Instant now = Instant.now();
+        booking.setStatus(RoomBookingStatus.CANCELLED);
+
+        Room room = findRoom(booking.getRoomCode());
+        if (oldStatus == RoomBookingStatus.CHECKED_IN || RoomOperationalStatus.CHECKED_IN.equals(room.getOperationalStatus())) {
+            room.setOperationalStatus(RoomOperationalStatus.NEEDS_CLEANING);
+            room.setCleaningRequestedAt(now);
+        }
+        room.setStatusUpdatedAt(now);
         roomRepository.save(room);
 
         return RoomBookingResponse.from(roomBookingRepository.save(booking));
@@ -172,15 +219,15 @@ public class RoomBookingService {
         Room room = findRoom(roomCode);
 
         if (!room.isActive()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phong dang tam ngung khai thac");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This villa is currently inactive");
         }
 
         if (!checkOutAt.isAfter(checkInAt)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Giờ check-out phải sau giờ check-in");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Check-out time must be after check-in time");
         }
 
         if (roomBookingRepository.existsOverlap(roomCode, checkInAt, checkOutAt, excludeId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Phòng này đã có lịch đặt trong khoảng thời gian đã chọn");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This villa already has a booking in the selected time range");
         }
 
         booking.setRoomCode(roomCode);
@@ -200,7 +247,7 @@ public class RoomBookingService {
 
     private Room findRoom(String roomCode) {
         Room room = roomRepository.findByCodeIgnoreCase(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Phong khong ton tai"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Villa does not exist"));
         boolean changed = false;
         if (room.getOperationalStatus() == null) {
             room.setOperationalStatus(RoomOperationalStatus.READY);
@@ -225,7 +272,7 @@ public class RoomBookingService {
             return null;
         }
         if (value < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Gia tri tien khong duoc am");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Amount cannot be negative");
         }
         return value;
     }
@@ -247,7 +294,7 @@ public class RoomBookingService {
             rangeStart = rangeEnd.minusDays(6);
         }
         if (rangeStart != null && rangeEnd != null && rangeEnd.isBefore(rangeStart)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "End date must be on or after start date");
         }
 
         LocalDateTime fromAt = rangeStart == null ? null : rangeStart.atStartOfDay();
