@@ -33,53 +33,79 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String username;
-
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // Bỏ qua filter cho các endpoint public (ví dụ /api/auth/**)
-        if (request.getServletPath().startsWith("/api/auth/")
-                || request.getServletPath().startsWith("/swagger-ui/")
-                || request.getServletPath().startsWith("/v3/api-docs/")
-                || request.getServletPath().startsWith("/oauth2/")
-                || request.getServletPath().startsWith("/login/oauth2/")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        jwt = authHeader.substring(7);
-
         try {
-            username = jwtService.extractUsername(jwt);
-        } catch (Exception e) {
-            // Malformed or expired token — proceed unauthenticated
-            filterChain.doFilter(request, response);
-            return;
-        }
+            final String servletPath = request.getServletPath();
 
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            try {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
-                if (jwtService.isTokenValid(jwt, userDetails)) {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
-                    authToken.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                }
-            } catch (UsernameNotFoundException e) {
-                // User no longer exists for this token — proceed unauthenticated.
-                // Spring Security will return 401/403 for protected endpoints.
+            // 1. Public paths — skip JWT processing entirely, never trigger 401
+            if (servletPath == null
+                    || servletPath.startsWith("/api/auth/")
+                    || servletPath.equals("/api/auth/login")
+                    || servletPath.equals("/api/auth/register")
+                    || servletPath.startsWith("/swagger-ui/")
+                    || servletPath.startsWith("/v3/api-docs/")
+                    || servletPath.startsWith("/api-docs")
+                    || servletPath.startsWith("/oauth2/")
+                    || servletPath.startsWith("/login/oauth2/")
+                    || servletPath.startsWith("/h2-console/")
+                    || servletPath.startsWith("/api/public/")
+                    || servletPath.startsWith("/api/destinations")
+                    || servletPath.startsWith("/api/experiences")
+                    || servletPath.startsWith("/api/services")
+                    || servletPath.startsWith("/api/categories")
+                    || servletPath.startsWith("/api/featured-cards")
+                    || servletPath.startsWith("/error")) {
+                filterChain.doFilter(request, response);
+                return;
             }
+
+            // 2. CORS preflight OPTIONS — always pass
+            if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            final String authHeader = request.getHeader("Authorization");
+            final String jwt;
+            final String username;
+
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                // No token → proceed unauthenticated (protected endpoints will 403 later)
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            jwt = authHeader.substring(7);
+
+            try {
+                username = jwtService.extractUsername(jwt);
+            } catch (Exception e) {
+                // Malformed / expired token → proceed unauthenticated, never 401 here
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                try {
+                    UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                    if (jwtService.isTokenValid(jwt, userDetails)) {
+                        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
+                        authToken.setDetails(
+                                new WebAuthenticationDetailsSource().buildDetails(request)
+                        );
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
+                } catch (UsernameNotFoundException e) {
+                    // No longer exists — proceed
+                } catch (Exception e) {
+                    // Any DB / other error — proceed unauthenticated
+                }
+            }
+        } catch (Exception e) {
+            // Safety net: NEVER throw from filter (prevents 401 for non-auth reasons)
         }
         filterChain.doFilter(request, response);
     }

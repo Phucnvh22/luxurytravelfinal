@@ -64,31 +64,57 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/error", "/error/**").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/register", "/api/auth/register/", "/api/auth/login", "/api/auth/login/").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/integrations/ezcloud/webhook/**").permitAll()
+                        // 1. OPTIONS (CORS preflight) — 100% pass for everything
+                        .requestMatchers(org.springframework.http.HttpMethod.OPTIONS).permitAll()
+                        // 2. Core auth endpoints — explicit permit (highest priority)
                         .requestMatchers(
-                                "/api/auth/**",
+                                "/api/auth/login",
+                                "/api/auth/login/",
+                                "/api/auth/register",
+                                "/api/auth/register/",
+                                "/api/auth/social-login",
+                                "/api/auth/whatsapp/**"
+                        ).permitAll()
+                        // 3. Error handling (Spring error pages)
+                        .requestMatchers("/error", "/error/**").permitAll()
+                        // 4. Webhook integrations
+                        .requestMatchers("/api/integrations/**").permitAll()
+                        // 5. Swagger / API docs / H2
+                        .requestMatchers(
                                 "/api-docs",
                                 "/api-docs/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/oauth2/**",
-                                "/login/oauth2/**",
-                                "/api/destinations/**",
-                                "/api/experiences/**",
-                                "/api/services/**",
-                                "/api/categories/**",
-                                "/api/featured-cards/**",
-                                "/api/public/room-calendar/**",
                                 "/h2-console/**"
                         ).permitAll()
+                        // 6. OAuth2 flows
+                        .requestMatchers(
+                                "/oauth2/**",
+                                "/login/oauth2/**"
+                        ).permitAll()
+                        // 7. Public catalog (frontend Home page / listing) — EXACT + /** both
+                        .requestMatchers(
+                                "/api/destinations",
+                                "/api/destinations/**",
+                                "/api/experiences",
+                                "/api/experiences/**",
+                                "/api/services",
+                                "/api/services/**",
+                                "/api/categories",
+                                "/api/categories/**",
+                                "/api/featured-cards",
+                                "/api/featured-cards/**",
+                                "/api/public/**"
+                        ).permitAll()
+                        // 8. Protected role endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/seller/**").hasAnyRole("ADMIN", "SELLER")
+                        // 9. Authenticated user endpoints
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings").authenticated()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/service-requests").authenticated()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/experience-requests").authenticated()
+                        .requestMatchers("/api/bookings/**", "/api/service-requests/**", "/api/experience-requests/**").authenticated()
+                        // 10. Fallback — any other request requires authentication (strict default)
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
