@@ -293,15 +293,6 @@ function formatDayNumber(value: Date) {
   }).format(value)
 }
 
-function formatDayMonth(value: string) {
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-  }).format(parsed)
-}
-
 function formatDateRange(start: Date, end: Date) {
   return `${new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
