@@ -1,0 +1,83 @@
+.cleaner-assignment-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.cleaner-assignment-stat {
+  padding: 18px;
+}
+
+.cleaner-assignment-stat-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cleaner-assignment-stat-value {
+  margin-top: 8px;
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.cleaner-assignment-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.cleaner-assignment-card {
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.cleaner-assignment-card:hover {
+  transform: translateY(-2px);
+}
+
+.cleaner-assignment-card.active {
+  border-color: #1d4ed8;
+  box-shadow: 0 16px 36px rgba(29, 78, 216, 0.16);
+}
+
+.cleaner-assignment-card.ghost {
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.cleaner-assignment-card-name {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.cleaner-assignment-card-username {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cleaner-assignment-card-count {
+  margin-top: 14px;
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.cleaner-assignment-villa-name {
+  font-weight: 800;
+}
+
+.cleaner-assignment-inline-note {
+  margin-top: 6px;
+}
+
+@media (max-width: 768px) {
+  .cleaner-assignment-summary {
+    grid-template-columns: 1fr;
+  }
+}

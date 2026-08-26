@@ -83,6 +83,42 @@ public class Room {
     @Column
     private Instant lastReadyAt;
 
+    @Column
+    private Instant cleanedAt;
+
+    @Column(length = 100)
+    private String cleanedByUsername;
+
+    @Column(length = 255)
+    private String cleanedByName;
+
+    @Column(nullable = false)
+    private boolean repairNeeded = false;
+
+    @Column(length = 2000)
+    private String repairDetails = "";
+
+    @Column
+    private Instant repairReportedAt;
+
+    @Column(length = 100)
+    private String repairReportedByUsername;
+
+    @Column(length = 255)
+    private String repairReportedByName;
+
+    @Column
+    private Instant repairResolvedAt;
+
+    @Column(length = 100)
+    private String repairResolvedByUsername;
+
+    @Column(length = 255)
+    private String repairResolvedByName;
+
+    @Column
+    private Long assignedCleanerId;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
@@ -271,5 +307,101 @@ public class Room {
 
     public void setLastReadyAt(Instant lastReadyAt) {
         this.lastReadyAt = lastReadyAt;
+    }
+
+    public Instant getCleanedAt() {
+        return cleanedAt;
+    }
+
+    public void setCleanedAt(Instant cleanedAt) {
+        this.cleanedAt = cleanedAt;
+    }
+
+    public String getCleanedByUsername() {
+        return cleanedByUsername;
+    }
+
+    public void setCleanedByUsername(String cleanedByUsername) {
+        this.cleanedByUsername = cleanedByUsername;
+    }
+
+    public String getCleanedByName() {
+        return cleanedByName;
+    }
+
+    public void setCleanedByName(String cleanedByName) {
+        this.cleanedByName = cleanedByName;
+    }
+
+    public boolean isRepairNeeded() {
+        return repairNeeded;
+    }
+
+    public void setRepairNeeded(boolean repairNeeded) {
+        this.repairNeeded = repairNeeded;
+    }
+
+    public String getRepairDetails() {
+        return repairDetails;
+    }
+
+    public void setRepairDetails(String repairDetails) {
+        this.repairDetails = repairDetails;
+    }
+
+    public Instant getRepairReportedAt() {
+        return repairReportedAt;
+    }
+
+    public void setRepairReportedAt(Instant repairReportedAt) {
+        this.repairReportedAt = repairReportedAt;
+    }
+
+    public String getRepairReportedByUsername() {
+        return repairReportedByUsername;
+    }
+
+    public void setRepairReportedByUsername(String repairReportedByUsername) {
+        this.repairReportedByUsername = repairReportedByUsername;
+    }
+
+    public String getRepairReportedByName() {
+        return repairReportedByName;
+    }
+
+    public void setRepairReportedByName(String repairReportedByName) {
+        this.repairReportedByName = repairReportedByName;
+    }
+
+    public Instant getRepairResolvedAt() {
+        return repairResolvedAt;
+    }
+
+    public void setRepairResolvedAt(Instant repairResolvedAt) {
+        this.repairResolvedAt = repairResolvedAt;
+    }
+
+    public String getRepairResolvedByUsername() {
+        return repairResolvedByUsername;
+    }
+
+    public void setRepairResolvedByUsername(String repairResolvedByUsername) {
+        this.repairResolvedByUsername = repairResolvedByUsername;
+    }
+
+    public String getRepairResolvedByName() {
+        return repairResolvedByName;
+    }
+
+    public void setRepairResolvedByName(String repairResolvedByName) {
+        this.repairResolvedByName = repairResolvedByName;
+    }
+
+    public Long getAssignedCleanerId() {
+        return assignedCleanerId;
+    }
+
+    public void setAssignedCleanerId(Long assignedCleanerId) {
+        this.assignedCleanerId = assignedCleanerId;
     }
 }

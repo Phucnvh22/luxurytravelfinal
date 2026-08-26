@@ -3,14 +3,18 @@ import { useEffect } from 'react'
 import Layout from './components/Layout'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminBookingsPage from './pages/AdminBookingsPage'
+import AdminCleanerAssignmentsPage from './pages/AdminCleanerAssignmentsPage'
 import AdminDestinationsPage from './pages/AdminDestinationsPage'
 import AdminExperienceRequestsPage from './pages/AdminExperienceRequestsPage'
+import AdminRoomCleaningHistoryPage from './pages/AdminRoomCleaningHistoryPage'
 import AdminRoomBookingsPage from './pages/AdminRoomBookingsPage'
+import AdminRoomRepairHistoryPage from './pages/AdminRoomRepairHistoryPage'
 import AdminRoomsPage from './pages/AdminRoomsPage'
 import AdminServiceRequestsPage from './pages/AdminServiceRequestsPage'
 import AdminServicesPage from './pages/AdminServicesPage'
 import AdminSellersPage from './pages/AdminSellersPage'
 import AdminUsersPage from './pages/AdminUsersPage'
+import CleanerDashboardPage from './pages/CleanerDashboardPage'
 import DestinationPage from './pages/DestinationPage'
 import ExperienceCrudPage from './pages/ExperienceCrudPage'
 import ExperienceDetailPage from './pages/ExperienceDetailPage'
@@ -21,6 +25,7 @@ import OAuth2SuccessPage from './pages/OAuth2SuccessPage'
 import RegisterPage from './pages/RegisterPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PublicRoomCalendarPage from './pages/PublicRoomCalendarPage'
+import MaintenanceDashboardPage from './pages/MaintenanceDashboardPage'
 import SellerBookingsPage from './pages/SellerBookingsPage'
 import SellerExperienceRequestsPage from './pages/SellerExperienceRequestsPage'
 import SellerServiceRequestsPage from './pages/SellerServiceRequestsPage'
@@ -94,7 +99,8 @@ function ProtectedRoute({
 
   const roles = requiredRoles ?? (requiredRole ? [requiredRole] : undefined)
   if (roles && !roles.includes(user?.role ?? '')) {
-    return <Navigate to="/" replace />
+    const fallbackPath = user?.role === 'CLEANER' ? '/cleaner' : user?.role === 'MAINTENANCE' ? '/maintenance' : '/'
+    return <Navigate to={fallbackPath} replace />
   }
 
   return <>{children}</>
@@ -105,6 +111,16 @@ export default function App() {
     <BrowserRouter>
       <RefHandler />
       <Routes>
+        <Route path="/cleaner" element={
+          <ProtectedRoute requiredRole="CLEANER">
+            <CleanerDashboardPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/maintenance" element={
+          <ProtectedRoute requiredRole="MAINTENANCE">
+            <MaintenanceDashboardPage />
+          </ProtectedRoute>
+        } />
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/experiences" element={<ExperiencesPage />} />
@@ -143,6 +159,11 @@ export default function App() {
               <AdminUsersPage />
             </ProtectedRoute>
           } />
+          <Route path="/admin/cleaners" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminCleanerAssignmentsPage />
+            </ProtectedRoute>
+          } />
           <Route path="/admin/bookings" element={
             <ProtectedRoute requiredRole="ADMIN">
               <AdminBookingsPage />
@@ -151,6 +172,16 @@ export default function App() {
           <Route path="/admin/room-bookings" element={
             <ProtectedRoute requiredRole="ADMIN">
               <AdminRoomBookingsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/room-cleaning-history" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminRoomCleaningHistoryPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/room-repair-history" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminRoomRepairHistoryPage />
             </ProtectedRoute>
           } />
           <Route path="/admin/rooms" element={

@@ -1,0 +1,355 @@
+.cleaner-shell {
+  min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 32%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.cleaner-panel {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 20px;
+}
+
+.cleaner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+}
+
+.cleaner-header h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.cleaner-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.cleaner-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+
+.cleaner-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cleaner-user-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.cleaner-alert {
+  margin: 0;
+}
+
+.cleaner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.cleaner-task-card,
+.cleaner-empty-state {
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+}
+
+.cleaner-task-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cleaner-status-stack {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.cleaner-room-code {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.cleaner-task-card h2,
+.cleaner-empty-state h2 {
+  margin: 6px 0 0;
+  font-size: 24px;
+}
+
+.cleaner-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cleaner-status-pill--repair {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.cleaner-task-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.cleaner-task-meta span,
+.cleaner-notes span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cleaner-task-meta strong,
+.cleaner-notes strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.cleaner-notes {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.cleaner-repair-box {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.cleaner-repair-box span,
+.cleaner-repair-box strong {
+  display: block;
+}
+
+.cleaner-repair-meta {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cleaner-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.cleaner-secondary-btn,
+.cleaner-done-btn {
+  width: 100%;
+}
+
+.cleaner-empty-state {
+  text-align: center;
+}
+
+.cleaner-empty-state p {
+  margin: 8px auto 0;
+  max-width: 520px;
+  color: var(--muted);
+}
+
+.cleaner-notification-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.38);
+  z-index: 1000;
+}
+
+.cleaner-notification-dialog {
+  width: min(460px, 100%);
+  padding: 24px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 24px 72px rgba(15, 23, 42, 0.2);
+}
+
+.cleaner-notification-dialog h2 {
+  margin: 8px 0 10px;
+}
+
+.cleaner-notification-dialog p {
+  margin: 0 0 18px;
+  color: var(--muted);
+}
+
+.cleaner-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.cleaner-view-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.work-history-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.cleaner-view-chip {
+  border-radius: 999px;
+}
+
+.cleaner-view-chip.active {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.work-history-list {
+  display: grid;
+  gap: 16px;
+}
+
+.work-history-card {
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+}
+
+.work-history-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.work-history-top h3 {
+  margin: 6px 0 0;
+  font-size: 24px;
+}
+
+.work-history-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.work-history-badge.cleaning {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.work-history-badge.reported {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.work-history-badge.resolved {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.work-history-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.work-history-meta span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.work-history-meta strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .cleaner-shell {
+    padding: 16px;
+  }
+
+  .cleaner-header {
+    flex-direction: column;
+    padding: 20px;
+  }
+
+  .cleaner-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .cleaner-header-actions > * {
+    flex: 1 1 0;
+  }
+
+  .cleaner-task-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .cleaner-action-row,
+  .cleaner-modal-actions,
+  .work-history-meta {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}

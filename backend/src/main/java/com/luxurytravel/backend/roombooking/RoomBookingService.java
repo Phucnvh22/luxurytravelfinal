@@ -104,8 +104,8 @@ public class RoomBookingService {
         if (booking.getStatus() == RoomBookingStatus.CANCELLED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has been cancelled");
         }
-        if (booking.getStatus() == RoomBookingStatus.AIRBNB_BLOCK) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block cannot be checked in");
+        if (isExternalCalendarBlock(booking.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "External calendar block cannot be checked in");
         }
         if (booking.getStatus() == RoomBookingStatus.CHECKED_OUT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has already been checked out");
@@ -130,8 +130,8 @@ public class RoomBookingService {
         if (booking.getStatus() == RoomBookingStatus.CANCELLED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has been cancelled");
         }
-        if (booking.getStatus() == RoomBookingStatus.AIRBNB_BLOCK) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block cannot be checked out");
+        if (isExternalCalendarBlock(booking.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "External calendar block cannot be checked out");
         }
         if (booking.getStatus() == RoomBookingStatus.CHECKED_OUT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has already been checked out");
@@ -165,6 +165,9 @@ public class RoomBookingService {
         room.setStatusUpdatedAt(now);
         room.setLastCheckOutMarkedAt(now);
         room.setCleaningRequestedAt(now);
+        room.setCleanedAt(null);
+        room.setCleanedByUsername(null);
+        room.setCleanedByName(null);
         roomRepository.save(room);
 
         return RoomBookingResponse.from(roomBookingRepository.save(booking));
@@ -177,8 +180,8 @@ public class RoomBookingService {
         if (oldStatus == RoomBookingStatus.CANCELLED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has been cancelled");
         }
-        if (oldStatus == RoomBookingStatus.AIRBNB_BLOCK) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Airbnb block cannot be cancelled");
+        if (isExternalCalendarBlock(oldStatus)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "External calendar block cannot be cancelled");
         }
         if (oldStatus == RoomBookingStatus.CHECKED_OUT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Checked-out booking cannot be cancelled");
@@ -191,6 +194,9 @@ public class RoomBookingService {
         if (oldStatus == RoomBookingStatus.CHECKED_IN || RoomOperationalStatus.CHECKED_IN.equals(room.getOperationalStatus())) {
             room.setOperationalStatus(RoomOperationalStatus.NEEDS_CLEANING);
             room.setCleaningRequestedAt(now);
+            room.setCleanedAt(null);
+            room.setCleanedByUsername(null);
+            room.setCleanedByName(null);
         }
         room.setStatusUpdatedAt(now);
         roomRepository.save(room);
@@ -215,11 +221,17 @@ public class RoomBookingService {
         Double depositAmount = normalizeMoney(request.getDepositAmount());
         Double requestedRemainingAmount = normalizeMoney(request.getRemainingAmount());
         Double remainingAmount = calculateRemainingAmount(villaRate, depositAmount, requestedRemainingAmount);
+        LocalDate today = LocalDate.now();
 
         Room room = findRoom(roomCode);
 
         if (!room.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This villa is currently inactive");
+        }
+
+        if (checkInAt.toLocalDate().isBefore(today)
+                && (excludeId == null || booking.getCheckInAt() == null || !booking.getCheckInAt().equals(checkInAt))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Past dates cannot be used for a new booking");
         }
 
         if (!checkOutAt.isAfter(checkInAt)) {
@@ -265,6 +277,12 @@ public class RoomBookingService {
             roomRepository.save(room);
         }
         return room;
+    }
+
+    private boolean isExternalCalendarBlock(RoomBookingStatus status) {
+        return status == RoomBookingStatus.AIRBNB_BLOCK
+                || status == RoomBookingStatus.KAYSTAY_BLOCK
+                || status == RoomBookingStatus.SOPHIA_BLOCK;
     }
 
     private Double normalizeMoney(Double value) {

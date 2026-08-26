@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
-import type { AirbnbSyncRunResponse, Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus } from '../types'
+import type { AirbnbSyncRunResponse, KayStaySyncRunResponse, Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus, SophiaSyncRunResponse } from '../types'
 import {
   buildGroupedScheduleRows,
   buildQuickBookingDateRange,
@@ -22,7 +22,7 @@ type StatusMeta = {
 
 type RoomOperationalStatus = 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING'
 
-type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
+type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'KAYSTAY_BLOCK' | 'SOPHIA_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
 type BookingModalMode = 'create' | 'details' | 'edit'
 type ConfirmationLanguage = 'en' | 'vi'
 type ScheduleBooking = RoomBookingResponse & {
@@ -42,10 +42,17 @@ type TouchDragState = {
   clientY: number
   hasMoved: boolean
 }
+type PendingMoveConfirmation = {
+  booking: RoomBookingResponse
+  targetRoomCode: string
+  targetDateKey: string
+}
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
   AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
+  KAYSTAY_BLOCK: { label: 'KayStay', toneClass: 'kaystay-block' },
+  SOPHIA_BLOCK: { label: 'Sophia', toneClass: 'sophia-block' },
   CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
   CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
   CANCELLED: { label: 'Cancelled', toneClass: 'cancelled' },
@@ -62,6 +69,8 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
   en: {
     CONFIRMED: 'Reserved',
     AIRBNB_BLOCK: 'AirBnbBlock',
+    KAYSTAY_BLOCK: 'KayStay',
+    SOPHIA_BLOCK: 'Sophia',
     CHECKED_IN: 'Checked in',
     CHECKED_OUT: 'Checked out',
     CANCELLED: 'Cancelled',
@@ -69,6 +78,8 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
   vi: {
     CONFIRMED: 'Reserved',
     AIRBNB_BLOCK: 'AirBnbBlock',
+    KAYSTAY_BLOCK: 'KayStay',
+    SOPHIA_BLOCK: 'Sophia',
     CHECKED_IN: 'Checked in',
     CHECKED_OUT: 'Checked out',
     CANCELLED: 'Cancelled',
@@ -157,6 +168,10 @@ function nextCheckoutDateValue(checkInAt?: string) {
   return toIsoDate(addDays(parsed, 1))
 }
 
+function getLaterDateKey(a: string, b: string) {
+  return a > b ? a : b
+}
+
 function toMoneyInputValue(value?: number) {
   if (value === undefined || value === null || Number.isNaN(value)) return ''
   return new Intl.NumberFormat('vi-VN', {
@@ -194,7 +209,9 @@ function formatMoney(value?: number, language: ConfirmationLanguage = 'vi') {
 }
 
 function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): RoomBookingRequest {
-  const checkInAt = new Date(monthStart)
+  const today = startOfDay(new Date())
+  const safeStart = monthStart.getTime() < today.getTime() ? today : monthStart
+  const checkInAt = new Date(safeStart)
   checkInAt.setHours(STANDARD_CHECK_IN_HOUR, 0, 0, 0)
   const checkOutAt = addDays(checkInAt, 1)
   checkOutAt.setHours(STANDARD_CHECK_OUT_HOUR, 0, 0, 0)
@@ -217,7 +234,14 @@ function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): Room
 }
 
 function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingStatus | null {
-  if (status === 'CHECKED_IN' || status === 'CHECKED_OUT' || status === 'CONFIRMED' || status === 'AIRBNB_BLOCK') {
+  if (
+    status === 'CHECKED_IN' ||
+    status === 'CHECKED_OUT' ||
+    status === 'CONFIRMED' ||
+    status === 'AIRBNB_BLOCK' ||
+    status === 'KAYSTAY_BLOCK' ||
+    status === 'SOPHIA_BLOCK'
+  ) {
     return status
   }
   if (status === 'PENDING') {
@@ -511,10 +535,13 @@ export default function AdminRoomBookingsPage() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
   const [checkoutCollectedAmount, setCheckoutCollectedAmount] = useState<string>('')
   const [syncingAirbnb, setSyncingAirbnb] = useState(false)
+  const [syncingKaystay, setSyncingKaystay] = useState(false)
+  const [syncingSophia, setSyncingSophia] = useState(false)
   const [draggingBookingId, setDraggingBookingId] = useState<number | null>(null)
   const [dropTargetRoomCode, setDropTargetRoomCode] = useState<string | null>(null)
   const [dropTargetDateKey, setDropTargetDateKey] = useState<string | null>(null)
   const [movingBookingId, setMovingBookingId] = useState<number | null>(null)
+  const [pendingMoveConfirmation, setPendingMoveConfirmation] = useState<PendingMoveConfirmation | null>(null)
   const [touchDrag, setTouchDrag] = useState<TouchDragState | null>(null)
   const loadingRef = useRef(false)
   const scheduleScrollRef = useRef<HTMLDivElement | null>(null)
@@ -639,9 +666,81 @@ export default function AdminRoomBookingsPage() {
     }
   }
 
+  const handleKayStaySync = async () => {
+    setSyncingKaystay(true)
+    setCalendarFeedback(null)
+    try {
+      const params = new URLSearchParams({
+        from: toIsoDate(monthStart),
+        to: toIsoDate(monthEnd),
+      })
+      const result = await apiFetch<KayStaySyncRunResponse>(
+        `/api/admin/integrations/kaystay-sync/sync-now?${params.toString()}`,
+        { method: 'POST' },
+      )
+      await load({ silent: true })
+      setCalendarFeedback({
+        tone: result.success ? 'success' : 'error',
+        title: result.success ? 'KayStay sync completed' : 'KayStay sync reported issues',
+        message: result.message,
+      })
+    } catch (e: unknown) {
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'KayStay sync failed',
+        message: getErrorMessage(e, 'Could not run KayStay sync'),
+      })
+    } finally {
+      setSyncingKaystay(false)
+    }
+  }
+
+  const handleSophiaSync = async () => {
+    setSyncingSophia(true)
+    setCalendarFeedback(null)
+    try {
+      const params = new URLSearchParams({
+        from: toIsoDate(monthStart),
+        to: toIsoDate(monthEnd),
+      })
+      const result = await apiFetch<SophiaSyncRunResponse>(
+        `/api/admin/integrations/sophia-sync/sync-now?${params.toString()}`,
+        { method: 'POST' },
+      )
+      await load({ silent: true })
+      setCalendarFeedback({
+        tone: result.success ? 'success' : 'error',
+        title: result.success ? 'Sophia sync completed' : 'Sophia sync reported issues',
+        message: result.message,
+      })
+    } catch (e: unknown) {
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'Sophia sync failed',
+        message: getErrorMessage(e, 'Could not run Sophia sync'),
+      })
+    } finally {
+      setSyncingSophia(false)
+    }
+  }
+
   useEffect(() => {
     void load()
   }, [monthStart, monthEnd])
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return
+      if (editingId || actionLoading) return
+      void load({ silent: true })
+    }
+    const intervalId = window.setInterval(tick, 10000)
+    window.addEventListener('focus', tick)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', tick)
+    }
+  }, [actionLoading, editingId, monthEnd, monthStart])
 
   useEffect(() => {
     if (editingId) return
@@ -675,7 +774,7 @@ export default function AdminRoomBookingsPage() {
       if (!visibleStatus) return acc
       acc[visibleStatus] = (acc[visibleStatus] ?? 0) + 1
       return acc
-    }, { CONFIRMED: 0, AIRBNB_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
+    }, { CONFIRMED: 0, AIRBNB_BLOCK: 0, KAYSTAY_BLOCK: 0, SOPHIA_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
   }, [bookings])
 
   const filteredBookings = useMemo(() => {
@@ -746,12 +845,12 @@ export default function AdminRoomBookingsPage() {
     () =>
       ({
         ['--day-count' as string]: monthDays.length,
-        ['--day-column-width' as string]: 'clamp(42px, 12vw, 56px)',
+        ['--day-column-width' as string]: 'clamp(38px, 8vw, 48px)',
       }) as CSSProperties,
     [monthDays.length],
   )
   const today = new Date()
-  const todayDateKey = toIsoDate(today)
+  const todayDateKey = toIsoDate(startOfDay(today))
   const isTodayInsideMonth = today >= monthStart && today < addDays(monthEnd, 1)
   const todayMarkerLeft = isTodayInsideMonth ? ((today.getTime() - trackStartMs) / trackDurationMs) * 100 : null
 
@@ -807,7 +906,32 @@ export default function AdminRoomBookingsPage() {
   }
 
   const handleQuickDateSelect = (roomCode: string, dateKey: string) => {
-    setQuickSelection((current) => toggleQuickBookingDate(current, roomCode, dateKey, bookedDateKeysByRoom[roomCode] ?? new Set()))
+    if (dateKey < todayDateKey) {
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'Past date disabled',
+        message: 'You cannot create a booking on a date that has already passed.',
+      })
+      return
+    }
+
+    setQuickSelection((current) => {
+      const currentDates =
+        current && current.roomCode === roomCode
+          ? [...current.dates].sort((a, b) => a.localeCompare(b))
+          : []
+
+      if (currentDates.length === 1 && dateKey < currentDates[0]) {
+        setCalendarFeedback({
+          tone: 'error',
+          title: 'Invalid date order',
+          message: 'Please choose the start date first, then double click a later end date.',
+        })
+        return current
+      }
+
+      return toggleQuickBookingDate(current, roomCode, dateKey, bookedDateKeysByRoom[roomCode] ?? new Set())
+    })
   }
 
   const handleBookingDragStart = (booking: RoomBookingResponse) => {
@@ -858,12 +982,35 @@ export default function AdminRoomBookingsPage() {
       return
     }
 
-    setMovingBookingId(draggedBooking.id)
+    if (nextDateKey < todayDateKey) {
+      setDraggingBookingId(null)
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'Past date disabled',
+        message: 'You cannot move a booking to a date that has already passed.',
+      })
+      return
+    }
+
+    setDraggingBookingId(null)
+    setPendingMoveConfirmation({
+      booking: draggedBooking,
+      targetRoomCode,
+      targetDateKey: nextDateKey,
+    })
+  }
+
+  const confirmMoveBooking = async () => {
+    if (!pendingMoveConfirmation || movingBookingId) return
+
+    const { booking, targetRoomCode, targetDateKey } = pendingMoveConfirmation
+
+    setMovingBookingId(booking.id)
     setCalendarFeedback(null)
     try {
-      const saved = await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${draggedBooking.id}`, {
+      const saved = await apiFetch<RoomBookingResponse>(`/api/admin/room-bookings/${booking.id}`, {
         method: 'PUT',
-        body: JSON.stringify(buildMovedBookingPayload(draggedBooking, targetRoomCode, nextDateKey)),
+        body: JSON.stringify(buildMovedBookingPayload(booking, targetRoomCode, targetDateKey)),
       })
       setSelectedBookingId(saved.id)
       if (editingId === saved.id) {
@@ -882,7 +1029,7 @@ export default function AdminRoomBookingsPage() {
         message: getErrorMessage(e, 'Could not move booking to another villa'),
       })
     } finally {
-      setDraggingBookingId(null)
+      setPendingMoveConfirmation(null)
       setMovingBookingId(null)
     }
   }
@@ -1039,6 +1186,22 @@ export default function AdminRoomBookingsPage() {
       remainingAmount,
       notes: form.notes?.trim() || '',
     }
+    const checkInDateKey = toDateInputValue(payload.checkInAt)
+    const checkOutDateKey = toDateInputValue(payload.checkOutAt)
+    const currentSelectedCheckInDateKey = selectedBooking ? toDateInputValue(selectedBooking.checkInAt) : ''
+    const isChangingToPastCheckIn = !editingId || checkInDateKey !== currentSelectedCheckInDateKey
+
+    if (checkInDateKey < todayDateKey && isChangingToPastCheckIn) {
+      setFormError('Past dates are disabled. Please choose today or a future date.')
+      setSaving(false)
+      return
+    }
+
+    if (checkOutDateKey <= checkInDateKey) {
+      setFormError('Please choose a check-out date after the check-in date.')
+      setSaving(false)
+      return
+    }
 
     try {
       const endpoint = editingId ? `/api/admin/room-bookings/${editingId}` : '/api/admin/room-bookings'
@@ -1168,10 +1331,15 @@ export default function AdminRoomBookingsPage() {
     setActionLoading('mark-ready')
     setFormError(null)
     try {
-      await apiFetch<Room>(`/api/admin/rooms/${selectedRoom.id}/mark-ready`, {
+      const saved = await apiFetch<Room>(`/api/admin/rooms/${selectedRoom.id}/mark-ready`, {
         method: 'POST',
       })
       await load({ silent: true })
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Villa updated',
+        message: `${saved.code} is marked ready again.`,
+      })
     } catch (e: unknown) {
       setFormError(getErrorMessage(e, 'Could not update villa status'))
     } finally {
@@ -1182,6 +1350,11 @@ export default function AdminRoomBookingsPage() {
   const checkInDateValue = toDateInputValue(form.checkInAt)
   const checkOutDateValue = toDateInputValue(form.checkOutAt)
   const minCheckOutDateValue = nextCheckoutDateValue(form.checkInAt)
+  const minCheckInDateValue = checkInDateValue && checkInDateValue < todayDateKey ? checkInDateValue : todayDateKey
+  const minAllowedCheckOutDateValue = getLaterDateKey(
+    checkOutDateValue && checkOutDateValue < todayDateKey ? checkOutDateValue : todayDateKey,
+    minCheckOutDateValue || todayDateKey,
+  )
   const quickSelectionDates = quickSelection?.dates ?? []
   const quickSelectionRoom = quickSelection ? roomByCode[quickSelection.roomCode] : null
   const quickSelectionRange = quickSelection
@@ -1274,6 +1447,14 @@ export default function AdminRoomBookingsPage() {
       ['Remaining balance', confirmationRemainingAmount],
       ['Payment status', confirmationPaymentStatus],
     ]
+  const pendingMoveRoom = pendingMoveConfirmation ? roomByCode[pendingMoveConfirmation.targetRoomCode] : null
+  const pendingMoveCheckOutAt = pendingMoveConfirmation
+    ? buildMovedBookingPayload(
+        pendingMoveConfirmation.booking,
+        pendingMoveConfirmation.targetRoomCode,
+        pendingMoveConfirmation.targetDateKey,
+      ).checkOutAt
+    : ''
 
   return (
     <section className="section">
@@ -1304,15 +1485,21 @@ export default function AdminRoomBookingsPage() {
           <div>
             <h2>Admin • Villa booking calendar</h2>
             <div className="muted">
-              Grouped by location. For quick booking, click the first available day to open booking immediately, or click the
-              last day on the same villa row to extend the stay.
+              Grouped by location. Double click one available day to start a booking range, then double click a later day on the
+              same villa row to extend the stay.
             </div>
           </div>
           <div className="row" style={{ gap: 10 }}>
             <button className="btn" type="button" onClick={() => void handleAirbnbSync()} disabled={syncingAirbnb}>
               {syncingAirbnb ? 'Syncing Airbnb...' : 'Sync Airbnb'}
             </button>
-            <button className="btn" type="button" onClick={() => void load()} disabled={loading || syncingAirbnb}>
+            <button className="btn" type="button" onClick={() => void handleKayStaySync()} disabled={syncingKaystay}>
+              {syncingKaystay ? 'Syncing KayStay...' : 'Sync KayStay'}
+            </button>
+            <button className="btn" type="button" onClick={() => void handleSophiaSync()} disabled={syncingSophia}>
+              {syncingSophia ? 'Syncing Sophia...' : 'Sync Sophia'}
+            </button>
+            <button className="btn" type="button" onClick={() => void load()} disabled={loading || syncingAirbnb || syncingKaystay || syncingSophia}>
               Reload
             </button>
           </div>
@@ -1325,7 +1512,7 @@ export default function AdminRoomBookingsPage() {
                 className="input"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search guest, villa, type, Airbnb link..."
+                placeholder="Search guest, villa, type, Airbnb link, KayStay, Sophia..."
               />
             </div>
 
@@ -1443,8 +1630,9 @@ export default function AdminRoomBookingsPage() {
                     <div className="room-schedule-days">
                       {monthDays.map((day) => {
                         const isToday = toIsoDate(day) === toIsoDate(today)
+                        const isPast = toIsoDate(day) < todayDateKey
                         return (
-                          <div key={day.toISOString()} className={`room-schedule-day-head ${isToday ? 'is-today' : ''}`}>
+                          <div key={day.toISOString()} className={`room-schedule-day-head ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}`}>
                             <span className="room-schedule-day-weekday">{formatDayLabel(day)}</span>
                             <strong className="room-schedule-day-number">{formatDayNumber(day)}</strong>
                           </div>
@@ -1503,6 +1691,11 @@ export default function AdminRoomBookingsPage() {
                                 {ROOM_OPERATIONAL_STATUS_META.NEEDS_CLEANING.label}
                               </span>
                             ) : null}
+                            {room?.repairNeeded ? (
+                              <span className="room-bookings-list-badge needs-repair">
+                                Needs repair
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <div
@@ -1514,6 +1707,15 @@ export default function AdminRoomBookingsPage() {
                             e.preventDefault()
                             e.dataTransfer.dropEffect = 'move'
                             const nextDateKey = getDateKeyFromTrackPointer(e.clientX, e.currentTarget, monthDays)
+                            if (nextDateKey && nextDateKey < todayDateKey) {
+                              if (dropTargetRoomCode !== null) {
+                                setDropTargetRoomCode(null)
+                              }
+                              if (dropTargetDateKey !== null) {
+                                setDropTargetDateKey(null)
+                              }
+                              return
+                            }
                             if (dropTargetRoomCode !== roomCode) {
                               setDropTargetRoomCode(roomCode)
                             }
@@ -1530,7 +1732,8 @@ export default function AdminRoomBookingsPage() {
                           <div className="room-schedule-grid">
                             {monthDays.map((day) => {
                               const dayKey = toIsoDate(day)
-                              const isDisabled = disabledDateKeys.has(dayKey)
+                              const isPastDate = dayKey < todayDateKey
+                              const isDisabled = disabledDateKeys.has(dayKey) || isPastDate
                               const isSelected = selectedDateKeys.has(dayKey)
                               const isDragTargetDay = isDropTarget && dropTargetDateKey === dayKey
                               return (
@@ -1540,9 +1743,9 @@ export default function AdminRoomBookingsPage() {
                                   data-day-key={dayKey}
                                   className={`room-schedule-grid-cell room-schedule-select-cell ${isSelected ? 'is-selected' : ''} ${
                                     isDragTargetDay ? 'is-drop-target' : ''
-                                  }`}
+                                  } ${isPastDate ? 'is-past' : ''}`}
                                   disabled={isDisabled}
-                                  onClick={() => handleQuickDateSelect(roomCode, dayKey)}
+                                  onDoubleClick={() => handleQuickDateSelect(roomCode, dayKey)}
                                   aria-label={`Select ${dayKey} for ${roomCode}`}
                                 />
                               )
@@ -1661,6 +1864,8 @@ export default function AdminRoomBookingsPage() {
                       disabled={
                         actionLoading !== null ||
                         selectedBooking.status === 'AIRBNB_BLOCK' ||
+                        selectedBooking.status === 'KAYSTAY_BLOCK' ||
+                        selectedBooking.status === 'SOPHIA_BLOCK' ||
                         selectedBooking.status === 'CHECKED_IN' ||
                         selectedBooking.status === 'CHECKED_OUT' ||
                         selectedBooking.status === 'CANCELLED'
@@ -1692,6 +1897,8 @@ export default function AdminRoomBookingsPage() {
                   {bookingModalMode === 'details' &&
                   selectedBooking &&
                   selectedBooking.status !== 'AIRBNB_BLOCK' &&
+                  selectedBooking.status !== 'KAYSTAY_BLOCK' &&
+                  selectedBooking.status !== 'SOPHIA_BLOCK' &&
                   selectedBooking.status !== 'CHECKED_OUT' &&
                   selectedBooking.status !== 'CANCELLED' ? (
                     <button
@@ -1707,6 +1914,8 @@ export default function AdminRoomBookingsPage() {
                   {bookingModalMode === 'details' &&
                   selectedBooking &&
                   selectedBooking.status !== 'AIRBNB_BLOCK' &&
+                  selectedBooking.status !== 'KAYSTAY_BLOCK' &&
+                  selectedBooking.status !== 'SOPHIA_BLOCK' &&
                   selectedBooking.status !== 'CANCELLED' ? (
                     <button className="btn" type="button" onClick={() => editBooking(selectedBooking)}>
                       Edit
@@ -1733,9 +1942,12 @@ export default function AdminRoomBookingsPage() {
                       {selectedRoom?.host ? (
                         <div className="muted">{selectedRoom.host}</div>
                       ) : null}
-                      <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>
-                        {selectedRoomStatusMeta.label}
-                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                        <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>
+                          {selectedRoomStatusMeta.label}
+                        </span>
+                        {selectedRoom?.repairNeeded ? <span className="room-bookings-list-badge needs-repair">Needs repair</span> : null}
+                      </div>
                     </div>
                     <div className="room-booking-detail-card">
                       <div className="room-booking-detail-label">Check-in</div>
@@ -1785,6 +1997,30 @@ export default function AdminRoomBookingsPage() {
                     <div className="room-booking-detail-row">
                       <span>Ready again</span>
                       <strong>{selectedRoom?.lastReadyAt ? formatDateTime(selectedRoom.lastReadyAt) : 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Cleaned at</span>
+                      <strong>{selectedRoom?.cleanedAt ? formatDateTime(selectedRoom.cleanedAt) : 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Cleaned by</span>
+                      <strong>{selectedRoom?.cleanedByName || selectedRoom?.cleanedByUsername || 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Repair status</span>
+                      <strong>{selectedRoom?.repairNeeded ? 'Needs repair' : 'No open repair'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Repair reported at</span>
+                      <strong>{selectedRoom?.repairReportedAt ? formatDateTime(selectedRoom.repairReportedAt) : 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Repair reported by</span>
+                      <strong>{selectedRoom?.repairReportedByName || selectedRoom?.repairReportedByUsername || 'Not yet'}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Repair detail</span>
+                      <strong>{selectedRoom?.repairDetails || 'Not yet'}</strong>
                     </div>
                     <div className="room-booking-detail-row">
                       <span>Villa rate</span>
@@ -1885,6 +2121,7 @@ export default function AdminRoomBookingsPage() {
                         className="input"
                         type="date"
                         value={checkInDateValue}
+                        min={minCheckInDateValue}
                         onChange={(e) => setForm((current) => applyCheckInDateToForm(current, e.target.value))}
                       />
                       <div className="muted">Check-in time: 15:00</div>
@@ -1895,7 +2132,7 @@ export default function AdminRoomBookingsPage() {
                         className="input"
                         type="date"
                         value={checkOutDateValue}
-                        min={minCheckOutDateValue}
+                        min={minAllowedCheckOutDateValue}
                         onChange={(e) => setForm((current) => applyCheckOutDateToForm(current, e.target.value))}
                       />
                       <div className="muted">Check-out time: 11:00</div>
@@ -2206,6 +2443,95 @@ export default function AdminRoomBookingsPage() {
                     disabled={actionLoading === 'check-out'}
                   >
                     {actionLoading === 'check-out' ? 'Processing...' : 'Confirm & Check-out'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingMoveConfirmation ? (
+          <div
+            className="room-booking-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => {
+              if (movingBookingId) return
+              setPendingMoveConfirmation(null)
+            }}
+          >
+            <div className="room-booking-modal room-booking-move-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="room-booking-modal-head">
+                <div>
+                  <div className="room-bookings-feedback-popup-title">
+                    Confirm villa move
+                  </div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    Please review the new villa and stay dates before completing this move.
+                  </div>
+                </div>
+                <div className="room-booking-modal-actions">
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setPendingMoveConfirmation(null)}
+                    disabled={movingBookingId !== null}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="room-booking-modal-body">
+                <div className="room-booking-move-grid">
+                  <div className="room-booking-detail-card">
+                    <div className="room-booking-detail-label">Guest</div>
+                    <strong>{pendingMoveConfirmation.booking.guestName || 'Guest'}</strong>
+                    <div className="muted">{pendingMoveConfirmation.booking.source || 'Direct'}</div>
+                  </div>
+                  <div className="room-booking-detail-card">
+                    <div className="room-booking-detail-label">Current villa</div>
+                    <strong>{pendingMoveConfirmation.booking.roomCode}</strong>
+                    <div className="muted">{roomByCode[pendingMoveConfirmation.booking.roomCode]?.name || 'Current villa'}</div>
+                  </div>
+                  <div className="room-booking-detail-card">
+                    <div className="room-booking-detail-label">Move to</div>
+                    <strong>{pendingMoveConfirmation.targetRoomCode}</strong>
+                    <div className="muted">{pendingMoveRoom?.name || 'Selected villa'}</div>
+                  </div>
+                  <div className="room-booking-detail-card">
+                    <div className="room-booking-detail-label">New stay</div>
+                    <strong>{formatDateOnly(`${pendingMoveConfirmation.targetDateKey}T00:00`)}</strong>
+                    <div className="muted">→ {formatDateOnly(pendingMoveCheckOutAt)}</div>
+                  </div>
+                </div>
+
+                <div className="room-booking-detail-panel">
+                  <div className="room-booking-detail-row">
+                    <span>Current stay</span>
+                    <strong>{formatDateOnly(pendingMoveConfirmation.booking.checkInAt)} → {formatDateOnly(pendingMoveConfirmation.booking.checkOutAt)}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>New stay</span>
+                    <strong>{formatDateOnly(`${pendingMoveConfirmation.targetDateKey}T00:00`)} → {formatDateOnly(pendingMoveCheckOutAt)}</strong>
+                  </div>
+                </div>
+
+                <div className="row" style={{ justifyContent: 'flex-end', marginTop: 8, gap: 10 }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    onClick={() => setPendingMoveConfirmation(null)}
+                    disabled={movingBookingId !== null}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    onClick={() => void confirmMoveBooking()}
+                    disabled={movingBookingId !== null}
+                  >
+                    {movingBookingId !== null ? 'Moving...' : 'Confirm move'}
                   </button>
                 </div>
               </div>

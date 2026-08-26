@@ -1,6 +1,11 @@
 package com.luxurytravel.backend.room;
 
+import com.luxurytravel.backend.roomlog.RoomWorkLogAction;
+import com.luxurytravel.backend.roomlog.RoomWorkLogService;
 import com.luxurytravel.backend.roombooking.RoomBookingRepository;
+import com.luxurytravel.backend.user.Role;
+import com.luxurytravel.backend.user.UserRepository;
+import com.luxurytravel.backend.user.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,10 +18,19 @@ import java.util.List;
 public class RoomService {
     private final RoomRepository roomRepository;
     private final RoomBookingRepository roomBookingRepository;
+    private final RoomWorkLogService roomWorkLogService;
+    private final UserRepository userRepository;
 
-    public RoomService(RoomRepository roomRepository, RoomBookingRepository roomBookingRepository) {
+    public RoomService(
+            RoomRepository roomRepository,
+            RoomBookingRepository roomBookingRepository,
+            RoomWorkLogService roomWorkLogService,
+            UserRepository userRepository
+    ) {
         this.roomRepository = roomRepository;
         this.roomBookingRepository = roomBookingRepository;
+        this.roomWorkLogService = roomWorkLogService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -103,11 +117,122 @@ public class RoomService {
 
     @Transactional
     public Room markReady(Long id) {
+        return markReady(id, null);
+    }
+
+    @Transactional
+    public Room markReady(Long id, User cleaner) {
         Room room = findById(id);
+        if (room.getOperationalStatus() != RoomOperationalStatus.NEEDS_CLEANING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Villa is not waiting for cleaning");
+        }
         Instant now = Instant.now();
         room.setOperationalStatus(RoomOperationalStatus.READY);
         room.setStatusUpdatedAt(now);
         room.setLastReadyAt(now);
+        room.setCleanedAt(now);
+        room.setCleanedByUsername(cleaner == null ? null : cleaner.getUsername());
+        room.setCleanedByName(cleaner == null ? null : cleaner.getFullName());
+        Room saved = roomRepository.save(room);
+        roomWorkLogService.log(saved, RoomWorkLogAction.CLEANING_COMPLETED, cleaner, "");
+        return saved;
+    }
+
+    @Transactional
+    public Room reportRepair(Long id, String details, User reporter) {
+        Room room = findById(id);
+        String normalizedDetails = details == null ? "" : details.trim();
+        if (normalizedDetails.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Repair details are required");
+        }
+
+        Instant now = Instant.now();
+        room.setRepairNeeded(true);
+        room.setRepairDetails(normalizedDetails);
+        room.setRepairReportedAt(now);
+        room.setRepairReportedByUsername(reporter == null ? null : reporter.getUsername());
+        room.setRepairReportedByName(reporter == null ? null : reporter.getFullName());
+        room.setRepairResolvedAt(null);
+        room.setRepairResolvedByUsername(null);
+        room.setRepairResolvedByName(null);
+        Room saved = roomRepository.save(room);
+        roomWorkLogService.log(saved, RoomWorkLogAction.REPAIR_REPORTED, reporter, normalizedDetails);
+        return saved;
+    }
+
+    @Transactional
+    public Room resolveRepair(Long id, User maintainer) {
+        Room room = findById(id);
+        if (!room.isRepairNeeded()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Villa does not have an open repair request");
+        }
+
+        Instant now = Instant.now();
+        room.setRepairNeeded(false);
+        room.setRepairResolvedAt(now);
+        room.setRepairResolvedByUsername(maintainer == null ? null : maintainer.getUsername());
+        room.setRepairResolvedByName(maintainer == null ? null : maintainer.getFullName());
+        Room saved = roomRepository.save(room);
+        roomWorkLogService.log(saved, RoomWorkLogAction.REPAIR_RESOLVED, maintainer, room.getRepairDetails());
+        return saved;
+    }
+
+    @Transactional
+    public List<Room> findNeedsCleaning() {
+        List<Room> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc();
+        boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
+        if (changed) {
+            roomRepository.saveAll(rooms);
+        }
+        return rooms.stream()
+                .filter(Room::isActive)
+                .filter(room -> room.getOperationalStatus() == RoomOperationalStatus.NEEDS_CLEANING)
+                .toList();
+    }
+
+    @Transactional
+    public List<Room> findNeedsCleaningForCleaner(User cleaner) {
+        if (cleaner == null || cleaner.getId() == null) {
+            return List.of();
+        }
+
+        List<Room> rooms = roomRepository.findAllByAssignedCleanerIdOrderByLocationAscFloorNumberAscCodeAsc(cleaner.getId());
+        boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
+        if (changed) {
+            roomRepository.saveAll(rooms);
+        }
+        return rooms.stream()
+                .filter(Room::isActive)
+                .filter(room -> room.getOperationalStatus() == RoomOperationalStatus.NEEDS_CLEANING)
+                .toList();
+    }
+
+    @Transactional
+    public List<Room> findNeedsRepair() {
+        List<Room> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc();
+        boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
+        if (changed) {
+            roomRepository.saveAll(rooms);
+        }
+        return rooms.stream()
+                .filter(Room::isActive)
+                .filter(Room::isRepairNeeded)
+                .toList();
+    }
+
+    @Transactional
+    public Room assignCleaner(Long roomId, Long cleanerId) {
+        Room room = findById(roomId);
+        if (cleanerId == null) {
+            room.setAssignedCleanerId(null);
+            return roomRepository.save(room);
+        }
+
+        if (!userRepository.existsByIdAndRole(cleanerId, Role.CLEANER)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cleaner does not exist");
+        }
+
+        room.setAssignedCleanerId(cleanerId);
         return roomRepository.save(room);
     }
 
@@ -127,6 +252,10 @@ public class RoomService {
         }
         if (room.getAirbnbUrl() == null) {
             room.setAirbnbUrl("");
+            changed = true;
+        }
+        if (room.getRepairDetails() == null) {
+            room.setRepairDetails("");
             changed = true;
         }
         return changed;

@@ -26,6 +26,11 @@ public class UserController {
         return userService.findSellers();
     }
 
+    @GetMapping("/cleaners")
+    public List<User> getCleaners() {
+        return userService.findCleaners();
+    }
+
     @PostMapping("/sellers/{id}/pay")
     public User paySeller(@PathVariable Long id) {
         return userService.paySeller(id);

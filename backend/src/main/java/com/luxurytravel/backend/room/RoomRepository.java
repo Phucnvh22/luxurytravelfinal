@@ -7,6 +7,7 @@ import java.util.Optional;
 
 public interface RoomRepository extends JpaRepository<Room, Long> {
     List<Room> findAllByOrderByLocationAscFloorNumberAscCodeAsc();
+    List<Room> findAllByAssignedCleanerIdOrderByLocationAscFloorNumberAscCodeAsc(Long assignedCleanerId);
 
     Optional<Room> findByCodeIgnoreCase(String code);
 

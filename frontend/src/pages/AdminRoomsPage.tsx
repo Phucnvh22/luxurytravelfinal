@@ -77,6 +77,10 @@ export default function AdminRoomsPage() {
   const [form, setForm] = useState<RoomUpsertRequest>(INITIAL_FORM)
   const [selectedRoomCodes, setSelectedRoomCodes] = useState<string[]>([])
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [repairRoom, setRepairRoom] = useState<Room | null>(null)
+  const [repairDetails, setRepairDetails] = useState('')
+  const [repairSaving, setRepairSaving] = useState(false)
+  const [repairError, setRepairError] = useState<string | null>(null)
   const loadingRef = useRef(false)
 
   const sortedRooms = useMemo(() => {
@@ -97,8 +101,8 @@ export default function AdminRoomsPage() {
       setError(null)
     }
     try {
-      const data = await apiFetch<Room[]>('/api/admin/rooms')
-      setRooms(data)
+      const roomsData = await apiFetch<Room[]>('/api/admin/rooms')
+      setRooms(roomsData)
       setError(null)
     } catch (e: unknown) {
       if (!opts?.silent) {
@@ -250,6 +254,49 @@ export default function AdminRoomsPage() {
     }
   }
 
+  function openRepairModal(room: Room) {
+    setRepairRoom(room)
+    setRepairDetails(room.repairNeeded ? room.repairDetails || '' : '')
+    setRepairError(null)
+  }
+
+  function closeRepairModal() {
+    setRepairRoom(null)
+    setRepairDetails('')
+    setRepairError(null)
+  }
+
+  async function saveRepair() {
+    if (!repairRoom) return
+    setRepairSaving(true)
+    setRepairError(null)
+    try {
+      await apiFetch<Room>(`/api/admin/rooms/${repairRoom.id}/report-repair`, {
+        method: 'POST',
+        body: JSON.stringify({ details: repairDetails }),
+      })
+      closeRepairModal()
+      await load()
+    } catch (e: unknown) {
+      setRepairError(getErrorMessage(e, 'Khong the report repair'))
+    } finally {
+      setRepairSaving(false)
+    }
+  }
+
+  async function resolveRepair(room: Room) {
+    if (!window.confirm(`Mark repair as done for ${room.code}?`)) return
+    setBusyId(room.id)
+    try {
+      await apiFetch<Room>(`/api/admin/rooms/${room.id}/resolve-repair`, { method: 'POST' })
+      await load({ silent: true })
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Khong the resolve repair'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <section className="section">
       <div className="container">
@@ -260,6 +307,12 @@ export default function AdminRoomsPage() {
             </Link>
             <Link to="/admin/room-bookings" className="btn">
               Villa calendar
+            </Link>
+            <Link to="/admin/room-cleaning-history" className="btn">
+              Cleaning history
+            </Link>
+            <Link to="/admin/room-repair-history" className="btn">
+              Repair history
             </Link>
           </div>
           <div className="row">
@@ -363,8 +416,24 @@ export default function AdminRoomsPage() {
                       </td>
                       <td>{formatGuestCapacity(room.maxAdults, room.maxChildren)}</td>
                       <td>{room.location || '-'}</td>
-                      <td>{room.active ? 'Operating' : 'Paused'}</td>
-                      <td>{room.notes || '-'}</td>
+                      <td>
+                        <div className="admin-room-status-stack">
+                          <span className={`admin-room-status-badge ${room.active ? 'operating' : 'paused'}`}>
+                            {room.active ? 'Operating' : 'Paused'}
+                          </span>
+                          {room.repairNeeded ? (
+                            <span className="admin-room-status-badge needs-repair">Needs repair</span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
+                        <div>{room.notes || '-'}</div>
+                        {room.repairNeeded ? (
+                          <div className="admin-room-repair-note">
+                            Repair: {room.repairDetails || 'Pending detail'}
+                          </div>
+                        ) : null}
+                      </td>
                       <td>
                         <button
                           className="btn"
@@ -381,6 +450,15 @@ export default function AdminRoomsPage() {
                           onClick={() => handleEdit(room)}
                         >
                           Edit
+                        </button>
+                        <button
+                          className="btn"
+                          style={{ padding: '4px 8px', fontSize: 12, marginRight: 8 }}
+                          type="button"
+                          onClick={() => (room.repairNeeded ? void resolveRepair(room) : openRepairModal(room))}
+                          disabled={busyId === room.id}
+                        >
+                          {room.repairNeeded ? 'Done repair' : 'Report repair'}
                         </button>
                         <button
                           className="btn danger"
@@ -582,6 +660,51 @@ export default function AdminRoomsPage() {
             </div>
           </div>
         ) : null}
+
+        {repairRoom ? (
+          <div className="admin-rooms-modal-overlay" role="dialog" aria-modal="true" onClick={closeRepairModal}>
+            <div className="admin-rooms-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-rooms-modal-head">
+                <div>
+                  <div className="admin-rooms-modal-title">Report room repair</div>
+                  <div className="muted">{repairRoom.code} • {repairRoom.name}</div>
+                </div>
+                <button className="btn" type="button" onClick={closeRepairModal}>
+                  Close
+                </button>
+              </div>
+
+              <div className="admin-rooms-modal-body">
+                <label className="field">
+                  <div className="field-label">Repair detail</div>
+                  <textarea
+                    className="textarea"
+                    value={repairDetails}
+                    onChange={(e) => setRepairDetails(e.target.value)}
+                    placeholder="Ví dụ: cửa toilet kẹt, máy lạnh phòng master không lạnh, vòi lavabo rò nước..."
+                  />
+                </label>
+
+                {repairError ? (
+                  <div className="card error">
+                    <div className="error-title">Could not save</div>
+                    <div className="muted">{repairError}</div>
+                  </div>
+                ) : null}
+
+                <div className="admin-rooms-modal-actions">
+                  <button className="btn primary" type="button" onClick={() => void saveRepair()} disabled={repairSaving}>
+                    {repairSaving ? 'Saving...' : 'Report repair'}
+                  </button>
+                  <button className="btn" type="button" onClick={closeRepairModal}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
       </div>
     </section>
   )

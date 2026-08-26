@@ -16,7 +16,7 @@ export interface User {
   username: string
   email?: string
   fullName: string
-  role: 'ADMIN' | 'SELLER' | 'USER'
+  role: 'ADMIN' | 'CLEANER' | 'MAINTENANCE' | 'SELLER' | 'USER'
   commissionRate?: number
   commissionBalance?: number
 }
@@ -25,7 +25,7 @@ export interface UserUpdateRequest {
   fullName: string
   username: string
   email?: string
-  role: 'ADMIN' | 'SELLER' | 'USER'
+  role: 'ADMIN' | 'CLEANER' | 'MAINTENANCE' | 'SELLER' | 'USER'
   commissionRate?: number
 }
 
@@ -39,7 +39,22 @@ export interface AuthResponse {
   username: string
   email?: string
   fullName: string
-  role: 'ADMIN' | 'SELLER' | 'USER'
+  role: 'ADMIN' | 'CLEANER' | 'MAINTENANCE' | 'SELLER' | 'USER'
+}
+
+export type RoomWorkLogAction = 'CLEANING_COMPLETED' | 'REPAIR_REPORTED' | 'REPAIR_RESOLVED'
+
+export interface RoomWorkLog {
+  id: number
+  roomId: number
+  roomCode: string
+  roomName: string
+  action: RoomWorkLogAction
+  actorUsername: string
+  actorName: string
+  actorRole: 'ADMIN' | 'CLEANER' | 'MAINTENANCE' | 'SELLER' | 'USER'
+  details?: string
+  occurredAt: string
 }
 
 export type Destination = {
@@ -129,6 +144,18 @@ export type Room = {
   lastCheckOutMarkedAt?: string
   cleaningRequestedAt?: string
   lastReadyAt?: string
+  cleanedAt?: string
+  cleanedByUsername?: string
+  cleanedByName?: string
+  repairNeeded?: boolean
+  repairDetails?: string
+  repairReportedAt?: string
+  repairReportedByUsername?: string
+  repairReportedByName?: string
+  repairResolvedAt?: string
+  repairResolvedByUsername?: string
+  repairResolvedByName?: string
+  assignedCleanerId?: number | null
 }
 
 export type RoomUpsertRequest = {
@@ -162,7 +189,7 @@ export type BookingCreateRequest = {
 
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED'
 
-export type RoomBookingStatus = 'PENDING' | 'CONFIRMED' | 'AIRBNB_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
+export type RoomBookingStatus = 'PENDING' | 'CONFIRMED' | 'AIRBNB_BLOCK' | 'KAYSTAY_BLOCK' | 'SOPHIA_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
 
 export type RoomBookingRequest = {
   roomCode: string
@@ -223,6 +250,18 @@ export type PublicRoomCalendarResponse = {
 }
 
 export type AirbnbSyncRunResponse = {
+  success: boolean
+  message: string
+  logs: string[]
+}
+
+export type KayStaySyncRunResponse = {
+  success: boolean
+  message: string
+  logs: string[]
+}
+
+export type SophiaSyncRunResponse = {
   success: boolean
   message: string
   logs: string[]

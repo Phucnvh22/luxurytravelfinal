@@ -38,7 +38,8 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       })
       login(data)
-      hardRedirectAfterLogin(redirectTo)
+      const nextPath = data.role === 'CLEANER' ? '/cleaner' : data.role === 'MAINTENANCE' ? '/maintenance' : redirectTo
+      hardRedirectAfterLogin(nextPath)
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message || 'Login failed. Please check your username and password.')

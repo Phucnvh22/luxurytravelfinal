@@ -128,6 +128,10 @@ export function toggleQuickBookingDate(
     return { roomCode, dates: [dateKey] }
   }
 
+  if (dateKey < anchorDate) {
+    return current
+  }
+
   const nextRange = buildDateKeysBetween(anchorDate, dateKey)
   if (nextRange.length === 0) {
     return { roomCode, dates: [dateKey] }

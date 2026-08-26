@@ -164,6 +164,8 @@ export default function AdminUsersPage() {
             <select className="select" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}>
               <option value="ALL">All</option>
               <option value="USER">User</option>
+              <option value="CLEANER">Cleaner</option>
+              <option value="MAINTENANCE">Maintenance</option>
               <option value="SELLER">Seller</option>
               <option value="ADMIN">Admin</option>
             </select>
@@ -224,6 +226,8 @@ export default function AdminUsersPage() {
                     onChange={(e) => setForm((p) => ({ ...p, role: e.target.value as User['role'] }))}
                   >
                     <option value="USER">USER</option>
+                    <option value="CLEANER">CLEANER</option>
+                    <option value="MAINTENANCE">MAINTENANCE</option>
                     <option value="SELLER">SELLER</option>
                     <option value="ADMIN">ADMIN</option>
                   </select>
@@ -306,4 +310,3 @@ export default function AdminUsersPage() {
     </section>
   )
 }
-

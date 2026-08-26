@@ -17,7 +17,7 @@ export default function OAuth2SuccessPage() {
     const username = params.get('username') || ''
     const email = params.get('email') || ''
     const fullName = params.get('fullName') || username
-    const role = params.get('role') as 'ADMIN' | 'SELLER' | 'USER' | null
+    const role = params.get('role') as 'ADMIN' | 'CLEANER' | 'MAINTENANCE' | 'SELLER' | 'USER' | null
     if (!token || !Number.isFinite(id) || !username || !role) {
       window.location.replace('/login')
       return
@@ -32,7 +32,12 @@ export default function OAuth2SuccessPage() {
       role,
     }
     login(auth)
-    const redirectTo = sessionStorage.getItem('postLoginRedirect') || '/'
+    const redirectTo =
+      role === 'CLEANER'
+        ? '/cleaner'
+        : role === 'MAINTENANCE'
+          ? '/maintenance'
+          : sessionStorage.getItem('postLoginRedirect') || '/'
     sessionStorage.removeItem('postLoginRedirect')
     // Force a full reload so auth-dependent data refetches reliably after OAuth callback.
     window.location.replace(redirectTo)

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import TopNav from './TopNav'
 import BottomNav from './BottomNav'
@@ -31,6 +31,14 @@ export default function Layout() {
 
   const [requestSummary, setRequestSummary] = useState<AdminRequestSummary | null>(null)
   const [notificationFlash, setNotificationFlash] = useState<{ count: number } | null>(null)
+
+  if (user?.role === 'CLEANER') {
+    return <Navigate to="/cleaner" replace />
+  }
+
+  if (user?.role === 'MAINTENANCE') {
+    return <Navigate to="/maintenance" replace />
+  }
 
   const toggleMenu = () => setMobileMenuOpen(!mobileMenuOpen)
   const closeMenu = () => setMobileMenuOpen(false)
@@ -250,6 +258,13 @@ export default function Layout() {
                     {t('menu_sellers', 'Sellers')}
                   </NavLink>
                   <NavLink
+                    to="/admin/cleaners"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    Cleaner Assignments
+                  </NavLink>
+                  <NavLink
                     to="/admin/bookings"
                     className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
                     onClick={closeMenu}
@@ -262,6 +277,20 @@ export default function Layout() {
                     onClick={closeMenu}
                   >
                     {t('menu_room_bookings', 'Room Schedule')}
+                  </NavLink>
+                  <NavLink
+                    to="/admin/room-cleaning-history"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    Cleaning history
+                  </NavLink>
+                  <NavLink
+                    to="/admin/room-repair-history"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    Repair history
                   </NavLink>
                   <NavLink
                     to="/admin/rooms"

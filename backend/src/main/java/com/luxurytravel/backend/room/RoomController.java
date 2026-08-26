@@ -1,6 +1,8 @@
 package com.luxurytravel.backend.room;
 
 import jakarta.validation.Valid;
+import com.luxurytravel.backend.user.User;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,8 +42,27 @@ public class RoomController {
     }
 
     @PostMapping("/{id}/mark-ready")
-    public Room markReady(@PathVariable Long id) {
-        return roomService.markReady(id);
+    public Room markReady(@PathVariable Long id, @AuthenticationPrincipal User user) {
+        return roomService.markReady(id, user);
+    }
+
+    @PostMapping("/{id}/report-repair")
+    public Room reportRepair(
+            @PathVariable Long id,
+            @Valid @RequestBody RoomRepairRequest request,
+            @AuthenticationPrincipal User user
+    ) {
+        return roomService.reportRepair(id, request.getDetails(), user);
+    }
+
+    @PostMapping("/{id}/resolve-repair")
+    public Room resolveRepair(@PathVariable Long id, @AuthenticationPrincipal User user) {
+        return roomService.resolveRepair(id, user);
+    }
+
+    @PostMapping("/{id}/assign-cleaner")
+    public Room assignCleaner(@PathVariable Long id, @RequestBody RoomCleanerAssignmentRequest request) {
+        return roomService.assignCleaner(id, request == null ? null : request.getCleanerId());
     }
 
     @DeleteMapping("/{id}")

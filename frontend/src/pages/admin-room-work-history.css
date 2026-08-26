@@ -1,0 +1,197 @@
+.admin-room-history-toolbar {
+  padding: 18px 20px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+}
+
+.admin-room-history-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.admin-room-history-intro {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-room-history-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.admin-room-history-subtitle {
+  max-width: 560px;
+  line-height: 1.55;
+}
+
+.admin-room-history-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.admin-room-history-chip {
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
+  color: #065f46;
+}
+
+.admin-room-history-chip:hover {
+  transform: none;
+  border-color: transparent;
+  background: rgba(16, 185, 129, 0.08);
+  box-shadow: none;
+}
+
+.admin-room-history-chip.active {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.24);
+}
+
+.admin-room-history-chip.active:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+}
+
+.work-history-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  align-items: end;
+}
+
+.admin-room-history-field {
+  margin-top: 0;
+}
+
+.admin-room-history-field .field-label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.admin-room-history-field .input,
+.admin-room-history-field .select {
+  min-height: 48px;
+  border-radius: 14px;
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.admin-room-history-field .input::placeholder {
+  color: #94a3b8;
+}
+
+.admin-room-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.admin-room-history-card-grouped {
+  height: 100%;
+}
+
+.admin-room-history-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.admin-room-history-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.admin-room-history-span-2 {
+  grid-column: span 2;
+}
+
+.admin-room-history-timeline {
+  margin-top: 18px;
+}
+
+.admin-room-history-timeline-title {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.admin-room-history-timeline-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-room-history-timeline-item {
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.admin-room-history-timeline-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .admin-room-history-toolbar {
+    padding: 16px;
+  }
+
+  .admin-room-history-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-room-history-switch {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .admin-room-history-chip {
+    flex: 1 1 0;
+  }
+
+  .work-history-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-room-history-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-room-history-span-2 {
+    grid-column: auto;
+  }
+}

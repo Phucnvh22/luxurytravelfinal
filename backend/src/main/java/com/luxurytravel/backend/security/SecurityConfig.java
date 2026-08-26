@@ -108,6 +108,8 @@ public class SecurityConfig {
                         ).permitAll()
                         // 8. Protected role endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/cleaner/**").hasAnyRole("ADMIN", "CLEANER")
+                        .requestMatchers("/api/maintenance/**").hasAnyRole("ADMIN", "MAINTENANCE")
                         .requestMatchers("/api/seller/**").hasAnyRole("ADMIN", "SELLER")
                         // 9. Authenticated user endpoints
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/bookings").authenticated()

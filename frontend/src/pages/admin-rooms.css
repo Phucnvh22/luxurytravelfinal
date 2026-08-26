@@ -44,6 +44,75 @@
   justify-content: flex-end;
 }
 
+.admin-room-status-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-room-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.admin-room-status-badge.operating {
+  color: #166534;
+  background: #e9f9ef;
+  border-color: #b7dfc4;
+}
+
+.admin-room-status-badge.paused {
+  color: #6b7280;
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.admin-room-status-badge.needs-repair {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.admin-room-repair-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #991b1b;
+}
+
+.admin-room-history-card {
+  margin-top: 18px;
+}
+
+.admin-room-history-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-room-history-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-room-history-chip {
+  border-radius: 999px;
+}
+
+.admin-room-history-chip.active {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
 @media (max-width: 768px) {
   .admin-rooms-modal-overlay {
     padding: 10px;
@@ -58,7 +127,8 @@
   }
 
   .admin-rooms-modal-head,
-  .admin-rooms-modal-actions {
+  .admin-rooms-modal-actions,
+  .admin-room-history-head {
     flex-direction: column;
     align-items: stretch;
   }

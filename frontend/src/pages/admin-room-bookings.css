@@ -133,6 +133,22 @@
   border-color: #d8b4fe;
 }
 
+.room-bookings-status-pill.kaystay-block,
+.room-booking-bar.kaystay-block,
+.room-bookings-list-badge.kaystay-block {
+  color: #0369a1;
+  background: #e0f2fe;
+  border-color: #bae6fd;
+}
+
+.room-bookings-status-pill.sophia-block,
+.room-booking-bar.sophia-block,
+.room-bookings-list-badge.sophia-block {
+  color: #7c3aed;
+  background: #ede9fe;
+  border-color: #c4b5fd;
+}
+
 .room-bookings-status-pill.checked-out,
 .room-booking-bar.checked-out,
 .room-bookings-list-badge.checked-out {
@@ -173,33 +189,41 @@
   border-color: #fdba74;
 }
 
+.room-bookings-status-pill.needs-repair,
+.room-bookings-list-badge.needs-repair {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
 .room-bookings-stack {
   display: grid;
   gap: 16px;
 }
 
 .room-schedule-card {
+  --room-schedule-label-width: 112px;
   padding: 0;
   overflow: hidden;
 }
 
 .room-schedule-scroll {
-  max-height: 72vh;
+  max-height: none;
   overflow: auto;
-  scroll-behavior: smooth;
-  overscroll-behavior: contain;
+  scroll-behavior: auto;
+  overscroll-behavior: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .room-schedule-table {
-  min-width: calc(220px + (var(--day-count) * var(--day-column-width)));
+  min-width: calc(var(--room-schedule-label-width) + (var(--day-count) * var(--day-column-width)));
 }
 
 .room-schedule-header,
 .room-schedule-row,
 .room-schedule-host-row {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: var(--room-schedule-label-width) minmax(0, 1fr);
 }
 
 .room-schedule-header {
@@ -218,7 +242,7 @@
   z-index: 6;
   display: flex;
   align-items: center;
-  padding: 14px 12px;
+  padding: 10px 8px;
   border-right: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(248, 250, 252, 0.98);
   box-shadow: 10px 0 20px rgba(15, 23, 42, 0.03);
@@ -233,7 +257,7 @@
 
 .room-schedule-room-head {
   z-index: 10;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   color: var(--muted);
   text-transform: uppercase;
@@ -247,12 +271,19 @@
 
 .room-schedule-room-cell-content {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   align-items: start;
 }
 
+.room-schedule-room-cell-content > div:first-child {
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
 .room-schedule-room-link {
-  font-size: 12px;
+  font-size: 9px;
 }
 
 .room-schedule-host-row {
@@ -267,11 +298,11 @@
   gap: 8px;
   align-items: center;
   background: rgba(241, 245, 249, 0.98);
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .room-schedule-host-label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   color: var(--muted);
   text-transform: uppercase;
@@ -279,7 +310,7 @@
 }
 
 .room-schedule-host-cell strong {
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
 }
 
@@ -297,7 +328,7 @@
 }
 
 .room-schedule-day-head {
-  min-height: 70px;
+  min-height: 64px;
   padding: 8px 4px;
   display: grid;
   align-content: center;
@@ -325,13 +356,18 @@
   color: #047857;
 }
 
+.room-schedule-day-head.is-past {
+  background: rgba(241, 245, 249, 0.9);
+  color: #94a3b8;
+}
+
 .room-schedule-row {
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .room-schedule-track {
   position: relative;
-  min-height: 62px;
+  min-height: 58px;
   min-width: calc(var(--day-count) * var(--day-column-width));
   overflow: hidden;
 }
@@ -342,7 +378,7 @@
 }
 
 .room-schedule-row.has-quick-action .room-schedule-track {
-  min-height: 92px;
+  min-height: 88px;
 }
 
 .room-schedule-grid {
@@ -457,6 +493,11 @@
   background: rgba(226, 232, 240, 0.35);
 }
 
+.room-schedule-select-cell.is-past:disabled {
+  background:
+    linear-gradient(135deg, rgba(226, 232, 240, 0.55), rgba(241, 245, 249, 0.55));
+}
+
 .room-schedule-today-marker {
   position: absolute;
   top: 0;
@@ -474,7 +515,7 @@
   height: calc(100% - 4px);
   border-radius: 12px;
   border: 1px solid transparent;
-  padding: 10px 10px;
+  padding: 8px 9px;
   text-align: left;
   cursor: pointer;
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
@@ -494,7 +535,7 @@
 
 .room-schedule-row.has-quick-action .room-booking-bar {
   top: 6px;
-  height: 42px;
+  height: 40px;
 }
 
 .room-booking-bar:active {
@@ -515,7 +556,7 @@
 }
 
 .room-booking-bar-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
@@ -524,7 +565,7 @@
 
 .room-booking-bar-meta {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 10px;
   display: flex;
   gap: 8px;
   justify-content: space-between;
@@ -545,6 +586,16 @@
   background: rgba(233, 249, 239, 0.98);
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.14);
   max-width: min(460px, calc(100% - 16px));
+}
+
+.room-booking-move-modal {
+  width: min(640px, 100%);
+}
+
+.room-booking-move-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .room-schedule-quick-action-meta {
@@ -1094,6 +1145,10 @@
 }
 
 @media (max-width: 768px) {
+  .room-schedule-card {
+    --room-schedule-label-width: 68px;
+  }
+
   .room-bookings-toolbar-top {
     align-items: stretch;
   }
@@ -1140,16 +1195,16 @@
   .room-schedule-header,
   .room-schedule-row,
   .room-schedule-host-row {
-    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-columns: var(--room-schedule-label-width) minmax(0, 1fr);
   }
 
   .room-schedule-table {
-    min-width: calc(96px + (var(--day-count) * var(--day-column-width)));
+    min-width: calc(var(--room-schedule-label-width) + (var(--day-count) * var(--day-column-width)));
   }
 
   .room-schedule-room-head,
   .room-schedule-room-cell {
-    padding: 10px 8px;
+    padding: 8px 6px;
   }
 
   .room-schedule-room-cell-content {
@@ -1161,6 +1216,22 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .room-schedule-host-cell {
+    padding: 8px 6px;
+  }
+
+  .room-schedule-host-label {
+    font-size: 8px;
+  }
+
+  .room-schedule-host-cell strong {
+    font-size: 10px;
+  }
+
+  .room-booking-move-grid {
+    grid-template-columns: 1fr;
   }
 
   .room-schedule-day-weekday {

@@ -1,5 +1,7 @@
 package com.luxurytravel.backend.user;
 
+import com.luxurytravel.backend.room.Room;
+import com.luxurytravel.backend.room.RoomRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,10 +13,12 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RoomRepository roomRepository;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, RoomRepository roomRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.roomRepository = roomRepository;
     }
 
     public List<User> findAll() {
@@ -23,6 +27,10 @@ public class UserService {
 
     public List<User> findSellers() {
         return userRepository.findByRole(Role.SELLER);
+    }
+
+    public List<User> findCleaners() {
+        return userRepository.findByRole(Role.CLEANER);
     }
 
     public User findById(Long id) {
@@ -73,7 +81,11 @@ public class UserService {
         user.setFullName(request.getFullName());
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
+        Role previousRole = user.getRole();
         user.setRole(request.getRole());
+        if (previousRole == Role.CLEANER && request.getRole() != Role.CLEANER) {
+            clearCleanerAssignments(user.getId());
+        }
         
         // Update commission rate if provided
         if (request.getCommissionRate() != null) {
@@ -85,9 +97,23 @@ public class UserService {
 
     @Transactional
     public void delete(Long id) {
-        if (!userRepository.existsById(id)) {
-            throw new UserNotFoundException(id);
+        User user = findById(id);
+        if (user.getRole() == Role.CLEANER) {
+            clearCleanerAssignments(user.getId());
         }
-        userRepository.deleteById(id);
+        userRepository.delete(user);
+    }
+
+    @Transactional
+    public void clearCleanerAssignments(Long cleanerId) {
+        if (cleanerId == null) {
+            return;
+        }
+        List<Room> rooms = roomRepository.findAllByAssignedCleanerIdOrderByLocationAscFloorNumberAscCodeAsc(cleanerId);
+        if (rooms.isEmpty()) {
+            return;
+        }
+        rooms.forEach(room -> room.setAssignedCleanerId(null));
+        roomRepository.saveAll(rooms);
     }
 }

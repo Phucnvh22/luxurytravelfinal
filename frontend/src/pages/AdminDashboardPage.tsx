@@ -231,6 +231,18 @@ export default function AdminDashboardPage() {
         tone: 'violet',
       },
       {
+        label: 'Cleaning history',
+        description: 'Review room cleaning history by villa',
+        to: '/admin/room-cleaning-history',
+        tone: 'amber',
+      },
+      {
+        label: 'Repair history',
+        description: 'Review room repair history by villa',
+        to: '/admin/room-repair-history',
+        tone: 'violet',
+      },
+      {
         label: 'Rooms',
         description: 'Manage room inventory and room metadata',
         to: '/admin/rooms',
@@ -279,6 +291,12 @@ export default function AdminDashboardPage() {
         description: 'Control user accounts and permissions',
         to: '/admin/users',
         tone: 'cyan',
+      },
+      {
+        label: 'Cleaner assignments',
+        description: 'Assign cleaners to villas and review workload',
+        to: '/admin/cleaners',
+        tone: 'emerald',
       },
       {
         label: 'Sellers',
@@ -337,7 +355,7 @@ export default function AdminDashboardPage() {
 
           <div className="admin-dashboard-side-group">
             <div className="admin-dashboard-side-title">Screens</div>
-            {modules.slice(0, 3).map((module) => (
+            {modules.slice(0, 5).map((module) => (
               <Link key={module.to} to={module.to} className="admin-dashboard-side-link">
                 <span>{module.label}</span>
                 {module.badge ? <span className="admin-dashboard-side-badge">{module.badge}</span> : null}
@@ -347,7 +365,7 @@ export default function AdminDashboardPage() {
 
           <div className="admin-dashboard-side-group">
             <div className="admin-dashboard-side-title">Booking management</div>
-            {modules.slice(3, 6).map((module) => (
+            {modules.slice(5, 8).map((module) => (
               <Link key={module.to} to={module.to} className="admin-dashboard-side-link">
                 <span>{module.label}</span>
                 {module.badge ? <span className="admin-dashboard-side-badge">{module.badge}</span> : null}
@@ -357,7 +375,7 @@ export default function AdminDashboardPage() {
 
           <div className="admin-dashboard-side-group">
             <div className="admin-dashboard-side-title">Content and people</div>
-            {modules.slice(6, 11).map((module) => (
+            {modules.slice(8, 14).map((module) => (
               <Link key={module.to} to={module.to} className="admin-dashboard-side-link">
                 <span>{module.label}</span>
               </Link>
