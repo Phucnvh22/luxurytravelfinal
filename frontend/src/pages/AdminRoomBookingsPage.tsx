@@ -1326,27 +1326,6 @@ export default function AdminRoomBookingsPage() {
     }
   }
 
-  const handleMarkReady = async () => {
-    if (!selectedRoom) return
-    setActionLoading('mark-ready')
-    setFormError(null)
-    try {
-      const saved = await apiFetch<Room>(`/api/admin/rooms/${selectedRoom.id}/mark-ready`, {
-        method: 'POST',
-      })
-      await load({ silent: true })
-      setCalendarFeedback({
-        tone: 'success',
-        title: 'Villa updated',
-        message: `${saved.code} is marked ready again.`,
-      })
-    } catch (e: unknown) {
-      setFormError(getErrorMessage(e, 'Could not update villa status'))
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
   const checkInDateValue = toDateInputValue(form.checkInAt)
   const checkOutDateValue = toDateInputValue(form.checkOutAt)
   const minCheckOutDateValue = nextCheckoutDateValue(form.checkInAt)
