@@ -113,7 +113,7 @@ jobs:
             if [ -n '${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_NAME }}' ]; then export WHATSAPP_CLOUD_API_TEMPLATE_NAME='${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_NAME }}'; fi; \
             if [ -n '${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE }}' ]; then export WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE='${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE }}'; fi; \
             export GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}'; \
-            if [ -z \"\$GHCR_USERNAME\" ]; then GHCR_USERNAME='${{ github.repository_owner }}'; fi; \
+            if [ -z \"\$GHCR_USERNAME\" ]; then GHCR_USERNAME='${{ github.actor }}'; fi; \
             export GHCR_OWNER='${{ github.repository_owner }}'; \
             export GHCR_OWNER=\$(echo \"\$GHCR_OWNER\" | tr '[:upper:]' '[:lower:]'); \
             export IMAGE_TAG=latest; \
