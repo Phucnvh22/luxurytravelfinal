@@ -114,6 +114,7 @@ jobs:
             export GHCR_OWNER='${{ github.repository_owner }}'; \
             export GHCR_OWNER=\$(echo \"\$GHCR_OWNER\" | tr '[:upper:]' '[:lower:]'); \
             export IMAGE_TAG=latest; \
+            docker logout ghcr.io >/dev/null 2>&1 || true; \
             docker compose pull; \
             docker compose up -d; \
             docker image prune -f \
