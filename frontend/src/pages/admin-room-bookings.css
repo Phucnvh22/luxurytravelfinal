@@ -1248,10 +1248,10 @@
   }
 
   .room-booking-modal {
-    width: 100%;
-    max-height: 92vh;
-    border-radius: 22px 22px 0 0;
-    padding: 16px;
+    width: min(100%, calc(100vw - 8px));
+    max-height: calc(100dvh - 8px);
+    border-radius: 20px 20px 0 0;
+    padding: 12px;
   }
 
   .room-booking-confirm-overlay {
@@ -1331,9 +1331,68 @@
     align-items: stretch;
   }
 
+  .room-booking-modal-head {
+    gap: 10px;
+  }
+
+  .room-booking-modal-head .muted {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .room-booking-editor-title {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  .room-booking-modal-actions {
+    gap: 8px;
+  }
+
+  .room-booking-modal-actions > .btn {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .room-booking-modal-body {
+    margin-top: 12px;
+    gap: 10px;
+  }
+
   .room-booking-details-grid,
   .room-booking-confirm-grid {
     grid-template-columns: 1fr;
+  }
+
+  .room-booking-detail-card,
+  .room-booking-detail-panel {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .room-booking-detail-card strong,
+  .room-booking-detail-row strong,
+  .room-booking-detail-row span:last-child {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .room-booking-detail-row {
+    gap: 6px;
+  }
+
+  .room-booking-detail-row span:first-child {
+    font-size: 12px;
+  }
+
+  .room-booking-detail-row strong,
+  .room-booking-detail-row span:last-child {
+    font-size: 14px;
+    line-height: 1.35;
+    text-align: left;
+    width: 100%;
   }
 
   .room-booking-detail-notes strong {

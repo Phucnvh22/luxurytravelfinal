@@ -1884,16 +1884,6 @@ export default function AdminRoomBookingsPage() {
                       {actionLoading === 'check-out' ? 'Checking out...' : 'Check-out'}
                     </button>
                   ) : null}
-                  {bookingModalMode === 'details' && selectedBooking && selectedRoom ? (
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() => void handleMarkReady()}
-                      disabled={actionLoading !== null || selectedRoomStatus !== 'NEEDS_CLEANING'}
-                    >
-                      {actionLoading === 'mark-ready' ? 'Updating...' : 'Done cleaning'}
-                    </button>
-                  ) : null}
                   {bookingModalMode === 'details' &&
                   selectedBooking &&
                   selectedBooking.status !== 'AIRBNB_BLOCK' &&
