@@ -37,7 +37,11 @@ export default function OAuth2SuccessPage() {
         ? '/cleaner'
         : role === 'MAINTENANCE'
           ? '/maintenance'
-          : sessionStorage.getItem('postLoginRedirect') || '/'
+          : role === 'ADMIN'
+            ? (sessionStorage.getItem('postLoginRedirect') || '/') === '/'
+              ? '/admin'
+              : (sessionStorage.getItem('postLoginRedirect') || '/')
+            : sessionStorage.getItem('postLoginRedirect') || '/'
     sessionStorage.removeItem('postLoginRedirect')
     // Force a full reload so auth-dependent data refetches reliably after OAuth callback.
     window.location.replace(redirectTo)

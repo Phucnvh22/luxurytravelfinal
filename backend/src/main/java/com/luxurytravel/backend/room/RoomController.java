@@ -60,6 +60,20 @@ public class RoomController {
         return roomService.resolveRepair(id, user);
     }
 
+    @PostMapping("/{id}/mark-ooi")
+    public Room markOutOfInventory(
+            @PathVariable Long id,
+            @Valid @RequestBody RoomOOIRequest request,
+            @AuthenticationPrincipal User user
+    ) {
+        return roomService.markOutOfInventory(id, request.getDetails(), user);
+    }
+
+    @PostMapping("/{id}/clear-ooi")
+    public Room clearOutOfInventory(@PathVariable Long id, @AuthenticationPrincipal User user) {
+        return roomService.clearOutOfInventory(id, user);
+    }
+
     @PostMapping("/{id}/assign-cleaner")
     public Room assignCleaner(@PathVariable Long id, @RequestBody RoomCleanerAssignmentRequest request) {
         return roomService.assignCleaner(id, request == null ? null : request.getCleanerId());

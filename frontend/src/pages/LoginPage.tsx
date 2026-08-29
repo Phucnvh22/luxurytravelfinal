@@ -38,7 +38,14 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       })
       login(data)
-      const nextPath = data.role === 'CLEANER' ? '/cleaner' : data.role === 'MAINTENANCE' ? '/maintenance' : redirectTo
+      const nextPath =
+        data.role === 'CLEANER'
+          ? '/cleaner'
+          : data.role === 'MAINTENANCE'
+            ? '/maintenance'
+            : data.role === 'ADMIN'
+              ? redirectTo === '/' ? '/admin' : redirectTo
+              : redirectTo
       hardRedirectAfterLogin(nextPath)
     } catch (err: unknown) {
       if (err instanceof Error) {

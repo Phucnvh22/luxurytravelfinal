@@ -5,7 +5,7 @@ import type { PublicRoomCalendarBooking, PublicRoomCalendarResponse, PublicRoomC
 import './pages.css'
 import './admin-room-bookings.css'
 
-type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'KAYSTAY_BLOCK' | 'SOPHIA_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT'
+type VisibleRoomBookingStatus = 'CONFIRMED' | 'TEMP_BLOCK' | 'AIRBNB_BLOCK' | 'KAYSTAY_BLOCK' | 'SOPHIA_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT'
 
 type StatusMeta = {
   label: string
@@ -16,6 +16,7 @@ const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
+  TEMP_BLOCK: { label: 'Locked', toneClass: 'temp-block' },
   AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
   KAYSTAY_BLOCK: { label: 'KayStay', toneClass: 'kaystay-block' },
   SOPHIA_BLOCK: { label: 'Sophia', toneClass: 'sophia-block' },
@@ -109,6 +110,7 @@ function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingSt
     status === 'CHECKED_IN' ||
     status === 'CHECKED_OUT' ||
     status === 'CONFIRMED' ||
+    status === 'TEMP_BLOCK' ||
     status === 'AIRBNB_BLOCK' ||
     status === 'KAYSTAY_BLOCK' ||
     status === 'SOPHIA_BLOCK'

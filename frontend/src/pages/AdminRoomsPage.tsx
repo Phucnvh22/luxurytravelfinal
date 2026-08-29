@@ -42,6 +42,13 @@ function formatGuestCapacity(maxAdults?: number, maxChildren?: number) {
   return children > 0 ? `${adults} / ${children}` : `${adults}`
 }
 
+function getOperationalStatusLabel(status?: Room['operationalStatus']) {
+  if (status === 'CHECKED_IN') return 'Checked in'
+  if (status === 'NEEDS_CLEANING') return 'Needs cleaning'
+  if (status === 'OOI') return 'OOI'
+  return 'Ready'
+}
+
 async function copyText(text: string) {
   if (window.isSecureContext && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text)
@@ -81,6 +88,10 @@ export default function AdminRoomsPage() {
   const [repairDetails, setRepairDetails] = useState('')
   const [repairSaving, setRepairSaving] = useState(false)
   const [repairError, setRepairError] = useState<string | null>(null)
+  const [ooiRoom, setOoiRoom] = useState<Room | null>(null)
+  const [ooiDetails, setOoiDetails] = useState('')
+  const [ooiSaving, setOoiSaving] = useState(false)
+  const [ooiError, setOoiError] = useState<string | null>(null)
   const loadingRef = useRef(false)
 
   const sortedRooms = useMemo(() => {
@@ -266,6 +277,18 @@ export default function AdminRoomsPage() {
     setRepairError(null)
   }
 
+  function openOOIModal(room: Room) {
+    setOoiRoom(room)
+    setOoiDetails(room.ooiDetails || '')
+    setOoiError(null)
+  }
+
+  function closeOOIModal() {
+    setOoiRoom(null)
+    setOoiDetails('')
+    setOoiError(null)
+  }
+
   async function saveRepair() {
     if (!repairRoom) return
     setRepairSaving(true)
@@ -294,6 +317,43 @@ export default function AdminRoomsPage() {
       setError(getErrorMessage(e, 'Khong the resolve repair'))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  async function toggleOOI(room: Room) {
+    const isOOI = room.operationalStatus === 'OOI'
+    if (!isOOI) {
+      openOOIModal(room)
+      return
+    }
+    const confirmed = window.confirm(`Clear OOI for ${room.code}?`)
+    if (!confirmed) return
+    setBusyId(room.id)
+    try {
+      await apiFetch<Room>(`/api/admin/rooms/${room.id}/clear-ooi`, { method: 'POST' })
+      await load({ silent: true })
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Khong the update OOI status'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function saveOOI() {
+    if (!ooiRoom) return
+    setOoiSaving(true)
+    setOoiError(null)
+    try {
+      await apiFetch<Room>(`/api/admin/rooms/${ooiRoom.id}/mark-ooi`, {
+        method: 'POST',
+        body: JSON.stringify({ details: ooiDetails }),
+      })
+      closeOOIModal()
+      await load({ silent: true })
+    } catch (e: unknown) {
+      setOoiError(getErrorMessage(e, 'Khong the mark OOI'))
+    } finally {
+      setOoiSaving(false)
     }
   }
 
@@ -354,6 +414,101 @@ export default function AdminRoomsPage() {
         ) : (
           <div className="card detail-card">
             <div style={{ fontWeight: 800, marginBottom: 10 }}>Villa list</div>
+            <div className="admin-room-mobile-grid">
+              {sortedRooms.map((room) => (
+                <article key={`mobile-${room.id}`} className="admin-room-mobile-card">
+                  <div className="admin-room-mobile-card-head">
+                    <label className="admin-room-mobile-check">
+                      <input
+                        type="checkbox"
+                        checked={selectedRoomCodes.includes(room.code)}
+                        onChange={(e) =>
+                          setSelectedRoomCodes((current) =>
+                            e.target.checked ? [...current, room.code] : current.filter((code) => code !== room.code),
+                          )
+                        }
+                        aria-label={`Select ${room.code}`}
+                      />
+                      <span className="admin-room-mobile-code">{room.code}</span>
+                    </label>
+                    <span className="admin-room-mobile-type">{room.type}</span>
+                  </div>
+
+                  <div className="admin-room-mobile-meta">
+                    <div className="admin-room-mobile-meta-row">
+                      <span>Guests</span>
+                      <strong>{formatGuestCapacity(room.maxAdults, room.maxChildren)}</strong>
+                    </div>
+                    <div className="admin-room-mobile-meta-row">
+                      <span>Status</span>
+                      <div className="admin-room-status-stack">
+                        <span className={`admin-room-status-badge ${room.active ? 'operating' : 'paused'}`}>
+                          {room.active ? 'Operating' : 'Paused'}
+                        </span>
+                        <span className={`admin-room-status-badge ${room.operationalStatus === 'OOI' ? 'ooi' : 'operational'}`}>
+                          {getOperationalStatusLabel(room.operationalStatus)}
+                        </span>
+                        {room.repairNeeded ? (
+                          <span className="admin-room-status-badge needs-repair">Needs repair</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-room-actions">
+                    <button
+                      className="btn admin-room-action-btn admin-room-action-btn--ghost"
+                      type="button"
+                      onClick={() => void copySingleCalendarLink(room.code)}
+                    >
+                      Copy link
+                    </button>
+                    <button
+                      className="btn admin-room-action-btn admin-room-action-btn--primary"
+                      type="button"
+                      onClick={() => handleEdit(room)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className={`btn admin-room-action-btn ${room.operationalStatus === 'OOI' ? 'admin-room-action-btn--warning' : 'admin-room-action-btn--ghost'}`}
+                      type="button"
+                      onClick={() => void toggleOOI(room)}
+                      disabled={busyId === room.id}
+                    >
+                      {busyId === room.id ? '...' : room.operationalStatus === 'OOI' ? 'Clear OOI' : 'Mark OOI'}
+                    </button>
+                    <button
+                      className={`btn admin-room-action-btn ${room.repairNeeded ? 'admin-room-action-btn--success' : 'admin-room-action-btn--ghost'}`}
+                      type="button"
+                      onClick={() => (room.repairNeeded ? void resolveRepair(room) : openRepairModal(room))}
+                      disabled={busyId === room.id}
+                    >
+                      {room.repairNeeded ? 'Done repair' : 'Report repair'}
+                    </button>
+                    <button
+                      className="btn admin-room-action-btn admin-room-action-btn--danger"
+                      type="button"
+                      onClick={() => void remove(room.id)}
+                      disabled={busyId === room.id}
+                    >
+                      {busyId === room.id ? '...' : 'Delete'}
+                    </button>
+                  </div>
+
+                  {room.repairNeeded ? (
+                    <div className="admin-room-repair-note">
+                      Repair: {room.repairDetails || 'Pending detail'}
+                    </div>
+                  ) : null}
+                  {room.operationalStatus === 'OOI' && room.ooiDetails ? (
+                    <div className="admin-room-repair-note">
+                      OOI: {room.ooiDetails}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
             <div className="table-wrap">
               <table className="table">
                 <thead>
@@ -370,13 +525,9 @@ export default function AdminRoomsPage() {
                     </th>
                     <th style={{ width: 150 }}>Code</th>
                     <th style={{ width: 120 }}>Type</th>
-                    <th style={{ width: 190 }}>Host</th>
-                    <th>Villa</th>
                     <th style={{ width: 90 }}>Guests</th>
-                    <th style={{ width: 160 }}>Location</th>
                     <th style={{ width: 120 }}>Status</th>
-                    <th>Notes</th>
-                    <th style={{ width: 150 }}>Actions</th>
+                    <th style={{ width: 280 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -407,68 +558,71 @@ export default function AdminRoomsPage() {
                         )}
                       </td>
                       <td>{room.type}</td>
-                      <td>{room.host || '-'}</td>
-                      <td>
-                        <div style={{ fontWeight: 700 }}>{room.name}</div>
-                        <div className="muted" style={{ fontSize: 12 }}>
-                          {room.bedroomLayout || '-'}
-                        </div>
-                      </td>
                       <td>{formatGuestCapacity(room.maxAdults, room.maxChildren)}</td>
-                      <td>{room.location || '-'}</td>
                       <td>
                         <div className="admin-room-status-stack">
                           <span className={`admin-room-status-badge ${room.active ? 'operating' : 'paused'}`}>
                             {room.active ? 'Operating' : 'Paused'}
+                          </span>
+                          <span className={`admin-room-status-badge ${room.operationalStatus === 'OOI' ? 'ooi' : 'operational'}`}>
+                            {getOperationalStatusLabel(room.operationalStatus)}
                           </span>
                           {room.repairNeeded ? (
                             <span className="admin-room-status-badge needs-repair">Needs repair</span>
                           ) : null}
                         </div>
                       </td>
-                      <td>
-                        <div>{room.notes || '-'}</div>
+                      <td className="admin-room-actions-cell">
+                        <div className="admin-room-actions">
+                          <button
+                            className="btn admin-room-action-btn admin-room-action-btn--ghost"
+                            type="button"
+                            onClick={() => void copySingleCalendarLink(room.code)}
+                          >
+                            Copy link
+                          </button>
+                          <button
+                            className="btn admin-room-action-btn admin-room-action-btn--primary"
+                            type="button"
+                            onClick={() => handleEdit(room)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className={`btn admin-room-action-btn ${room.operationalStatus === 'OOI' ? 'admin-room-action-btn--warning' : 'admin-room-action-btn--ghost'}`}
+                            type="button"
+                            onClick={() => void toggleOOI(room)}
+                            disabled={busyId === room.id}
+                          >
+                            {busyId === room.id ? '...' : room.operationalStatus === 'OOI' ? 'Clear OOI' : 'Mark OOI'}
+                          </button>
+                          <button
+                            className={`btn admin-room-action-btn ${room.repairNeeded ? 'admin-room-action-btn--success' : 'admin-room-action-btn--ghost'}`}
+                            type="button"
+                            onClick={() => (room.repairNeeded ? void resolveRepair(room) : openRepairModal(room))}
+                            disabled={busyId === room.id}
+                          >
+                            {room.repairNeeded ? 'Done repair' : 'Report repair'}
+                          </button>
+                          <button
+                            className="btn admin-room-action-btn admin-room-action-btn--danger"
+                            type="button"
+                            onClick={() => void remove(room.id)}
+                            disabled={busyId === room.id}
+                          >
+                            {busyId === room.id ? '...' : 'Delete'}
+                          </button>
+                        </div>
                         {room.repairNeeded ? (
                           <div className="admin-room-repair-note">
                             Repair: {room.repairDetails || 'Pending detail'}
                           </div>
                         ) : null}
-                      </td>
-                      <td>
-                        <button
-                          className="btn"
-                          style={{ padding: '4px 8px', fontSize: 12, marginRight: 8 }}
-                          type="button"
-                          onClick={() => void copySingleCalendarLink(room.code)}
-                        >
-                          Copy link
-                        </button>
-                        <button
-                          className="btn"
-                          style={{ padding: '4px 8px', fontSize: 12, marginRight: 8 }}
-                          type="button"
-                          onClick={() => handleEdit(room)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn"
-                          style={{ padding: '4px 8px', fontSize: 12, marginRight: 8 }}
-                          type="button"
-                          onClick={() => (room.repairNeeded ? void resolveRepair(room) : openRepairModal(room))}
-                          disabled={busyId === room.id}
-                        >
-                          {room.repairNeeded ? 'Done repair' : 'Report repair'}
-                        </button>
-                        <button
-                          className="btn danger"
-                          style={{ padding: '4px 8px', fontSize: 12 }}
-                          type="button"
-                          onClick={() => void remove(room.id)}
-                          disabled={busyId === room.id}
-                        >
-                          {busyId === room.id ? '...' : 'Delete'}
-                        </button>
+                        {room.operationalStatus === 'OOI' && room.ooiDetails ? (
+                          <div className="admin-room-repair-note">
+                            OOI: {room.ooiDetails}
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -697,6 +851,50 @@ export default function AdminRoomsPage() {
                     {repairSaving ? 'Saving...' : 'Report repair'}
                   </button>
                   <button className="btn" type="button" onClick={closeRepairModal}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {ooiRoom ? (
+          <div className="admin-rooms-modal-overlay" role="dialog" aria-modal="true" onClick={closeOOIModal}>
+            <div className="admin-rooms-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-rooms-modal-head">
+                <div>
+                  <div className="admin-rooms-modal-title">Mark villa as OOI</div>
+                  <div className="muted">{ooiRoom.code} • {ooiRoom.name}</div>
+                </div>
+                <button className="btn" type="button" onClick={closeOOIModal}>
+                  Close
+                </button>
+              </div>
+
+              <div className="admin-rooms-modal-body">
+                <label className="field">
+                  <div className="field-label">OOI detail</div>
+                  <textarea
+                    className="textarea"
+                    value={ooiDetails}
+                    onChange={(e) => setOoiDetails(e.target.value)}
+                    placeholder="Ví dụ: hồ bơi đang chống thấm, máy lạnh phòng master hỏng nặng, villa đang sửa hệ điện..."
+                  />
+                </label>
+
+                {ooiError ? (
+                  <div className="card error">
+                    <div className="error-title">Could not save</div>
+                    <div className="muted">{ooiError}</div>
+                  </div>
+                ) : null}
+
+                <div className="admin-rooms-modal-actions">
+                  <button className="btn primary" type="button" onClick={() => void saveOOI()} disabled={ooiSaving}>
+                    {ooiSaving ? 'Saving...' : 'Mark OOI'}
+                  </button>
+                  <button className="btn" type="button" onClick={closeOOIModal}>
                     Cancel
                   </button>
                 </div>

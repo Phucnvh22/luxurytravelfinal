@@ -88,6 +88,9 @@ public class RoomBookingService {
     @Transactional
     public RoomBookingResponse update(Long id, RoomBookingRequest request) {
         RoomBooking booking = findEntity(id);
+        if (booking.getStatus() == RoomBookingStatus.TEMP_BLOCK && request.getStatus() == RoomBookingStatus.TEMP_BLOCK) {
+            request.setStatus(RoomBookingStatus.CONFIRMED);
+        }
         apply(booking, request, id);
         return RoomBookingResponse.from(roomBookingRepository.save(booking));
     }
@@ -103,6 +106,9 @@ public class RoomBookingService {
         RoomBooking booking = findEntity(id);
         if (booking.getStatus() == RoomBookingStatus.CANCELLED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Booking has been cancelled");
+        }
+        if (booking.getStatus() == RoomBookingStatus.TEMP_BLOCK) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Temporary lock cannot be checked in");
         }
         if (isExternalCalendarBlock(booking.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "External calendar block cannot be checked in");
@@ -227,6 +233,9 @@ public class RoomBookingService {
 
         if (!room.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This villa is currently inactive");
+        }
+        if (room.getOperationalStatus() == RoomOperationalStatus.OOI) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This villa is marked OOI and cannot be sold");
         }
 
         if (checkInAt.toLocalDate().isBefore(today)

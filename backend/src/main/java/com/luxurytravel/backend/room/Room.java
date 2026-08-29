@@ -116,6 +116,27 @@ public class Room {
     @Column(length = 255)
     private String repairResolvedByName;
 
+    @Column(length = 2000)
+    private String ooiDetails = "";
+
+    @Column
+    private Instant ooiMarkedAt;
+
+    @Column(length = 100)
+    private String ooiMarkedByUsername;
+
+    @Column(length = 255)
+    private String ooiMarkedByName;
+
+    @Column
+    private Instant ooiClearedAt;
+
+    @Column(length = 100)
+    private String ooiClearedByUsername;
+
+    @Column(length = 255)
+    private String ooiClearedByName;
+
     @Column
     private Long assignedCleanerId;
 
@@ -395,6 +416,62 @@ public class Room {
 
     public void setRepairResolvedByName(String repairResolvedByName) {
         this.repairResolvedByName = repairResolvedByName;
+    }
+
+    public String getOoiDetails() {
+        return ooiDetails;
+    }
+
+    public void setOoiDetails(String ooiDetails) {
+        this.ooiDetails = ooiDetails;
+    }
+
+    public Instant getOoiMarkedAt() {
+        return ooiMarkedAt;
+    }
+
+    public void setOoiMarkedAt(Instant ooiMarkedAt) {
+        this.ooiMarkedAt = ooiMarkedAt;
+    }
+
+    public String getOoiMarkedByUsername() {
+        return ooiMarkedByUsername;
+    }
+
+    public void setOoiMarkedByUsername(String ooiMarkedByUsername) {
+        this.ooiMarkedByUsername = ooiMarkedByUsername;
+    }
+
+    public String getOoiMarkedByName() {
+        return ooiMarkedByName;
+    }
+
+    public void setOoiMarkedByName(String ooiMarkedByName) {
+        this.ooiMarkedByName = ooiMarkedByName;
+    }
+
+    public Instant getOoiClearedAt() {
+        return ooiClearedAt;
+    }
+
+    public void setOoiClearedAt(Instant ooiClearedAt) {
+        this.ooiClearedAt = ooiClearedAt;
+    }
+
+    public String getOoiClearedByUsername() {
+        return ooiClearedByUsername;
+    }
+
+    public void setOoiClearedByUsername(String ooiClearedByUsername) {
+        this.ooiClearedByUsername = ooiClearedByUsername;
+    }
+
+    public String getOoiClearedByName() {
+        return ooiClearedByName;
+    }
+
+    public void setOoiClearedByName(String ooiClearedByName) {
+        this.ooiClearedByName = ooiClearedByName;
     }
 
     public Long getAssignedCleanerId() {

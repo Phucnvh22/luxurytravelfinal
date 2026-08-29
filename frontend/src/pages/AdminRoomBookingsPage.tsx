@@ -20,9 +20,17 @@ type StatusMeta = {
   toneClass: string
 }
 
-type RoomOperationalStatus = 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING'
+type RoomOperationalStatus = 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING' | 'OOI'
 
-type VisibleRoomBookingStatus = 'CONFIRMED' | 'AIRBNB_BLOCK' | 'KAYSTAY_BLOCK' | 'SOPHIA_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
+type VisibleRoomBookingStatus =
+  | 'CONFIRMED'
+  | 'TEMP_BLOCK'
+  | 'AIRBNB_BLOCK'
+  | 'KAYSTAY_BLOCK'
+  | 'SOPHIA_BLOCK'
+  | 'CHECKED_IN'
+  | 'CHECKED_OUT'
+  | 'CANCELLED'
 type BookingModalMode = 'create' | 'details' | 'edit'
 type ConfirmationLanguage = 'en' | 'vi'
 type ScheduleBooking = RoomBookingResponse & {
@@ -50,6 +58,7 @@ type PendingMoveConfirmation = {
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
+  TEMP_BLOCK: { label: 'Temp lock', toneClass: 'temp-block' },
   AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
   KAYSTAY_BLOCK: { label: 'KayStay', toneClass: 'kaystay-block' },
   SOPHIA_BLOCK: { label: 'Sophia', toneClass: 'sophia-block' },
@@ -57,7 +66,7 @@ const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
   CANCELLED: { label: 'Cancelled', toneClass: 'cancelled' },
 }
-const MOVABLE_BOOKING_STATUSES = new Set<VisibleRoomBookingStatus>(['CONFIRMED', 'CHECKED_IN'])
+const MOVABLE_BOOKING_STATUSES = new Set<VisibleRoomBookingStatus>(['CONFIRMED', 'TEMP_BLOCK', 'CHECKED_IN'])
 
 const ALL_STATUSES = Object.keys(STATUS_META) as VisibleRoomBookingStatus[]
 const FALLBACK_ROOM_CODE = 'V107'
@@ -68,6 +77,7 @@ const STANDARD_CHECK_OUT_HOUR = 11
 const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoomBookingStatus, string>> = {
   en: {
     CONFIRMED: 'Reserved',
+    TEMP_BLOCK: 'Temp lock',
     AIRBNB_BLOCK: 'AirBnbBlock',
     KAYSTAY_BLOCK: 'KayStay',
     SOPHIA_BLOCK: 'Sophia',
@@ -77,6 +87,7 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
   },
   vi: {
     CONFIRMED: 'Reserved',
+    TEMP_BLOCK: 'Tạm khóa',
     AIRBNB_BLOCK: 'AirBnbBlock',
     KAYSTAY_BLOCK: 'KayStay',
     SOPHIA_BLOCK: 'Sophia',
@@ -90,10 +101,11 @@ const ROOM_OPERATIONAL_STATUS_META: Record<RoomOperationalStatus, StatusMeta> = 
   READY: { label: 'Ready', toneClass: 'ready' },
   CHECKED_IN: { label: 'Checked-in', toneClass: 'occupied' },
   NEEDS_CLEANING: { label: 'Needs cleaning', toneClass: 'needs-cleaning' },
+  OOI: { label: 'OOI', toneClass: 'ooi' },
 }
 
 function normalizeRoomOperationalStatus(status?: Room['operationalStatus']): RoomOperationalStatus {
-  if (status === 'CHECKED_IN' || status === 'NEEDS_CLEANING') return status
+  if (status === 'CHECKED_IN' || status === 'NEEDS_CLEANING' || status === 'OOI') return status
   return 'READY'
 }
 
@@ -238,6 +250,7 @@ function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingSt
     status === 'CHECKED_IN' ||
     status === 'CHECKED_OUT' ||
     status === 'CONFIRMED' ||
+    status === 'TEMP_BLOCK' ||
     status === 'AIRBNB_BLOCK' ||
     status === 'KAYSTAY_BLOCK' ||
     status === 'SOPHIA_BLOCK'
@@ -542,6 +555,8 @@ export default function AdminRoomBookingsPage() {
   const [dropTargetDateKey, setDropTargetDateKey] = useState<string | null>(null)
   const [movingBookingId, setMovingBookingId] = useState<number | null>(null)
   const [pendingMoveConfirmation, setPendingMoveConfirmation] = useState<PendingMoveConfirmation | null>(null)
+  const [repairInsightRoomCode, setRepairInsightRoomCode] = useState<string | null>(null)
+  const [ooiInsightRoomCode, setOoiInsightRoomCode] = useState<string | null>(null)
   const [touchDrag, setTouchDrag] = useState<TouchDragState | null>(null)
   const loadingRef = useRef(false)
   const scheduleScrollRef = useRef<HTMLDivElement | null>(null)
@@ -583,6 +598,14 @@ export default function AdminRoomBookingsPage() {
   const selectedRoom = useMemo(
     () => (selectedBooking ? roomByCode[selectedBooking.roomCode] ?? null : null),
     [roomByCode, selectedBooking],
+  )
+  const repairInsightRoom = useMemo(
+    () => (repairInsightRoomCode ? roomByCode[repairInsightRoomCode] ?? null : null),
+    [repairInsightRoomCode, roomByCode],
+  )
+  const ooiInsightRoom = useMemo(
+    () => (ooiInsightRoomCode ? roomByCode[ooiInsightRoomCode] ?? null : null),
+    [ooiInsightRoomCode, roomByCode],
   )
   const draggedBooking = useMemo(
     () => bookings.find((booking) => booking.id === draggingBookingId) ?? null,
@@ -774,7 +797,7 @@ export default function AdminRoomBookingsPage() {
       if (!visibleStatus) return acc
       acc[visibleStatus] = (acc[visibleStatus] ?? 0) + 1
       return acc
-    }, { CONFIRMED: 0, AIRBNB_BLOCK: 0, KAYSTAY_BLOCK: 0, SOPHIA_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
+    }, { CONFIRMED: 0, TEMP_BLOCK: 0, AIRBNB_BLOCK: 0, KAYSTAY_BLOCK: 0, SOPHIA_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
   }, [bookings])
 
   const filteredBookings = useMemo(() => {
@@ -853,6 +876,72 @@ export default function AdminRoomBookingsPage() {
   const todayDateKey = toIsoDate(startOfDay(today))
   const isTodayInsideMonth = today >= monthStart && today < addDays(monthEnd, 1)
   const todayMarkerLeft = isTodayInsideMonth ? ((today.getTime() - trackStartMs) / trackDurationMs) * 100 : null
+  const realtimeSummaryItems = useMemo(() => {
+    const items = {
+      inHouse: 0,
+      awaitingCheckout: 0,
+      upcoming: 0,
+      unpaid: 0,
+      paid: 0,
+      depositPaid: 0,
+      tempLock: 0,
+    }
+
+    bookings.forEach((booking) => {
+      const visibleStatus = normalizeDisplayStatus(booking.status)
+      if (!visibleStatus) return
+
+      const checkInDateKey = toDateInputValue(booking.checkInAt)
+      const checkOutDateKey = toDateInputValue(booking.checkOutAt)
+      const remaining = calculateRemainingAmount(booking.villaRate, booking.depositAmount, booking.remainingAmount) ?? 0
+      const deposit = booking.depositAmount ?? 0
+      const isFinancialBooking =
+        visibleStatus !== 'TEMP_BLOCK' &&
+        visibleStatus !== 'AIRBNB_BLOCK' &&
+        visibleStatus !== 'KAYSTAY_BLOCK' &&
+        visibleStatus !== 'SOPHIA_BLOCK' &&
+        visibleStatus !== 'CANCELLED'
+
+      if (visibleStatus === 'CHECKED_IN') {
+        items.inHouse += 1
+      }
+      if (
+        checkOutDateKey === todayDateKey &&
+        visibleStatus !== 'TEMP_BLOCK' &&
+        visibleStatus !== 'AIRBNB_BLOCK' &&
+        visibleStatus !== 'KAYSTAY_BLOCK' &&
+        visibleStatus !== 'SOPHIA_BLOCK' &&
+        visibleStatus !== 'CANCELLED'
+      ) {
+        items.awaitingCheckout += 1
+      }
+      if (visibleStatus === 'CONFIRMED' && checkInDateKey >= todayDateKey) {
+        items.upcoming += 1
+      }
+      if (isFinancialBooking && remaining > 0.001) {
+        items.unpaid += 1
+      }
+      if (isFinancialBooking && (booking.villaRate ?? 0) > 0 && remaining <= 0.001) {
+        items.paid += 1
+      }
+      if (isFinancialBooking && deposit > 0.001) {
+        items.depositPaid += 1
+      }
+      if (visibleStatus === 'TEMP_BLOCK') {
+        items.tempLock += 1
+      }
+    })
+
+    return [
+      { key: 'in-house', label: 'Đang ở', value: items.inHouse, toneClass: 'in-house' },
+      { key: 'awaiting-checkout', label: 'Chờ checkout', value: items.awaitingCheckout, toneClass: 'awaiting-checkout' },
+      { key: 'upcoming', label: 'Sắp tới', value: items.upcoming, toneClass: 'upcoming' },
+      { key: 'unpaid', label: 'Chưa thanh toán', value: items.unpaid, toneClass: 'unpaid' },
+      { key: 'paid', label: 'Đã thanh toán', value: items.paid, toneClass: 'paid' },
+      { key: 'deposit-paid', label: 'Đã thu cọc', value: items.depositPaid, toneClass: 'deposit-paid' },
+      { key: 'temp-lock', label: 'Tạm khóa', value: items.tempLock, toneClass: 'temp-lock' },
+    ] as const
+  }, [bookings, todayDateKey])
 
   useEffect(() => {
     if (loading || rooms.length === 0 || !isTodayInsideMonth) return
@@ -1058,6 +1147,61 @@ export default function AdminRoomBookingsPage() {
     setShowConfirmInformation(false)
   }
 
+  const handleQuickLockBooking = async () => {
+    const validationError = validateQuickBookingSelection(quickSelection)
+    if (validationError) {
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'Could not lock villa',
+        message: validationError,
+      })
+      return
+    }
+    if (!quickSelection) return
+
+    const range = buildQuickBookingDateRange(quickSelection, STANDARD_CHECK_IN_HOUR, STANDARD_CHECK_OUT_HOUR)
+    if (!range) {
+      return
+    }
+
+    setActionLoading('lock')
+    setCalendarFeedback(null)
+    try {
+      const saved = await apiFetch<RoomBookingResponse>('/api/admin/room-bookings', {
+        method: 'POST',
+        body: JSON.stringify({
+          roomCode: quickSelection.roomCode,
+          guestName: 'Temporary lock',
+          source: 'Lock',
+          phone: '',
+          adults: 1,
+          children: 0,
+          checkInAt: range.checkInAt,
+          checkOutAt: range.checkOutAt,
+          status: 'TEMP_BLOCK',
+          notes: 'Locked directly from villa calendar.',
+        } satisfies RoomBookingRequest),
+      })
+      setQuickSelection(null)
+      setSelectedBookingId(saved.id)
+      setBookingModalMode(null)
+      await load({ silent: true })
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Villa locked',
+        message: `${roomByCode[saved.roomCode]?.name || saved.roomCode} is temporarily locked from ${formatDateOnly(saved.checkInAt)} to ${formatDateOnly(saved.checkOutAt)}.`,
+      })
+    } catch (e: unknown) {
+      setCalendarFeedback({
+        tone: 'error',
+        title: 'Could not lock villa',
+        message: getErrorMessage(e, 'Could not create temporary lock'),
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const openBookingDetails = (booking: RoomBookingResponse) => {
     setSelectedBookingId(booking.id)
     setBookingModalMode('details')
@@ -1186,6 +1330,9 @@ export default function AdminRoomBookingsPage() {
       remainingAmount,
       notes: form.notes?.trim() || '',
     }
+    if (editingId && selectedBooking?.status === 'TEMP_BLOCK' && payload.status === 'TEMP_BLOCK') {
+      payload.status = 'CONFIRMED'
+    }
     const checkInDateKey = toDateInputValue(payload.checkInAt)
     const checkOutDateKey = toDateInputValue(payload.checkOutAt)
     const currentSelectedCheckInDateKey = selectedBooking ? toDateInputValue(selectedBooking.checkInAt) : ''
@@ -1303,8 +1450,11 @@ export default function AdminRoomBookingsPage() {
 
   const handleCancelBooking = async () => {
     if (!selectedBooking) return
+    const isTempLock = selectedBooking.status === 'TEMP_BLOCK'
     const ok = window.confirm(
-      `Cancel booking #${selectedBooking.id} - ${selectedBooking.guestName || 'Guest'}?\nThis villa will be available for sale again immediately.`,
+      isTempLock
+        ? `Unlock temporary lock #${selectedBooking.id}?\nThis villa will be available for sale again immediately.`
+        : `Cancel booking #${selectedBooking.id} - ${selectedBooking.guestName || 'Guest'}?\nThis villa will be available for sale again immediately.`,
     )
     if (!ok) return
     setActionLoading('cancel')
@@ -1316,8 +1466,10 @@ export default function AdminRoomBookingsPage() {
       await load({ silent: true })
       setCalendarFeedback({
         tone: 'success',
-        title: 'Booking cancelled',
-        message: `Cancelled ${saved.guestName || '—'} at ${saved.roomCode}. The villa is now available again.`,
+        title: isTempLock ? 'Villa unlocked' : 'Booking cancelled',
+        message: isTempLock
+          ? `${saved.roomCode} is available again.`
+          : `Cancelled ${saved.guestName || '—'} at ${saved.roomCode}. The villa is now available again.`,
       })
     } catch (e: unknown) {
       setFormError(getErrorMessage(e, 'Could not cancel booking'))
@@ -1638,7 +1790,8 @@ export default function AdminRoomBookingsPage() {
                     const disabledDateKeys = bookedDateKeysByRoom[roomCode] ?? new Set<string>()
                     const selectedDateKeys =
                       quickSelection?.roomCode === roomCode ? new Set(quickSelection.dates) : new Set<string>()
-                    const needsCleaning = normalizeRoomOperationalStatus(room?.operationalStatus) === 'NEEDS_CLEANING'
+                    const operationalStatus = normalizeRoomOperationalStatus(room?.operationalStatus)
+                    const operationalStatusMeta = ROOM_OPERATIONAL_STATUS_META[operationalStatus]
                     const hasQuickAction =
                       quickSelection?.roomCode === roomCode &&
                       (quickSelection?.dates.length ?? 0) > 0 &&
@@ -1665,15 +1818,29 @@ export default function AdminRoomBookingsPage() {
                             ) : (
                               <div className="room-schedule-room-link muted">Pending</div>
                             )}
-                            {needsCleaning ? (
-                              <span className={`room-bookings-list-badge ${ROOM_OPERATIONAL_STATUS_META.NEEDS_CLEANING.toneClass}`}>
-                                {ROOM_OPERATIONAL_STATUS_META.NEEDS_CLEANING.label}
-                              </span>
+                            {operationalStatus !== 'READY' ? (
+                              operationalStatus === 'OOI' ? (
+                                <button
+                                  className={`room-bookings-list-badge ${operationalStatusMeta.toneClass} room-bookings-badge-button`}
+                                  type="button"
+                                  onClick={() => setOoiInsightRoomCode(roomCode)}
+                                >
+                                  {operationalStatusMeta.label}
+                                </button>
+                              ) : (
+                                <span className={`room-bookings-list-badge ${operationalStatusMeta.toneClass}`}>
+                                  {operationalStatusMeta.label}
+                                </span>
+                              )
                             ) : null}
                             {room?.repairNeeded ? (
-                              <span className="room-bookings-list-badge needs-repair">
+                              <button
+                                className="room-bookings-list-badge needs-repair room-bookings-badge-button"
+                                type="button"
+                                onClick={() => setRepairInsightRoomCode(roomCode)}
+                              >
                                 Needs repair
-                              </span>
+                              </button>
                             ) : null}
                           </div>
                         </div>
@@ -1747,10 +1914,13 @@ export default function AdminRoomBookingsPage() {
                                   {quickSelectionDates.length} night(s)
                                 </span>
                               </div>
+                              <button className="btn" type="button" onClick={() => void handleQuickLockBooking()} disabled={actionLoading === 'lock'}>
+                                {actionLoading === 'lock' ? 'Locking...' : 'Lock'}
+                              </button>
                               <button className="btn primary" type="button" onClick={openQuickCreateBookingModal}>
                                 Create booking
                               </button>
-                              <button className="btn" type="button" onClick={() => setQuickSelection(null)}>
+                              <button className="btn" type="button" onClick={() => setQuickSelection(null)} disabled={actionLoading === 'lock'}>
                                 Clear
                               </button>
                             </div>
@@ -1789,7 +1959,7 @@ export default function AdminRoomBookingsPage() {
                                   handleBookingDragStart(booking)
                                 }}
                                 onDragEnd={handleBookingDragEnd}
-                                title={canMoveBooking ? 'Drag to move this booking to another villa' : 'Only Reserved and Check-in bookings can be moved'}
+                                title={canMoveBooking ? 'Drag to move this booking to another villa' : 'Only Reserved, Temp lock and Check-in bookings can be moved'}
                               >
                                 <div className="room-booking-bar-title">{booking.source || 'Direct'}</div>
                                 <div className="room-booking-bar-meta">
@@ -1806,6 +1976,23 @@ export default function AdminRoomBookingsPage() {
               </div>
             )}
           </div>
+
+          {!loading && !error && bookings.length > 0 ? (
+            <div className="room-bookings-summary-bar" aria-label="Calendar summary">
+              <div className="room-bookings-summary-scroll">
+                {realtimeSummaryItems.map((item) => (
+                  <div
+                    key={item.key}
+                    className={`room-bookings-summary-pill ${item.toneClass}`}
+                  >
+                    <span className="room-bookings-summary-dot" />
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
         </div>
 
@@ -1842,6 +2029,7 @@ export default function AdminRoomBookingsPage() {
                       onClick={() => void handleCheckIn()}
                       disabled={
                         actionLoading !== null ||
+                        selectedBooking.status === 'TEMP_BLOCK' ||
                         selectedBooking.status === 'AIRBNB_BLOCK' ||
                         selectedBooking.status === 'KAYSTAY_BLOCK' ||
                         selectedBooking.status === 'SOPHIA_BLOCK' ||
@@ -1877,7 +2065,13 @@ export default function AdminRoomBookingsPage() {
                       disabled={actionLoading !== null}
                       style={{ color: '#991b1b' }}
                     >
-                      {actionLoading === 'cancel' ? 'Cancelling...' : 'Cancel booking'}
+                      {actionLoading === 'cancel'
+                        ? selectedBooking.status === 'TEMP_BLOCK'
+                          ? 'Unlocking...'
+                          : 'Cancelling...'
+                        : selectedBooking.status === 'TEMP_BLOCK'
+                          ? 'Unlock'
+                          : 'Cancel booking'}
                     </button>
                   ) : null}
                   {bookingModalMode === 'details' &&
@@ -1912,10 +2106,28 @@ export default function AdminRoomBookingsPage() {
                         <div className="muted">{selectedRoom.host}</div>
                       ) : null}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                        <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>
-                          {selectedRoomStatusMeta.label}
-                        </span>
-                        {selectedRoom?.repairNeeded ? <span className="room-bookings-list-badge needs-repair">Needs repair</span> : null}
+                        {selectedRoomStatus === 'OOI' && selectedRoom ? (
+                          <button
+                            className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass} room-bookings-badge-button`}
+                            type="button"
+                            onClick={() => setOoiInsightRoomCode(selectedRoom.code)}
+                          >
+                            {selectedRoomStatusMeta.label}
+                          </button>
+                        ) : (
+                          <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>
+                            {selectedRoomStatusMeta.label}
+                          </span>
+                        )}
+                        {selectedRoom?.repairNeeded ? (
+                          <button
+                            className="room-bookings-list-badge needs-repair room-bookings-badge-button"
+                            type="button"
+                            onClick={() => setRepairInsightRoomCode(selectedRoom.code)}
+                          >
+                            Needs repair
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                     <div className="room-booking-detail-card">
@@ -2532,6 +2744,124 @@ export default function AdminRoomBookingsPage() {
               <div className="room-booking-modal-body">
                 <div className={`room-bookings-feedback-popup-message ${calendarFeedback.tone}`}>
                   {calendarFeedback.message}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {repairInsightRoom ? (
+          <div
+            className="room-booking-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setRepairInsightRoomCode(null)}
+          >
+            <div className="room-booking-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+              <div className="room-booking-modal-head">
+                <div>
+                  <div className="room-bookings-feedback-popup-title">Repair detail</div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    {repairInsightRoom.code} • {repairInsightRoom.name || 'Villa'}
+                  </div>
+                </div>
+                <div className="room-booking-modal-actions">
+                  <button className="btn" type="button" onClick={() => setRepairInsightRoomCode(null)}>
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="room-booking-modal-body">
+                <div className="room-booking-detail-panel">
+                  <div className="room-booking-detail-row">
+                    <span>Operational status</span>
+                    <span className={`room-bookings-list-badge ${ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(repairInsightRoom.operationalStatus)].toneClass}`}>
+                      {ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(repairInsightRoom.operationalStatus)].label}
+                    </span>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Repair status</span>
+                    <strong>{repairInsightRoom.repairNeeded ? 'Needs repair' : 'No open repair'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Reported at</span>
+                    <strong>{repairInsightRoom.repairReportedAt ? formatDateTime(repairInsightRoom.repairReportedAt) : 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Reported by</span>
+                    <strong>{repairInsightRoom.repairReportedByName || repairInsightRoom.repairReportedByUsername || 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Detail</span>
+                    <strong>{repairInsightRoom.repairDetails || 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Location</span>
+                    <strong>{repairInsightRoom.location || 'Not set'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Host</span>
+                    <strong>{repairInsightRoom.host || 'Unassigned host'}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {ooiInsightRoom ? (
+          <div
+            className="room-booking-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setOoiInsightRoomCode(null)}
+          >
+            <div className="room-booking-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+              <div className="room-booking-modal-head">
+                <div>
+                  <div className="room-bookings-feedback-popup-title">OOI detail</div>
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    {ooiInsightRoom.code} • {ooiInsightRoom.name || 'Villa'}
+                  </div>
+                </div>
+                <div className="room-booking-modal-actions">
+                  <button className="btn" type="button" onClick={() => setOoiInsightRoomCode(null)}>
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="room-booking-modal-body">
+                <div className="room-booking-detail-panel">
+                  <div className="room-booking-detail-row">
+                    <span>Operational status</span>
+                    <span className={`room-bookings-list-badge ${ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(ooiInsightRoom.operationalStatus)].toneClass}`}>
+                      {ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(ooiInsightRoom.operationalStatus)].label}
+                    </span>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>OOI detail</span>
+                    <strong>{ooiInsightRoom.ooiDetails || 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Marked at</span>
+                    <strong>{ooiInsightRoom.ooiMarkedAt ? formatDateTime(ooiInsightRoom.ooiMarkedAt) : 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Marked by</span>
+                    <strong>{ooiInsightRoom.ooiMarkedByName || ooiInsightRoom.ooiMarkedByUsername || 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Cleared at</span>
+                    <strong>{ooiInsightRoom.ooiClearedAt ? formatDateTime(ooiInsightRoom.ooiClearedAt) : 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Cleared by</span>
+                    <strong>{ooiInsightRoom.ooiClearedByName || ooiInsightRoom.ooiClearedByUsername || 'Not yet'}</strong>
+                  </div>
+                  <div className="room-booking-detail-row">
+                    <span>Location</span>
+                    <strong>{ooiInsightRoom.location || 'Not set'}</strong>
+                  </div>
                 </div>
               </div>
             </div>

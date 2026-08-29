@@ -3,6 +3,7 @@ package com.luxurytravel.backend.roombooking;
 public enum RoomBookingStatus {
     PENDING,
     CONFIRMED,
+    TEMP_BLOCK,
     AIRBNB_BLOCK,
     KAYSTAY_BLOCK,
     SOPHIA_BLOCK,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
+import { buildAdminModules } from '../components/adminModules'
 import type {
   AdminRequestSummary,
   BookingResponse,
@@ -28,14 +29,6 @@ type DashboardData = {
   rooms: Room[]
   roomBookings: RoomBookingResponse[]
   requestSummary: AdminRequestSummary | null
-}
-
-type AdminModule = {
-  label: string
-  description: string
-  to: string
-  badge?: number
-  tone: 'emerald' | 'violet' | 'cyan' | 'amber'
 }
 
 function startOfMonth(date: Date) {
@@ -214,104 +207,7 @@ export default function AdminDashboardPage() {
     void load()
   }, [])
 
-  const modules = useMemo<AdminModule[]>(() => {
-    const pendingRequests = data.requestSummary?.totalPendingRequests ?? 0
-
-    return [
-      {
-        label: 'Overview',
-        description: 'Admin summary and website preview',
-        to: '/admin',
-        tone: 'emerald',
-      },
-      {
-        label: 'Room schedule',
-        description: 'Monthly room calendar and guest flow',
-        to: '/admin/room-bookings',
-        tone: 'violet',
-      },
-      {
-        label: 'Cleaning history',
-        description: 'Review room cleaning history by villa',
-        to: '/admin/room-cleaning-history',
-        tone: 'amber',
-      },
-      {
-        label: 'Repair history',
-        description: 'Review room repair history by villa',
-        to: '/admin/room-repair-history',
-        tone: 'violet',
-      },
-      {
-        label: 'Rooms',
-        description: 'Manage room inventory and room metadata',
-        to: '/admin/rooms',
-        tone: 'cyan',
-      },
-      {
-        label: 'Direct bookings',
-        description: 'Review direct website booking requests',
-        to: '/admin/bookings',
-        tone: 'amber',
-      },
-      {
-        label: 'Service requests',
-        description: 'Approve transport and travel services',
-        to: '/admin/service-requests',
-        badge: data.requestSummary?.pendingServiceRequests,
-        tone: 'emerald',
-      },
-      {
-        label: 'Experience requests',
-        description: 'Approve tours and experience requests',
-        to: '/admin/experience-requests',
-        badge: data.requestSummary?.pendingExperienceRequests,
-        tone: 'violet',
-      },
-      {
-        label: 'Destinations',
-        description: 'Edit destination cards shown on the website',
-        to: '/admin/destinations',
-        tone: 'cyan',
-      },
-      {
-        label: 'Services',
-        description: 'Manage service products and media',
-        to: '/admin/services',
-        tone: 'amber',
-      },
-      {
-        label: 'Experiences',
-        description: 'Manage experience cards and details',
-        to: '/admin/experiences',
-        tone: 'emerald',
-      },
-      {
-        label: 'Users',
-        description: 'Control user accounts and permissions',
-        to: '/admin/users',
-        tone: 'cyan',
-      },
-      {
-        label: 'Cleaner assignments',
-        description: 'Assign cleaners to villas and review workload',
-        to: '/admin/cleaners',
-        tone: 'emerald',
-      },
-      {
-        label: 'Sellers',
-        description: 'Track seller accounts and commission',
-        to: '/admin/sellers',
-        tone: 'violet',
-      },
-      {
-        label: 'Customer website',
-        description: pendingRequests > 0 ? `Preview live site with ${pendingRequests} pending requests in mind` : 'Preview the public website as a customer',
-        to: '/?customerPreview=1',
-        tone: 'amber',
-      },
-    ]
-  }, [data.requestSummary])
+  const modules = useMemo(() => buildAdminModules(data.requestSummary), [data.requestSummary])
 
   const filteredModules = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -343,51 +239,7 @@ export default function AdminDashboardPage() {
 
   return (
     <section className="section admin-dashboard-section">
-      <div className="container admin-dashboard-shell">
-        <aside className="admin-dashboard-sidebar">
-          <div className="admin-dashboard-brand">
-            <div className="admin-dashboard-brand-mark">DLT</div>
-            <div>
-              <div className="admin-dashboard-brand-label">Da Nang Luxury Travel</div>
-              <div className="admin-dashboard-brand-sub">Admin command center</div>
-            </div>
-          </div>
-
-          <div className="admin-dashboard-side-group">
-            <div className="admin-dashboard-side-title">Screens</div>
-            {modules.slice(0, 5).map((module) => (
-              <Link key={module.to} to={module.to} className="admin-dashboard-side-link">
-                <span>{module.label}</span>
-                {module.badge ? <span className="admin-dashboard-side-badge">{module.badge}</span> : null}
-              </Link>
-            ))}
-          </div>
-
-          <div className="admin-dashboard-side-group">
-            <div className="admin-dashboard-side-title">Booking management</div>
-            {modules.slice(5, 8).map((module) => (
-              <Link key={module.to} to={module.to} className="admin-dashboard-side-link">
-                <span>{module.label}</span>
-                {module.badge ? <span className="admin-dashboard-side-badge">{module.badge}</span> : null}
-              </Link>
-            ))}
-          </div>
-
-          <div className="admin-dashboard-side-group">
-            <div className="admin-dashboard-side-title">Content and people</div>
-            {modules.slice(8, 14).map((module) => (
-              <Link key={module.to} to={module.to} className="admin-dashboard-side-link">
-                <span>{module.label}</span>
-              </Link>
-            ))}
-          </div>
-
-          <Link to="/?customerPreview=1" className="admin-dashboard-preview-link">
-            Open customer website
-          </Link>
-        </aside>
-
-        <div className="admin-dashboard-main">
+      <div className="container admin-dashboard-main-shell">
           <div className="admin-dashboard-topbar">
             <div>
               <div className="admin-dashboard-eyebrow">Admin dashboard</div>
@@ -555,7 +407,6 @@ export default function AdminDashboardPage() {
               </div>
             </>
           )}
-        </div>
       </div>
     </section>
   )

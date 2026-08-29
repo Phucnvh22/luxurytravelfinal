@@ -178,6 +178,47 @@ public class RoomService {
     }
 
     @Transactional
+    public Room markOutOfInventory(Long id, String details, User user) {
+        Room room = findById(id);
+        if (room.getOperationalStatus() == RoomOperationalStatus.CHECKED_IN) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Checked-in villa cannot be marked OOI");
+        }
+        String normalizedDetails = details == null ? "" : details.trim();
+        if (normalizedDetails.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OOI details are required");
+        }
+
+        Instant now = Instant.now();
+        room.setOperationalStatus(RoomOperationalStatus.OOI);
+        room.setStatusUpdatedAt(now);
+        room.setOoiDetails(normalizedDetails);
+        room.setOoiMarkedAt(now);
+        room.setOoiMarkedByUsername(user == null ? null : user.getUsername());
+        room.setOoiMarkedByName(user == null ? null : user.getFullName());
+        room.setOoiClearedAt(null);
+        room.setOoiClearedByUsername(null);
+        room.setOoiClearedByName(null);
+        return roomRepository.save(room);
+    }
+
+    @Transactional
+    public Room clearOutOfInventory(Long id, User user) {
+        Room room = findById(id);
+        if (room.getOperationalStatus() != RoomOperationalStatus.OOI) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Villa is not marked OOI");
+        }
+
+        Instant now = Instant.now();
+        room.setOperationalStatus(RoomOperationalStatus.READY);
+        room.setStatusUpdatedAt(now);
+        room.setLastReadyAt(now);
+        room.setOoiClearedAt(now);
+        room.setOoiClearedByUsername(user == null ? null : user.getUsername());
+        room.setOoiClearedByName(user == null ? null : user.getFullName());
+        return roomRepository.save(room);
+    }
+
+    @Transactional
     public List<Room> findNeedsCleaning() {
         List<Room> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc();
         boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
@@ -256,6 +297,10 @@ public class RoomService {
         }
         if (room.getRepairDetails() == null) {
             room.setRepairDetails("");
+            changed = true;
+        }
+        if (room.getOoiDetails() == null) {
+            room.setOoiDetails("");
             changed = true;
         }
         return changed;

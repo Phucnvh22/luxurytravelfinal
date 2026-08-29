@@ -14,6 +14,7 @@ import AdminServiceRequestsPage from './pages/AdminServiceRequestsPage'
 import AdminServicesPage from './pages/AdminServicesPage'
 import AdminSellersPage from './pages/AdminSellersPage'
 import AdminUsersPage from './pages/AdminUsersPage'
+import AccountPage from './pages/AccountPage'
 import CleanerDashboardPage from './pages/CleanerDashboardPage'
 import DestinationPage from './pages/DestinationPage'
 import ExperienceCrudPage from './pages/ExperienceCrudPage'
@@ -135,6 +136,11 @@ export default function App() {
           <Route path="/me/requests" element={
             <ProtectedRoute>
               <MyRequestsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/account" element={
+            <ProtectedRoute>
+              <AccountPage />
             </ProtectedRoute>
           } />
           

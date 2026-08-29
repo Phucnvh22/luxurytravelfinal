@@ -138,7 +138,7 @@ export type Room = {
   wifiPassword: string
   doorPassword: string
   notes: string
-  operationalStatus?: 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING' | null
+  operationalStatus?: 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING' | 'OOI' | null
   statusUpdatedAt?: string
   lastCheckInMarkedAt?: string
   lastCheckOutMarkedAt?: string
@@ -155,6 +155,13 @@ export type Room = {
   repairResolvedAt?: string
   repairResolvedByUsername?: string
   repairResolvedByName?: string
+  ooiDetails?: string
+  ooiMarkedAt?: string
+  ooiMarkedByUsername?: string
+  ooiMarkedByName?: string
+  ooiClearedAt?: string
+  ooiClearedByUsername?: string
+  ooiClearedByName?: string
   assignedCleanerId?: number | null
 }
 
@@ -189,7 +196,16 @@ export type BookingCreateRequest = {
 
 export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED'
 
-export type RoomBookingStatus = 'PENDING' | 'CONFIRMED' | 'AIRBNB_BLOCK' | 'KAYSTAY_BLOCK' | 'SOPHIA_BLOCK' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'
+export type RoomBookingStatus =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'TEMP_BLOCK'
+  | 'AIRBNB_BLOCK'
+  | 'KAYSTAY_BLOCK'
+  | 'SOPHIA_BLOCK'
+  | 'CHECKED_IN'
+  | 'CHECKED_OUT'
+  | 'CANCELLED'
 
 export type RoomBookingRequest = {
   roomCode: string

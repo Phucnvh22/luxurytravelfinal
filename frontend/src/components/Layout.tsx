@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import TopNav from './TopNav'
 import BottomNav from './BottomNav'
 import LuxuryTravelLogo from './LuxuryTravelLogo'
+import AdminSidebar from './AdminSidebar'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n, type Lang } from '../contexts/I18nContext'
 import { apiFetch } from '../lib/api'
@@ -23,6 +24,13 @@ export default function Layout() {
   const serviceIconUrl = encodeURI('/—Pngtree—classic metallic desk bell with_21118389.png')
   const vf9ImageUrl = encodeURI(`${import.meta.env.BASE_URL}VF9.jpg`)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [adminSidebarCollapsed, setAdminSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('adminSidebarCollapsed') === '1'
+    } catch {
+      return false
+    }
+  })
 
   const [copyOpen, setCopyOpen] = useState(false)
   const [copyValue, setCopyValue] = useState('')
@@ -135,6 +143,15 @@ export default function Layout() {
 
   const showHeaderOnMobile = true
   const headerClass = `app-header ${!showHeaderOnMobile ? 'hide-on-mobile' : ''} ${isAdminRoute ? 'app-header-admin' : ''} ${!isAdminRoute ? 'with-topnav' : ''}`
+  const showAdminSidebar = isAdminRoute && isAdmin
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('adminSidebarCollapsed', adminSidebarCollapsed ? '1' : '0')
+    } catch {
+      return
+    }
+  }, [adminSidebarCollapsed])
 
   return (
     <div className="app-shell">
@@ -211,119 +228,7 @@ export default function Layout() {
 
             {mobileMenuOpen ? <button className="menu-overlay" type="button" aria-label="Close menu" onClick={closeMenu} /> : null}
             <div className={`menu ${mobileMenuOpen ? 'open' : ''}`}>
-              {isAdmin && (
-                <>
-                  <div className="menu-title">{t('menu_admin', 'Admin')}</div>
-                  <NavLink
-                    to="/admin"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                    end
-                  >
-                    {t('menu_dashboard', 'Dashboard')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/destinations"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_destinations', 'Destinations')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/services"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_services', 'Services')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/experiences"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_experiences', 'Experiences')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/users"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_users', 'Users')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/sellers"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_sellers', 'Sellers')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/cleaners"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    Cleaner Assignments
-                  </NavLink>
-                  <NavLink
-                    to="/admin/bookings"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_bookings', 'Bookings')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/room-bookings"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_room_bookings', 'Room Schedule')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/room-cleaning-history"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    Cleaning history
-                  </NavLink>
-                  <NavLink
-                    to="/admin/room-repair-history"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    Repair history
-                  </NavLink>
-                  <NavLink
-                    to="/admin/rooms"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    {t('menu_rooms', 'Rooms')}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/service-requests"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    <span>{t('menu_service_requests', 'Service Requests')}</span>
-                    {(requestSummary?.pendingServiceRequests ?? 0) > 0 ? (
-                      <span className="menu-item-badge">{requestSummary?.pendingServiceRequests}</span>
-                    ) : null}
-                  </NavLink>
-                  <NavLink
-                    to="/admin/experience-requests"
-                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
-                    onClick={closeMenu}
-                  >
-                    <span>{t('menu_experience_requests', 'Experience Requests')}</span>
-                    {(requestSummary?.pendingExperienceRequests ?? 0) > 0 ? (
-                      <span className="menu-item-badge">{requestSummary?.pendingExperienceRequests}</span>
-                    ) : null}
-                  </NavLink>
-                  <div className="menu-sep" />
-                </>
-              )}
-
-              {isSeller && (
+              {isSeller && !isAdmin && (
                 <>
                   <div className="menu-title">{t('menu_seller', 'Seller')}</div>
                   <NavLink
@@ -368,10 +273,27 @@ export default function Layout() {
                 </>
               )}
 
-              <div className="menu-title">{t('menu_account', 'Account')}</div>
               {isAuthenticated ? (
                 <>
+                  <div className="menu-title">{t('menu_account', 'Account')}</div>
                   <div className="menu-meta">Hi, {user?.fullName}</div>
+                  {isAdmin ? (
+                    <NavLink
+                      to="/admin"
+                      className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                      onClick={closeMenu}
+                      end
+                    >
+                      {t('menu_dashboard', 'Dashboard')}
+                    </NavLink>
+                  ) : null}
+                  <NavLink
+                    to="/account"
+                    className={({ isActive }) => `menu-item ${isActive ? 'active' : ''}`}
+                    onClick={closeMenu}
+                  >
+                    {t('menu_account', 'Account')}
+                  </NavLink>
                   {isUser ? (
                     <NavLink
                       to="/me/requests"
@@ -381,6 +303,7 @@ export default function Layout() {
                       {t('menu_my_requests', 'My requests')}
                     </NavLink>
                   ) : null}
+                  <div className="menu-sep" />
                   <button
                     className="menu-item"
                     type="button"
@@ -417,7 +340,15 @@ export default function Layout() {
         </div>
       ) : null}
 
-      <main className="app-main">
+      {showAdminSidebar ? (
+        <AdminSidebar
+          requestSummary={requestSummary}
+          collapsed={adminSidebarCollapsed}
+          onToggle={() => setAdminSidebarCollapsed((current) => !current)}
+        />
+      ) : null}
+
+      <main className={`app-main ${showAdminSidebar ? `app-main-admin ${adminSidebarCollapsed ? 'sidebar-collapsed' : ''}` : ''}`}>
         {isAdminRoute && isAdmin && notificationFlash && location.pathname !== '/admin/bookings' ? (
           <div style={{ background: 'var(--color-primary)', color: '#fff' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 0' }}>
