@@ -56,7 +56,6 @@ jobs:
           if [ -z "${{ secrets.VPS_USER }}" ]; then echo 'Missing secret VPS_USER'; exit 1; fi
           if [ -z "${{ secrets.VPS_APP_DIR }}" ]; then echo 'Missing secret VPS_APP_DIR'; exit 1; fi
           if [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then echo 'Missing secret VPS_SSH_KEY'; exit 1; fi
-          if [ -z "${{ secrets.GHCR_TOKEN }}" ]; then echo 'Missing secret GHCR_TOKEN (PAT with read:packages)'; exit 1; fi
   
       - name: Write SSH key
         run: |
@@ -112,12 +111,9 @@ jobs:
             if [ -n '${{ secrets.WHATSAPP_CLOUD_API_PHONE_NUMBER_ID }}' ]; then export WHATSAPP_CLOUD_API_PHONE_NUMBER_ID='${{ secrets.WHATSAPP_CLOUD_API_PHONE_NUMBER_ID }}'; fi; \
             if [ -n '${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_NAME }}' ]; then export WHATSAPP_CLOUD_API_TEMPLATE_NAME='${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_NAME }}'; fi; \
             if [ -n '${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE }}' ]; then export WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE='${{ secrets.WHATSAPP_CLOUD_API_TEMPLATE_LANGUAGE }}'; fi; \
-            export GHCR_USERNAME='${{ secrets.GHCR_USERNAME }}'; \
-            if [ -z \"\$GHCR_USERNAME\" ]; then GHCR_USERNAME='${{ github.actor }}'; fi; \
             export GHCR_OWNER='${{ github.repository_owner }}'; \
             export GHCR_OWNER=\$(echo \"\$GHCR_OWNER\" | tr '[:upper:]' '[:lower:]'); \
             export IMAGE_TAG=latest; \
-            echo '${{ secrets.GHCR_TOKEN }}' | docker login ghcr.io -u \"\$GHCR_USERNAME\" --password-stdin; \
             docker compose pull; \
             docker compose up -d; \
             docker image prune -f \
