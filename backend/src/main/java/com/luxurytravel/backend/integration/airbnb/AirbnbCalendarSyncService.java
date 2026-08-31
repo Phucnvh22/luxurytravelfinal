@@ -77,7 +77,7 @@ public class AirbnbCalendarSyncService {
             initialDelayString = "${application.integrations.airbnb-sync.initial-delay-ms:120000}"
     )
     public void scheduledSync() {
-        if (!properties.isEnabled()) {
+        if (!properties.isEnabled() || !properties.isAutoEnabled()) {
             return;
         }
         AirbnbSyncRunResponse result = runSync(null, false);

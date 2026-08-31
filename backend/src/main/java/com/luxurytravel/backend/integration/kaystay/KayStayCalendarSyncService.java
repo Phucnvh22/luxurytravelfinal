@@ -80,7 +80,7 @@ public class KayStayCalendarSyncService {
             initialDelayString = "${application.integrations.kaystay-sync.initial-delay-ms:120000}"
     )
     public void scheduledSync() {
-        if (!properties.isEnabled()) {
+        if (!properties.isEnabled() || !properties.isAutoEnabled()) {
             return;
         }
         KayStaySyncRunResponse result = runSync(null, false, null, null);

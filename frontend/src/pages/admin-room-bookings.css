@@ -10,9 +10,18 @@
   align-items: flex-start;
 }
 
-.room-bookings-search {
-  flex: 1 1 320px;
-  width: min(420px, 100%);
+.room-bookings-filter-group {
+  display: flex;
+  flex: 1 1 520px;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.room-bookings-filter-field {
+  flex: 1 1 180px;
+  min-width: 180px;
+  margin: 0;
 }
 
 .room-bookings-week-nav {
@@ -423,6 +432,11 @@ button.room-bookings-summary-pill {
   line-height: 1.2;
 }
 
+.room-schedule-host-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
 .room-schedule-host-track {
   display: flex;
   align-items: center;
@@ -434,6 +448,76 @@ button.room-bookings-summary-pill {
     linear-gradient(90deg, rgba(203, 213, 225, 0.35), rgba(226, 232, 240, 0.18)),
     rgba(248, 250, 252, 0.98);
   min-height: 40px;
+}
+
+.room-schedule-host-row-garden-view-villa {
+  background: rgba(191, 228, 154, 0.14);
+}
+
+.room-schedule-host-cell-garden-view-villa {
+  background: #f1fbe8;
+}
+
+.room-schedule-host-track-garden-view-villa {
+  background:
+    linear-gradient(90deg, rgba(191, 228, 154, 0.38), rgba(241, 251, 232, 0.18)),
+    rgba(241, 251, 232, 0.72);
+}
+
+.room-schedule-host-row-garden-view-deluxe-villa {
+  background: rgba(184, 220, 255, 0.14);
+}
+
+.room-schedule-host-cell-garden-view-deluxe-villa {
+  background: #eef8ff;
+}
+
+.room-schedule-host-track-garden-view-deluxe-villa {
+  background:
+    linear-gradient(90deg, rgba(184, 220, 255, 0.38), rgba(238, 248, 255, 0.18)),
+    rgba(238, 248, 255, 0.72);
+}
+
+.room-schedule-host-row-beach-access-villa {
+  background: rgba(244, 201, 159, 0.15);
+}
+
+.room-schedule-host-cell-beach-access-villa {
+  background: #fff4e8;
+}
+
+.room-schedule-host-track-beach-access-villa {
+  background:
+    linear-gradient(90deg, rgba(244, 201, 159, 0.4), rgba(255, 244, 232, 0.18)),
+    rgba(255, 244, 232, 0.72);
+}
+
+.room-schedule-host-row-beach-access-deluxe-villa {
+  background: rgba(215, 190, 251, 0.15);
+}
+
+.room-schedule-host-cell-beach-access-deluxe-villa {
+  background: #f6edff;
+}
+
+.room-schedule-host-track-beach-access-deluxe-villa {
+  background:
+    linear-gradient(90deg, rgba(215, 190, 251, 0.4), rgba(246, 237, 255, 0.18)),
+    rgba(246, 237, 255, 0.72);
+}
+
+.room-schedule-host-row-beach-front-luxury-villa {
+  background: rgba(239, 215, 115, 0.18);
+}
+
+.room-schedule-host-cell-beach-front-luxury-villa {
+  background: #fff9dc;
+}
+
+.room-schedule-host-track-beach-front-luxury-villa {
+  background:
+    linear-gradient(90deg, rgba(239, 215, 115, 0.42), rgba(255, 249, 220, 0.18)),
+    rgba(255, 249, 220, 0.72);
 }
 
 .room-schedule-day-head {
@@ -1300,7 +1384,7 @@ button.room-bookings-summary-pill {
     align-items: stretch;
   }
 
-  .room-bookings-search,
+  .room-bookings-filter-group,
   .room-bookings-week-nav {
     width: 100%;
     flex: 1 1 100%;

@@ -6,11 +6,14 @@ import {
   buildGroupedScheduleRows,
   buildQuickBookingDateRange,
   compareRoomsByLocation,
+  getVillaTierDefinition,
   getBookedDateKeysForRoom,
-  sortRoomCodesByLocation,
+  sortRoomCodesByVillaTier,
   toggleQuickBookingDate,
   validateQuickBookingSelection,
+  VILLA_TIER_DEFINITIONS,
   type QuickBookingSelection,
+  type VillaTierKey,
 } from './AdminRoomBookingsPage.utils'
 import './pages.css'
 import './admin-room-bookings.css'
@@ -67,8 +70,10 @@ const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CANCELLED: { label: 'Cancelled', toneClass: 'cancelled' },
 }
 const MOVABLE_BOOKING_STATUSES = new Set<VisibleRoomBookingStatus>(['CONFIRMED', 'TEMP_BLOCK', 'CHECKED_IN'])
+const RESERVED_FILTER_STATUSES: VisibleRoomBookingStatus[] = ['CONFIRMED', 'AIRBNB_BLOCK', 'KAYSTAY_BLOCK', 'SOPHIA_BLOCK']
 
 const ALL_STATUSES = Object.keys(STATUS_META) as VisibleRoomBookingStatus[]
+const STATUS_FILTER_PILLS: VisibleRoomBookingStatus[] = ['CONFIRMED', 'TEMP_BLOCK', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED']
 const FALLBACK_ROOM_CODE = 'V107'
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 const STANDARD_CHECK_IN_HOUR = 15
@@ -583,7 +588,9 @@ export default function AdminRoomBookingsPage() {
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedVillaType, setSelectedVillaType] = useState<VillaTierKey | ''>('')
+  const [selectedHost, setSelectedHost] = useState('')
+  const [selectedBedroomLayout, setSelectedBedroomLayout] = useState('')
   const [activeStatuses, setActiveStatuses] = useState<VisibleRoomBookingStatus[]>(ALL_STATUSES)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null)
@@ -643,6 +650,23 @@ export default function AdminRoomBookingsPage() {
     const entries = roomsCatalog.map((room) => [room.code, room] as const)
     return Object.fromEntries(entries) as Record<string, Room>
   }, [roomsCatalog])
+  const villaTypeOptions = useMemo(
+    () =>
+      VILLA_TIER_DEFINITIONS.filter((tier) => roomsCatalog.some((room) => getVillaTierDefinition(room.code).key === tier.key)),
+    [roomsCatalog],
+  )
+  const hostOptions = useMemo(
+    () =>
+      Array.from(new Set(roomsCatalog.map((room) => room.host?.trim()).filter((value): value is string => Boolean(value))))
+        .sort((a, b) => a.localeCompare(b, 'vi')),
+    [roomsCatalog],
+  )
+  const bedroomLayoutOptions = useMemo(
+    () =>
+      Array.from(new Set(roomsCatalog.map((room) => room.bedroomLayout?.trim()).filter((value): value is string => Boolean(value))))
+        .sort((a, b) => a.localeCompare(b, 'vi')),
+    [roomsCatalog],
+  )
   const selectedBooking = useMemo(
     () => bookings.find((booking) => booking.id === selectedBookingId) ?? null,
     [bookings, selectedBookingId],
@@ -844,59 +868,50 @@ export default function AdminRoomBookingsPage() {
 
 
   const statusCounts = useMemo(() => {
-    return bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
+    const counts = bookings.reduce<Record<VisibleRoomBookingStatus, number>>((acc, booking) => {
       const visibleStatus = normalizeDisplayStatus(booking.status)
       if (!visibleStatus) return acc
       acc[visibleStatus] = (acc[visibleStatus] ?? 0) + 1
       return acc
     }, { CONFIRMED: 0, TEMP_BLOCK: 0, AIRBNB_BLOCK: 0, KAYSTAY_BLOCK: 0, SOPHIA_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
+    counts.CONFIRMED += counts.AIRBNB_BLOCK + counts.KAYSTAY_BLOCK + counts.SOPHIA_BLOCK
+    return counts
   }, [bookings])
 
+  const matchesRoomFilters = (room?: Room | null) => {
+    if (!room) {
+      return !selectedVillaType && !selectedHost && !selectedBedroomLayout
+    }
+    const roomTierKey = getVillaTierDefinition(room.code).key
+    const roomHost = room.host?.trim() ?? ''
+    const roomBedroomLayout = room.bedroomLayout?.trim() ?? ''
+    if (selectedVillaType && roomTierKey !== selectedVillaType) return false
+    if (selectedHost && roomHost !== selectedHost) return false
+    if (selectedBedroomLayout && roomBedroomLayout !== selectedBedroomLayout) return false
+    return true
+  }
+
   const filteredBookings = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase()
     return bookings.flatMap<ScheduleBooking>((booking) => {
       const visibleStatus = normalizeDisplayStatus(booking.status)
       if (!visibleStatus) return []
 
       const matchesStatus = activeStatuses.includes(visibleStatus)
       if (!matchesStatus) return []
-      if (!normalizedSearch) return [{ ...booking, displayStatus: visibleStatus }]
-      const haystack = [
-        booking.roomCode,
-        roomByCode[booking.roomCode]?.name ?? '',
-        roomByCode[booking.roomCode]?.type ?? '',
-        roomByCode[booking.roomCode]?.host ?? '',
-        roomByCode[booking.roomCode]?.location ?? '',
-        roomByCode[booking.roomCode]?.bedroomLayout ?? '',
-        roomByCode[booking.roomCode]?.airbnbUrl ?? '',
-        booking.guestName,
-        booking.source,
-        booking.phone,
-        booking.notes,
-      ]
-        .join(' ')
-        .toLowerCase()
-      if (!haystack.includes(normalizedSearch)) return []
+      if (!matchesRoomFilters(roomByCode[booking.roomCode])) return []
       return [{ ...booking, displayStatus: visibleStatus }]
     })
-  }, [activeStatuses, bookings, roomByCode, searchTerm])
+  }, [activeStatuses, bookings, roomByCode, selectedBedroomLayout, selectedHost, selectedVillaType])
 
   const rooms = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase()
     const catalogCodes = roomsCatalog
-      .filter((room) => {
-        if (!normalizedSearch) return true
-        const haystack = [room.code, room.name, room.type, room.host, room.location, room.bedroomLayout, room.notes, room.airbnbUrl]
-          .join(' ')
-          .toLowerCase()
-        return haystack.includes(normalizedSearch)
-      })
+      .filter((room) => matchesRoomFilters(room))
       .map((room) => room.code)
     const bookingCodes = filteredBookings.map((booking) => booking.roomCode)
     const uniqueRooms = Array.from(new Set([...catalogCodes, ...bookingCodes].filter(Boolean)))
 
-    return sortRoomCodesByLocation(uniqueRooms, roomByCode)
-  }, [filteredBookings, roomByCode, roomsCatalog, searchTerm])
+    return sortRoomCodesByVillaTier(uniqueRooms, roomByCode)
+  }, [filteredBookings, roomByCode, roomsCatalog, selectedBedroomLayout, selectedHost, selectedVillaType])
 
   const roomOptions = useMemo(() => {
     return Array.from(new Set([...roomsCatalog.map((room) => room.code), ...bookings.map((booking) => booking.roomCode)]))
@@ -1352,11 +1367,19 @@ export default function AdminRoomBookingsPage() {
 
   const toggleStatus = (status: VisibleRoomBookingStatus) => {
     setActiveStatuses((current) => {
-      if (current.includes(status)) {
-        if (current.length === 1) return ALL_STATUSES
-        return current.filter((value) => value !== status)
+      const groupedStatuses = status === 'CONFIRMED' ? RESERVED_FILTER_STATUSES : [status]
+      const isActive = groupedStatuses.every((value) => current.includes(value))
+
+      if (isActive) {
+        if (current.length === groupedStatuses.length) return ALL_STATUSES
+        return current.filter((value) => !groupedStatuses.includes(value))
       }
-      return [...current, status]
+
+      const next = [...current]
+      groupedStatuses.forEach((value) => {
+        if (!next.includes(value)) next.push(value)
+      })
+      return next
     })
   }
 
@@ -1667,7 +1690,7 @@ export default function AdminRoomBookingsPage() {
           <div>
             <h2>Admin • Villa booking calendar</h2>
             <div className="muted">
-              Grouped by location. Double click one available day to start a booking range, then double click a later day on the
+              Grouped by villa tier. Double click one available day to start a booking range, then double click a later day on the
               same villa row to extend the stay.
             </div>
           </div>
@@ -1689,13 +1712,54 @@ export default function AdminRoomBookingsPage() {
 
         <div className="room-bookings-toolbar card detail-card">
           <div className="row room-bookings-toolbar-top">
-            <div className="search-inline room-bookings-search">
-              <input
-                className="input"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search guest, villa, type, Airbnb link, KayStay, Sophia..."
-              />
+            <div className="room-bookings-filter-group">
+              <label className="field room-bookings-filter-field">
+                <div className="field-label">Hạng villa</div>
+                <select
+                  className="select"
+                  value={selectedVillaType}
+                  onChange={(e) => setSelectedVillaType(e.target.value as VillaTierKey | '')}
+                >
+                  <option value="">Tất cả</option>
+                  {villaTypeOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field room-bookings-filter-field">
+                <div className="field-label">Host</div>
+                <select
+                  className="select"
+                  value={selectedHost}
+                  onChange={(e) => setSelectedHost(e.target.value)}
+                >
+                  <option value="">Tất cả</option>
+                  {hostOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field room-bookings-filter-field">
+                <div className="field-label">Kết cấu giường</div>
+                <select
+                  className="select"
+                  value={selectedBedroomLayout}
+                  onChange={(e) => setSelectedBedroomLayout(e.target.value)}
+                >
+                  <option value="">Tất cả</option>
+                  {bedroomLayoutOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             <div className="room-bookings-week-nav">
@@ -1757,9 +1821,12 @@ export default function AdminRoomBookingsPage() {
           </div>
 
           <div className="room-bookings-status-row">
-            {ALL_STATUSES.map((status) => {
+            {STATUS_FILTER_PILLS.map((status) => {
               const meta = STATUS_META[status]
-              const active = activeStatuses.includes(status)
+              const active =
+                status === 'CONFIRMED'
+                  ? RESERVED_FILTER_STATUSES.every((value) => activeStatuses.includes(value))
+                  : activeStatuses.includes(status)
               return (
                 <button
                   key={status}
@@ -1824,13 +1891,14 @@ export default function AdminRoomBookingsPage() {
                   </div>
 
                   {groupedScheduleRows.map((row) => {
-                    if (row.type === 'location') {
+                    if (row.type === 'villa-tier') {
                       return (
-                        <div key={`location-${row.location}`} className="room-schedule-host-row">
-                          <div className="room-schedule-host-cell">
-                            <strong>{row.location}</strong>
+                        <div key={`tier-${row.tierKey}`} className={`room-schedule-host-row room-schedule-host-row-${row.toneClass}`}>
+                          <div className={`room-schedule-host-cell room-schedule-host-cell-${row.toneClass}`}>
+                            <span className="room-schedule-host-emoji" aria-hidden="true">{row.emoji}</span>
+                            <strong>{row.label}</strong>
                           </div>
-                          <div className="room-schedule-host-track" />
+                          <div className={`room-schedule-host-track room-schedule-host-track-${row.toneClass}`} />
                         </div>
                       )
                     }

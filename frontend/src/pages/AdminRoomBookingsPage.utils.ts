@@ -1,8 +1,25 @@
 import type { Room, RoomBookingResponse } from '../types'
 
+export type VillaTierKey =
+  | 'garden-view-villa'
+  | 'garden-view-deluxe-villa'
+  | 'beach-access-villa'
+  | 'beach-access-deluxe-villa'
+  | 'beach-front-luxury-villa'
+  | 'other'
+
+export type VillaTierDefinition = {
+  key: VillaTierKey
+  label: string
+  shortLabel: string
+  emoji: string
+  toneClass: string
+  roomCodes: string[]
+}
+
 export type GroupedScheduleRow =
-  | { type: 'location'; location: string; count: number }
-  | { type: 'villa'; roomCode: string; location: string }
+  | { type: 'villa-tier'; tierKey: VillaTierKey; label: string; count: number; toneClass: string; emoji: string }
+  | { type: 'villa'; roomCode: string; tierKey: VillaTierKey }
 
 export type QuickBookingSelection = {
   roomCode: string
@@ -10,9 +27,78 @@ export type QuickBookingSelection = {
 }
 
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
+const FALLBACK_TIER: VillaTierDefinition = {
+  key: 'other',
+  label: 'Khac',
+  shortLabel: 'Khac',
+  emoji: '•',
+  toneClass: 'other',
+  roomCodes: [],
+}
+
+export const VILLA_TIER_DEFINITIONS: VillaTierDefinition[] = [
+  {
+    key: 'garden-view-villa',
+    label: 'Garden View-Villa',
+    shortLabel: 'Garden View',
+    emoji: '🟢',
+    toneClass: 'garden-view-villa',
+    roomCodes: ['V327', 'V331', 'V332', 'V333', 'V336', 'V338', 'V340'],
+  },
+  {
+    key: 'garden-view-deluxe-villa',
+    label: 'Garden View-Deluxe Villa',
+    shortLabel: 'Garden Deluxe',
+    emoji: '🔷',
+    toneClass: 'garden-view-deluxe-villa',
+    roomCodes: ['V303', 'V308', 'V309', 'V312', 'V317', 'V318', 'V319', 'V321', 'V323', 'V324', 'V346', 'V355', 'V360', 'V365', 'V366'],
+  },
+  {
+    key: 'beach-access-villa',
+    label: 'Beach Access-Villa',
+    shortLabel: 'Beach Access',
+    emoji: '📙',
+    toneClass: 'beach-access-villa',
+    roomCodes: ['V208', 'V217', 'V225', 'V361'],
+  },
+  {
+    key: 'beach-access-deluxe-villa',
+    label: 'Beach Access-Deluxe Villa',
+    shortLabel: 'Beach Deluxe',
+    emoji: '🔮',
+    toneClass: 'beach-access-deluxe-villa',
+    roomCodes: ['V203', 'V209', 'V210', 'V227'],
+  },
+  {
+    key: 'beach-front-luxury-villa',
+    label: 'Beach Front-Luxury Villa',
+    shortLabel: 'Beach Front',
+    emoji: '🟡',
+    toneClass: 'beach-front-luxury-villa',
+    roomCodes: ['V107'],
+  },
+]
+
+const TIER_BY_ROOM_CODE = VILLA_TIER_DEFINITIONS.reduce<Record<string, VillaTierDefinition>>((acc, tier) => {
+  tier.roomCodes.forEach((roomCode) => {
+    acc[roomCode] = tier
+  })
+  return acc
+}, {})
+
+const ROOM_ORDER_BY_CODE = VILLA_TIER_DEFINITIONS.reduce<Record<string, number>>((acc, tier) => {
+  tier.roomCodes.forEach((roomCode, index) => {
+    acc[roomCode] = index
+  })
+  return acc
+}, {})
 
 function normalizeLocation(location?: string) {
   return location?.trim() || 'Unassigned location'
+}
+
+function normalizeRoomCode(roomCode?: string) {
+  return roomCode?.trim().toUpperCase() || ''
 }
 
 function parseDateKey(dateKey: string) {
@@ -63,22 +149,68 @@ export function sortRoomCodesByLocation(roomCodes: string[], roomByCode: Record<
   return [...roomCodes].sort((a, b) => compareRoomsByLocation(roomByCode[a], roomByCode[b], a, b))
 }
 
-export function buildGroupedScheduleRows(roomCodes: string[], roomByCode: Record<string, Room | undefined>) {
-  const groups: GroupedScheduleRow[] = []
-  const locationCounts = roomCodes.reduce<Record<string, number>>((acc, roomCode) => {
-    const location = normalizeLocation(roomByCode[roomCode]?.location)
-    acc[location] = (acc[location] ?? 0) + 1
-    return acc
-  }, {})
+export function getVillaTierDefinition(roomCode?: string): VillaTierDefinition {
+  return TIER_BY_ROOM_CODE[normalizeRoomCode(roomCode)] ?? FALLBACK_TIER
+}
 
-  let currentLocation = ''
-  roomCodes.forEach((roomCode) => {
-    const location = normalizeLocation(roomByCode[roomCode]?.location)
-    if (location !== currentLocation) {
-      currentLocation = location
-      groups.push({ type: 'location', location, count: locationCounts[location] ?? 0 })
+export function sortRoomCodesByVillaTier(roomCodes: string[], roomByCode: Record<string, Room | undefined>) {
+  return [...roomCodes].sort((a, b) => {
+    const tierA = getVillaTierDefinition(a)
+    const tierB = getVillaTierDefinition(b)
+    const tierIndexA = VILLA_TIER_DEFINITIONS.findIndex((tier) => tier.key === tierA.key)
+    const tierIndexB = VILLA_TIER_DEFINITIONS.findIndex((tier) => tier.key === tierB.key)
+
+    if (tierIndexA !== tierIndexB) {
+      const safeIndexA = tierIndexA === -1 ? Number.MAX_SAFE_INTEGER : tierIndexA
+      const safeIndexB = tierIndexB === -1 ? Number.MAX_SAFE_INTEGER : tierIndexB
+      return safeIndexA - safeIndexB
     }
-    groups.push({ type: 'villa', roomCode, location })
+
+    const codeA = normalizeRoomCode(a)
+    const codeB = normalizeRoomCode(b)
+    const orderA = ROOM_ORDER_BY_CODE[codeA]
+    const orderB = ROOM_ORDER_BY_CODE[codeB]
+    if (orderA !== undefined || orderB !== undefined) {
+      if (orderA === undefined) return 1
+      if (orderB === undefined) return -1
+      if (orderA !== orderB) return orderA - orderB
+    }
+
+    return compareRoomsByLocation(roomByCode[a], roomByCode[b], a, b)
+  })
+}
+
+export function buildGroupedScheduleRows(roomCodes: string[], roomByCode: Record<string, Room | undefined>) {
+  const orderedRoomCodes = sortRoomCodesByVillaTier(roomCodes, roomByCode)
+  const groups: GroupedScheduleRow[] = []
+  const tierCounts = orderedRoomCodes.reduce<Record<VillaTierKey, number>>((acc, roomCode) => {
+    const tier = getVillaTierDefinition(roomCode)
+    acc[tier.key] = (acc[tier.key] ?? 0) + 1
+    return acc
+  }, {
+    'garden-view-villa': 0,
+    'garden-view-deluxe-villa': 0,
+    'beach-access-villa': 0,
+    'beach-access-deluxe-villa': 0,
+    'beach-front-luxury-villa': 0,
+    other: 0,
+  })
+
+  let currentTierKey = '' as VillaTierKey | ''
+  orderedRoomCodes.forEach((roomCode) => {
+    const tier = getVillaTierDefinition(roomCode)
+    if (tier.key !== currentTierKey) {
+      currentTierKey = tier.key
+      groups.push({
+        type: 'villa-tier',
+        tierKey: tier.key,
+        label: tier.label,
+        count: tierCounts[tier.key] ?? 0,
+        toneClass: tier.toneClass,
+        emoji: tier.emoji,
+      })
+    }
+    groups.push({ type: 'villa', roomCode, tierKey: tier.key })
   })
 
   return groups

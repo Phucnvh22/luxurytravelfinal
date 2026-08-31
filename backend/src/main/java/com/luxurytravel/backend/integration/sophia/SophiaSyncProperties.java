@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "application.integrations.sophia-sync")
 public class SophiaSyncProperties {
     private boolean enabled = true;
+    private boolean autoEnabled = false;
     private String baseUrl = "https://app.sophiapms.com";
     private String companyId = "NjE3";
     private String userId = "d2cbc71f-0e2f-4c88-8896-c69fb71ff93f";
@@ -26,6 +27,14 @@ public class SophiaSyncProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean isAutoEnabled() {
+        return autoEnabled;
+    }
+
+    public void setAutoEnabled(boolean autoEnabled) {
+        this.autoEnabled = autoEnabled;
     }
 
     public String getBaseUrl() {

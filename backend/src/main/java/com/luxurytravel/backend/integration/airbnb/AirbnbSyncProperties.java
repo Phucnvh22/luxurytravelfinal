@@ -8,6 +8,7 @@ import java.util.List;
 @ConfigurationProperties(prefix = "application.integrations.airbnb-sync")
 public class AirbnbSyncProperties {
     private boolean enabled = true;
+    private boolean autoEnabled = false;
     private List<String> roomCodes = new ArrayList<>();
     private int horizonDays = 45;
     private int probeNights = 1;
@@ -26,6 +27,14 @@ public class AirbnbSyncProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean isAutoEnabled() {
+        return autoEnabled;
+    }
+
+    public void setAutoEnabled(boolean autoEnabled) {
+        this.autoEnabled = autoEnabled;
     }
 
     public List<String> getRoomCodes() {

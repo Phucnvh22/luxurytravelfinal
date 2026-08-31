@@ -89,7 +89,7 @@ public class SophiaCalendarSyncService {
             initialDelayString = "${application.integrations.sophia-sync.initial-delay-ms:120000}"
     )
     public void scheduledSync() {
-        if (!properties.isEnabled()) {
+        if (!properties.isEnabled() || !properties.isAutoEnabled()) {
             return;
         }
         SophiaSyncRunResponse result = runSync(null, false, null, null);

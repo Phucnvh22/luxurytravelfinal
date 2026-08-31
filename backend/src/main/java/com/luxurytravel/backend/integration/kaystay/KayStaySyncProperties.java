@@ -8,6 +8,7 @@ import java.util.List;
 @ConfigurationProperties(prefix = "application.integrations.kaystay-sync")
 public class KayStaySyncProperties {
     private boolean enabled = true;
+    private boolean autoEnabled = false;
     private String baseUrl = "https://www.smartorder.ai";
     private String premierReviewCode = "93603c4163ce4f1391d095880377f759";
     private List<String> roomCodes = new ArrayList<>();
@@ -26,6 +27,14 @@ public class KayStaySyncProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean isAutoEnabled() {
+        return autoEnabled;
+    }
+
+    public void setAutoEnabled(boolean autoEnabled) {
+        this.autoEnabled = autoEnabled;
     }
 
     public String getBaseUrl() {
