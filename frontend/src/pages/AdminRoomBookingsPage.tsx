@@ -109,6 +109,58 @@ function normalizeRoomOperationalStatus(status?: Room['operationalStatus']): Roo
   return 'READY'
 }
 
+function renderOperationalStatusBadge(
+  status: RoomOperationalStatus,
+  options?: {
+    button?: boolean
+    onClick?: () => void
+  },
+) {
+  const meta = ROOM_OPERATIONAL_STATUS_META[status]
+  const className = `room-bookings-list-badge ${meta.toneClass}${status === 'NEEDS_CLEANING' ? ' room-bookings-list-badge-icon-only' : ''}${options?.button ? ' room-bookings-badge-button' : ''}`
+  const content = status === 'NEEDS_CLEANING' ? (
+    <span aria-hidden="true" className="room-bookings-badge-icon-glyph">🧹</span>
+  ) : (
+    meta.label
+  )
+  const accessibilityLabel = status === 'NEEDS_CLEANING' ? meta.label : undefined
+
+  if (options?.button) {
+    return (
+      <button
+        className={className}
+        type="button"
+        onClick={options.onClick}
+        aria-label={accessibilityLabel}
+        title={accessibilityLabel}
+      >
+        {content}
+      </button>
+    )
+  }
+
+  return (
+    <span className={className} aria-label={accessibilityLabel} title={accessibilityLabel}>
+      {content}
+    </span>
+  )
+}
+
+function renderRepairBadge(onClick: () => void) {
+  return (
+    <button
+      className="room-bookings-list-badge needs-repair room-bookings-badge-button"
+      type="button"
+      onClick={onClick}
+      aria-label="Needs repair"
+      title="Needs repair"
+    >
+      <span aria-hidden="true" className="room-bookings-badge-icon-inline">🔧</span>
+      <span>Needs repair</span>
+    </button>
+  )
+}
+
 function startOfMonth(base: Date) {
   const value = new Date(base)
   value.setDate(1)
@@ -1519,7 +1571,6 @@ export default function AdminRoomBookingsPage() {
       ? STATUS_META[normalizeEditableStatus(selectedBooking.status)]
       : STATUS_META[normalizeEditableStatus(confirmationSource.status)]
   const selectedRoomStatus = normalizeRoomOperationalStatus(selectedRoom?.operationalStatus)
-  const selectedRoomStatusMeta = ROOM_OPERATIONAL_STATUS_META[selectedRoomStatus]
   const confirmationRoomName = roomByCode[confirmationSource.roomCode]?.name || 'Luxury Villa'
   const confirmationCheckInMs = new Date(confirmationSource.checkInAt).getTime()
   const confirmationCheckOutMs = new Date(confirmationSource.checkOutAt).getTime()
@@ -1791,7 +1842,6 @@ export default function AdminRoomBookingsPage() {
                     const selectedDateKeys =
                       quickSelection?.roomCode === roomCode ? new Set(quickSelection.dates) : new Set<string>()
                     const operationalStatus = normalizeRoomOperationalStatus(room?.operationalStatus)
-                    const operationalStatusMeta = ROOM_OPERATIONAL_STATUS_META[operationalStatus]
                     const hasQuickAction =
                       quickSelection?.roomCode === roomCode &&
                       (quickSelection?.dates.length ?? 0) > 0 &&
@@ -1818,29 +1868,16 @@ export default function AdminRoomBookingsPage() {
                             ) : (
                               <div className="room-schedule-room-link muted">Pending</div>
                             )}
-                            {operationalStatus !== 'READY' ? (
-                              operationalStatus === 'OOI' ? (
-                                <button
-                                  className={`room-bookings-list-badge ${operationalStatusMeta.toneClass} room-bookings-badge-button`}
-                                  type="button"
-                                  onClick={() => setOoiInsightRoomCode(roomCode)}
-                                >
-                                  {operationalStatusMeta.label}
-                                </button>
-                              ) : (
-                                <span className={`room-bookings-list-badge ${operationalStatusMeta.toneClass}`}>
-                                  {operationalStatusMeta.label}
-                                </span>
-                              )
-                            ) : null}
+                            {operationalStatus !== 'READY'
+                              ? operationalStatus === 'OOI'
+                                ? renderOperationalStatusBadge(operationalStatus, {
+                                    button: true,
+                                    onClick: () => setOoiInsightRoomCode(roomCode),
+                                  })
+                                : renderOperationalStatusBadge(operationalStatus)
+                              : null}
                             {room?.repairNeeded ? (
-                              <button
-                                className="room-bookings-list-badge needs-repair room-bookings-badge-button"
-                                type="button"
-                                onClick={() => setRepairInsightRoomCode(roomCode)}
-                              >
-                                Needs repair
-                              </button>
+                              renderRepairBadge(() => setRepairInsightRoomCode(roomCode))
                             ) : null}
                           </div>
                         </div>
@@ -2106,27 +2143,14 @@ export default function AdminRoomBookingsPage() {
                         <div className="muted">{selectedRoom.host}</div>
                       ) : null}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                        {selectedRoomStatus === 'OOI' && selectedRoom ? (
-                          <button
-                            className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass} room-bookings-badge-button`}
-                            type="button"
-                            onClick={() => setOoiInsightRoomCode(selectedRoom.code)}
-                          >
-                            {selectedRoomStatusMeta.label}
-                          </button>
-                        ) : (
-                          <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>
-                            {selectedRoomStatusMeta.label}
-                          </span>
-                        )}
+                        {selectedRoomStatus === 'OOI' && selectedRoom
+                          ? renderOperationalStatusBadge(selectedRoomStatus, {
+                              button: true,
+                              onClick: () => setOoiInsightRoomCode(selectedRoom.code),
+                            })
+                          : renderOperationalStatusBadge(selectedRoomStatus)}
                         {selectedRoom?.repairNeeded ? (
-                          <button
-                            className="room-bookings-list-badge needs-repair room-bookings-badge-button"
-                            type="button"
-                            onClick={() => setRepairInsightRoomCode(selectedRoom.code)}
-                          >
-                            Needs repair
-                          </button>
+                          renderRepairBadge(() => setRepairInsightRoomCode(selectedRoom.code))
                         ) : null}
                       </div>
                     </div>
@@ -2157,7 +2181,7 @@ export default function AdminRoomBookingsPage() {
                     </div>
                     <div className="room-booking-detail-row">
                       <span>Villa status</span>
-                      <span className={`room-bookings-list-badge ${selectedRoomStatusMeta.toneClass}`}>{selectedRoomStatusMeta.label}</span>
+                      {renderOperationalStatusBadge(selectedRoomStatus)}
                     </div>
                     <div className="room-booking-detail-row">
                       <span>Status</span>
@@ -2775,9 +2799,7 @@ export default function AdminRoomBookingsPage() {
                 <div className="room-booking-detail-panel">
                   <div className="room-booking-detail-row">
                     <span>Operational status</span>
-                    <span className={`room-bookings-list-badge ${ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(repairInsightRoom.operationalStatus)].toneClass}`}>
-                      {ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(repairInsightRoom.operationalStatus)].label}
-                    </span>
+                    {renderOperationalStatusBadge(normalizeRoomOperationalStatus(repairInsightRoom.operationalStatus))}
                   </div>
                   <div className="room-booking-detail-row">
                     <span>Repair status</span>
@@ -2834,9 +2856,7 @@ export default function AdminRoomBookingsPage() {
                 <div className="room-booking-detail-panel">
                   <div className="room-booking-detail-row">
                     <span>Operational status</span>
-                    <span className={`room-bookings-list-badge ${ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(ooiInsightRoom.operationalStatus)].toneClass}`}>
-                      {ROOM_OPERATIONAL_STATUS_META[normalizeRoomOperationalStatus(ooiInsightRoom.operationalStatus)].label}
-                    </span>
+                    {renderOperationalStatusBadge(normalizeRoomOperationalStatus(ooiInsightRoom.operationalStatus))}
                   </div>
                   <div className="room-booking-detail-row">
                     <span>OOI detail</span>

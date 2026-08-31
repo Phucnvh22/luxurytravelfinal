@@ -776,6 +776,23 @@ button.room-bookings-summary-pill {
   font-weight: 800;
 }
 
+.room-bookings-list-badge-icon-only {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  line-height: 1;
+}
+
+.room-bookings-badge-icon-glyph {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.room-bookings-badge-icon-inline {
+  font-size: 13px;
+  line-height: 1;
+}
+
 .room-bookings-badge-button {
   cursor: pointer;
   appearance: none;
