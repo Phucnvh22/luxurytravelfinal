@@ -2,6 +2,7 @@ package com.luxurytravel.backend.room;
 
 import com.luxurytravel.backend.roomlog.RoomWorkLogAction;
 import com.luxurytravel.backend.roomlog.RoomWorkLogService;
+import com.luxurytravel.backend.roombooking.RoomBookingStatus;
 import com.luxurytravel.backend.roombooking.RoomBookingRepository;
 import com.luxurytravel.backend.user.Role;
 import com.luxurytravel.backend.user.UserRepository;
@@ -303,7 +304,31 @@ public class RoomService {
             room.setOoiDetails("");
             changed = true;
         }
+        if (room.getOperationalStatus() != RoomOperationalStatus.OOI) {
+            RoomOperationalStatus nextStatus = deriveOperationalStatus(room);
+            if (nextStatus != room.getOperationalStatus()) {
+                room.setOperationalStatus(nextStatus);
+                room.setStatusUpdatedAt(Instant.now());
+                if (nextStatus == RoomOperationalStatus.READY && room.getLastReadyAt() == null) {
+                    room.setLastReadyAt(room.getStatusUpdatedAt());
+                }
+                changed = true;
+            }
+        }
         return changed;
+    }
+
+    private RoomOperationalStatus deriveOperationalStatus(Room room) {
+        if (room.getOperationalStatus() == RoomOperationalStatus.OOI) {
+            return RoomOperationalStatus.OOI;
+        }
+        if (roomBookingRepository.existsByRoomCodeIgnoreCaseAndStatus(room.getCode(), RoomBookingStatus.CHECKED_IN)) {
+            return RoomOperationalStatus.CHECKED_IN;
+        }
+
+        boolean cleaningPending = room.getCleaningRequestedAt() != null
+                && (room.getLastReadyAt() == null || room.getCleaningRequestedAt().isAfter(room.getLastReadyAt()));
+        return cleaningPending ? RoomOperationalStatus.NEEDS_CLEANING : RoomOperationalStatus.READY;
     }
 
     private String normalizeCode(String code) {

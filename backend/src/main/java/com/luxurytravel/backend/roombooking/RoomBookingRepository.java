@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface RoomBookingRepository extends JpaRepository<RoomBooking, Long> {
     boolean existsByRoomCodeIgnoreCase(String roomCode);
+    boolean existsByRoomCodeIgnoreCaseAndStatus(String roomCode, RoomBookingStatus status);
 
     Optional<RoomBooking> findByExternalSystemIgnoreCaseAndExternalReservationId(String externalSystem, String externalReservationId);
 

@@ -82,23 +82,31 @@ public class RoomBookingService {
     public RoomBookingResponse create(RoomBookingRequest request) {
         RoomBooking booking = new RoomBooking();
         apply(booking, request, null);
-        return RoomBookingResponse.from(roomBookingRepository.save(booking));
+        RoomBooking saved = roomBookingRepository.save(booking);
+        syncRoomOperationalStatus(saved.getRoomCode());
+        return RoomBookingResponse.from(saved);
     }
 
     @Transactional
     public RoomBookingResponse update(Long id, RoomBookingRequest request) {
         RoomBooking booking = findEntity(id);
+        String previousRoomCode = booking.getRoomCode();
         if (booking.getStatus() == RoomBookingStatus.TEMP_BLOCK && request.getStatus() == RoomBookingStatus.TEMP_BLOCK) {
             request.setStatus(RoomBookingStatus.CONFIRMED);
         }
         apply(booking, request, id);
-        return RoomBookingResponse.from(roomBookingRepository.save(booking));
+        RoomBooking saved = roomBookingRepository.save(booking);
+        syncRoomOperationalStatus(previousRoomCode);
+        syncRoomOperationalStatus(saved.getRoomCode());
+        return RoomBookingResponse.from(saved);
     }
 
     @Transactional
     public void delete(Long id) {
         RoomBooking booking = findEntity(id);
+        String roomCode = booking.getRoomCode();
         roomBookingRepository.delete(booking);
+        syncRoomOperationalStatus(roomCode);
     }
 
     @Transactional
@@ -126,8 +134,9 @@ public class RoomBookingService {
         room.setStatusUpdatedAt(now);
         room.setLastCheckInMarkedAt(now);
         roomRepository.save(room);
-
-        return RoomBookingResponse.from(roomBookingRepository.save(booking));
+        RoomBooking saved = roomBookingRepository.save(booking);
+        syncRoomOperationalStatus(room.getCode());
+        return RoomBookingResponse.from(saved);
     }
 
     @Transactional
@@ -175,8 +184,9 @@ public class RoomBookingService {
         room.setCleanedByUsername(null);
         room.setCleanedByName(null);
         roomRepository.save(room);
-
-        return RoomBookingResponse.from(roomBookingRepository.save(booking));
+        RoomBooking saved = roomBookingRepository.save(booking);
+        syncRoomOperationalStatus(room.getCode());
+        return RoomBookingResponse.from(saved);
     }
 
     @Transactional
@@ -206,8 +216,9 @@ public class RoomBookingService {
         }
         room.setStatusUpdatedAt(now);
         roomRepository.save(room);
-
-        return RoomBookingResponse.from(roomBookingRepository.save(booking));
+        RoomBooking saved = roomBookingRepository.save(booking);
+        syncRoomOperationalStatus(room.getCode());
+        return RoomBookingResponse.from(saved);
     }
 
     private RoomBooking findEntity(Long id) {
@@ -286,6 +297,39 @@ public class RoomBookingService {
             roomRepository.save(room);
         }
         return room;
+    }
+
+    private void syncRoomOperationalStatus(String roomCode) {
+        Room room = findRoom(roomCode);
+        if (room.getOperationalStatus() == RoomOperationalStatus.OOI) {
+            return;
+        }
+
+        RoomOperationalStatus nextStatus = deriveOperationalStatus(room);
+        if (nextStatus == room.getOperationalStatus()) {
+            return;
+        }
+
+        Instant now = Instant.now();
+        room.setOperationalStatus(nextStatus);
+        room.setStatusUpdatedAt(now);
+        if (nextStatus == RoomOperationalStatus.READY && room.getLastReadyAt() == null) {
+            room.setLastReadyAt(now);
+        }
+        roomRepository.save(room);
+    }
+
+    private RoomOperationalStatus deriveOperationalStatus(Room room) {
+        if (room.getOperationalStatus() == RoomOperationalStatus.OOI) {
+            return RoomOperationalStatus.OOI;
+        }
+        if (roomBookingRepository.existsByRoomCodeIgnoreCaseAndStatus(room.getCode(), RoomBookingStatus.CHECKED_IN)) {
+            return RoomOperationalStatus.CHECKED_IN;
+        }
+
+        boolean cleaningPending = room.getCleaningRequestedAt() != null
+                && (room.getLastReadyAt() == null || room.getCleaningRequestedAt().isAfter(room.getLastReadyAt()));
+        return cleaningPending ? RoomOperationalStatus.NEEDS_CLEANING : RoomOperationalStatus.READY;
     }
 
     private boolean isExternalCalendarBlock(RoomBookingStatus status) {
