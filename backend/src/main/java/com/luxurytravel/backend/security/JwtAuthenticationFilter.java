@@ -38,9 +38,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // 1. Public paths — skip JWT processing entirely, never trigger 401
             if (servletPath == null
-                    || servletPath.startsWith("/api/auth/")
                     || servletPath.equals("/api/auth/login")
+                    || servletPath.equals("/api/auth/login/")
                     || servletPath.equals("/api/auth/register")
+                    || servletPath.equals("/api/auth/register/")
+                    || servletPath.equals("/api/auth/social-login")
+                    || servletPath.equals("/api/auth/social-login/")
+                    || servletPath.startsWith("/api/auth/whatsapp/")
                     || servletPath.startsWith("/swagger-ui/")
                     || servletPath.startsWith("/v3/api-docs/")
                     || servletPath.startsWith("/api-docs")

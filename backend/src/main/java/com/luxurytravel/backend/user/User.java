@@ -46,6 +46,9 @@ public class User implements UserDetails {
     @Column(length = 191)
     private String providerUserId;
 
+    @Column(name = "session_version", nullable = false)
+    private Long sessionVersion = 0L;
+
     public User() {
     }
 
@@ -170,5 +173,13 @@ public class User implements UserDetails {
 
     public void setProviderUserId(String providerUserId) {
         this.providerUserId = providerUserId;
+    }
+
+    public Long getSessionVersion() {
+        return sessionVersion;
+    }
+
+    public void setSessionVersion(Long sessionVersion) {
+        this.sessionVersion = sessionVersion;
     }
 }

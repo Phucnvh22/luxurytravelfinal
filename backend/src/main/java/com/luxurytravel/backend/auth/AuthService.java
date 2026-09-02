@@ -50,9 +50,7 @@ public class AuthService {
                 Role.USER // Default role is USER
         );
         repository.save(user);
-
-        String jwtToken = jwtService.generateToken(user);
-        return new AuthResponse(jwtToken, user.getId(), user.getUsername(), user.getEmail(), user.getFullName(), user.getRole());
+        return issueAuthResponse(user);
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -64,8 +62,7 @@ public class AuthService {
         );
         User user = repository.findByUsername(request.getUsername())
                 .orElseThrow();
-        String jwtToken = jwtService.generateToken(user);
-        return new AuthResponse(jwtToken, user.getId(), user.getUsername(), user.getEmail(), user.getFullName(), user.getRole());
+        return issueAuthResponse(user);
     }
 
     public AuthResponse socialLogin(SocialLoginRequest request) {
@@ -75,15 +72,12 @@ public class AuthService {
         String email = request.getEmail() == null ? null : request.getEmail().trim().toLowerCase(Locale.ROOT);
 
         User user = upsertSocialUser(provider, externalId, email, fullName);
-
-        String jwtToken = jwtService.generateToken(user);
-        return new AuthResponse(jwtToken, user.getId(), user.getUsername(), user.getEmail(), user.getFullName(), user.getRole());
+        return issueAuthResponse(user);
     }
 
     public AuthResponse loginByOAuth2Provider(String provider, String externalId, String email, String fullName) {
         User user = upsertSocialUser(provider, externalId, email, fullName);
-        String jwtToken = jwtService.generateToken(user);
-        return new AuthResponse(jwtToken, user.getId(), user.getUsername(), user.getEmail(), user.getFullName(), user.getRole());
+        return issueAuthResponse(user);
     }
 
     public WhatsappOtpResponse requestWhatsappOtp(WhatsappOtpRequest request) {
@@ -97,8 +91,22 @@ public class AuthService {
         String normalizedPhone = normalizePhone(request.getPhoneNumber());
         whatsappOtpService.verifyOtp(normalizedPhone, request.getOtp());
         User user = upsertSocialUser("WHATSAPP", normalizedPhone, null, request.getFullName().trim());
-        String jwtToken = jwtService.generateToken(user);
-        return new AuthResponse(jwtToken, user.getId(), user.getUsername(), user.getEmail(), user.getFullName(), user.getRole());
+        return issueAuthResponse(user);
+    }
+
+    private AuthResponse issueAuthResponse(User user) {
+        long currentSessionVersion = user.getSessionVersion() == null ? 0L : user.getSessionVersion();
+        user.setSessionVersion(currentSessionVersion + 1L);
+        User savedUser = repository.save(user);
+        String jwtToken = jwtService.generateToken(savedUser);
+        return new AuthResponse(
+                jwtToken,
+                savedUser.getId(),
+                savedUser.getUsername(),
+                savedUser.getEmail(),
+                savedUser.getFullName(),
+                savedUser.getRole()
+        );
     }
 
     private User upsertSocialUser(String provider, String externalId, String email, String fullName) {

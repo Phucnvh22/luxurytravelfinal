@@ -1,6 +1,7 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AuthResponse } from '../types'
+import { apiFetch, HttpError } from '../lib/api'
 
 interface AuthContextType {
   user: AuthResponse | null
@@ -31,26 +32,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null
   })
 
-  const login = (data: AuthResponse) => {
+  const login = useCallback((data: AuthResponse) => {
     setUser(data)
-    // Save user data and token
     localStorage.setItem('user', JSON.stringify(data))
     localStorage.setItem('token', data.token)
-  }
+  }, [])
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null)
     localStorage.removeItem('user')
     localStorage.removeItem('token')
-  }
+  }, [])
 
-  const value = {
+  useEffect(() => {
+    if (!user) {
+      return
+    }
+
+    let active = true
+
+    const redirectToLogin = () => {
+      if (!active) return
+      const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        sessionStorage.setItem('postLoginRedirect', currentPath)
+        window.location.replace('/login')
+      }
+    }
+
+    const handleSessionInvalid = () => {
+      if (!active) return
+      logout()
+      redirectToLogin()
+    }
+
+    const verifySession = async () => {
+      try {
+        await apiFetch<void>('/api/auth/session')
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 401) {
+          handleSessionInvalid()
+        }
+      }
+    }
+
+    const handleAuthInvalid = () => {
+      handleSessionInvalid()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void verifySession()
+      }
+    }
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'token' && !event.newValue) {
+        handleSessionInvalid()
+      }
+    }
+
+    window.addEventListener('luxurytravel:auth-invalid', handleAuthInvalid)
+    window.addEventListener('focus', handleVisibilityChange)
+    window.addEventListener('storage', handleStorage)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    const intervalId = window.setInterval(() => {
+      void verifySession()
+    }, 15000)
+
+    void verifySession()
+
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+      window.removeEventListener('luxurytravel:auth-invalid', handleAuthInvalid)
+      window.removeEventListener('focus', handleVisibilityChange)
+      window.removeEventListener('storage', handleStorage)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [logout, user])
+
+  const value = useMemo(() => ({
     user,
     login,
     logout,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'ADMIN',
-  }
+  }), [login, logout, user])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

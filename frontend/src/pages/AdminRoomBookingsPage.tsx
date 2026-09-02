@@ -413,6 +413,17 @@ function isImportedPlatformVisibleStatus(status: VisibleRoomBookingStatus) {
   return status === 'AIRBNB_BLOCK' || status === 'KAYSTAY_BLOCK' || status === 'SOPHIA_BLOCK'
 }
 
+function getBookingSourceDisplay(
+  source?: string | null,
+  status?: RoomBookingStatus | VisibleRoomBookingStatus | null,
+) {
+  if (status === 'AIRBNB_BLOCK' || status === 'KAYSTAY_BLOCK' || status === 'SOPHIA_BLOCK') {
+    return 'Reserved'
+  }
+  const value = source?.trim()
+  return value || 'Direct'
+}
+
 function mapBookingToForm(booking: RoomBookingResponse): RoomBookingRequest {
   return {
     roomCode: booking.roomCode,
@@ -2437,7 +2448,7 @@ export default function AdminRoomBookingsPage() {
                                       : 'Only Reserved, Temp lock and Check-in bookings can be moved'
                                 }
                               >
-                                <div className="room-booking-bar-title">{booking.source || 'Direct'}</div>
+                                <div className="room-booking-bar-title">{getBookingSourceDisplay(booking.source, booking.displayStatus)}</div>
                                 <div className="room-booking-bar-meta">
                                   <span>{booking.guestName || '—'}</span>
                                 </div>
@@ -2611,14 +2622,14 @@ export default function AdminRoomBookingsPage() {
                     <div className="room-booking-detail-card">
                       <div className="room-booking-detail-label">Check-out</div>
                       <strong>{formatDateTime(selectedBooking.checkOutAt)}</strong>
-                      <div className="muted">{selectedBooking.source}</div>
+                      <div className="muted">{getBookingSourceDisplay(selectedBooking.source, selectedBooking.status)}</div>
                     </div>
                   </div>
 
                   <div className="room-booking-detail-panel">
                     <div className="room-booking-detail-row">
                       <span>Source</span>
-                      <strong>{selectedBooking.source || 'Direct'}</strong>
+                      <strong>{getBookingSourceDisplay(selectedBooking.source, selectedBooking.status)}</strong>
                     </div>
                     <div className="room-booking-detail-row">
                       <span>Phone</span>
@@ -3505,7 +3516,7 @@ export default function AdminRoomBookingsPage() {
                   <div className="room-booking-detail-card">
                     <div className="room-booking-detail-label">Guest</div>
                     <strong>{pendingMoveConfirmation.booking.guestName || 'Guest'}</strong>
-                    <div className="muted">{pendingMoveConfirmation.booking.source || 'Direct'}</div>
+                    <div className="muted">{getBookingSourceDisplay(pendingMoveConfirmation.booking.source, pendingMoveConfirmation.booking.status)}</div>
                   </div>
                   <div className="room-booking-detail-card">
                     <div className="room-booking-detail-label">Current villa</div>

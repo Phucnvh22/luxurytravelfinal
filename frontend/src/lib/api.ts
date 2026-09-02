@@ -17,6 +17,20 @@ export class HttpError extends Error {
   }
 }
 
+function notifyUnauthorized(status: number, body?: ApiError) {
+  if (typeof window === 'undefined' || status !== 401) {
+    return
+  }
+  window.dispatchEvent(
+    new CustomEvent('luxurytravel:auth-invalid', {
+      detail: {
+        status,
+        message: body?.message,
+      },
+    }),
+  )
+}
+
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`
   const token = localStorage.getItem('token')
@@ -42,6 +56,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     } catch {
       // ignore
     }
+    notifyUnauthorized(response.status, body)
     const message = body?.message || response.statusText || 'API Error'
     throw new HttpError(response.status, message, body)
   }
