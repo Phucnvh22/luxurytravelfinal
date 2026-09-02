@@ -1,5 +1,6 @@
 package com.luxurytravel.backend.room;
 
+import com.luxurytravel.backend.roomarea.RoomArea;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -7,6 +8,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
@@ -21,6 +24,10 @@ public class Room {
 
     @Column(nullable = false, unique = true, length = 50)
     private String code;
+
+    @ManyToOne
+    @JoinColumn(name = "area_id", nullable = false)
+    private RoomArea area;
 
     @Column(nullable = false)
     private String name;
@@ -168,6 +175,26 @@ public class Room {
 
     public void setCode(String code) {
         this.code = code;
+    }
+
+    public RoomArea getArea() {
+        return area;
+    }
+
+    public void setArea(RoomArea area) {
+        this.area = area;
+    }
+
+    public Long getAreaId() {
+        return area == null ? null : area.getId();
+    }
+
+    public String getAreaCode() {
+        return area == null ? "" : area.getCode();
+    }
+
+    public String getAreaName() {
+        return area == null ? "" : area.getName();
     }
 
     public String getName() {

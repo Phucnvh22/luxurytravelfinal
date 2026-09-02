@@ -1,42 +1,51 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
-import { buildAdminModules } from '../components/adminModules'
 import type {
   AdminRequestSummary,
   BookingResponse,
-  Destination,
-  Experience,
   ExperienceRequestResponse,
   Room,
   RoomBookingResponse,
+  RoomBookingStatus,
   ServiceRequestResponse,
-  TravelService,
-  User,
+  VillaServiceOrder,
 } from '../types'
 import './pages.css'
 import './admin-dashboard.css'
 
 type DashboardData = {
-  destinations: Destination[]
-  services: TravelService[]
-  experiences: Experience[]
-  users: User[]
-  sellers: User[]
+  rooms: Room[]
+  roomBookings: RoomBookingResponse[]
   bookings: BookingResponse[]
   serviceRequests: ServiceRequestResponse[]
   experienceRequests: ExperienceRequestResponse[]
-  rooms: Room[]
-  roomBookings: RoomBookingResponse[]
+  serviceOrders: VillaServiceOrder[]
   requestSummary: AdminRequestSummary | null
 }
 
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
+type StayRow = {
+  id: number
+  guestName: string
+  roomCode: string
+  source: string
+  checkInAt: string
+  checkOutAt: string
+  status: RoomBookingStatus
 }
 
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999)
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0)
+}
+
+function endOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999)
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
 }
 
 function toIsoDate(date: Date) {
@@ -46,112 +55,108 @@ function toIsoDate(date: Date) {
   return `${year}-${month}-${day}`
 }
 
-function toTime(value?: string) {
+function toTime(value?: string | null) {
   if (!value) return 0
   const time = new Date(value).getTime()
   return Number.isFinite(time) ? time : 0
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('en-US', {
+function formatMoney(value?: number | null) {
+  return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'VND',
     maximumFractionDigits: 0,
-  }).format(value)
+  }).format(value ?? 0)
 }
 
-function formatShortDate(value: string) {
+function formatShortDate(value?: string | null) {
+  if (!value) return 'Not set'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
-    month: 'short',
+    month: '2-digit',
   }).format(date)
 }
 
-function sumRevenue(items: Array<{ totalPrice?: number }>) {
-  return items.reduce((sum, item) => sum + (item.totalPrice ?? 0), 0)
+function formatDateTime(value?: string | null) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
-function getRoomAvailabilityToday(roomBookings: RoomBookingResponse[], rooms: Room[]) {
-  const now = Date.now()
-  const occupied = roomBookings.filter((booking) => {
-    const checkIn = toTime(booking.checkInAt)
-    const checkOut = toTime(booking.checkOutAt)
-    return checkIn <= now && checkOut > now && booking.status !== 'CANCELLED'
-  }).length
+function normalizeBookingSource(source?: string | null) {
+  const value = source?.trim()
+  return value || 'Direct'
+}
 
-  const checkInsToday = roomBookings.filter((booking) => {
-    const checkIn = new Date(booking.checkInAt)
-    const today = new Date(now)
-    return (
-      !Number.isNaN(checkIn.getTime()) &&
-      checkIn.getDate() === today.getDate() &&
-      checkIn.getMonth() === today.getMonth() &&
-      checkIn.getFullYear() === today.getFullYear()
-    )
-  }).length
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof HttpError) {
+    return error.message
+  }
+  return fallback
+}
 
+function isLiveStay(booking: RoomBookingResponse, now: number) {
+  if (booking.status === 'CANCELLED' || booking.status === 'CHECKED_OUT') return false
+  const checkIn = toTime(booking.checkInAt)
+  const checkOut = toTime(booking.checkOutAt)
+  return checkIn <= now && checkOut > now
+}
+
+function isUpcomingCheckIn(booking: RoomBookingResponse, now: number) {
+  if (booking.status === 'CANCELLED' || booking.status === 'CHECKED_OUT') return false
+  const checkIn = toTime(booking.checkInAt)
+  return checkIn > now
+}
+
+function isRecentCheckOut(booking: RoomBookingResponse, now: number) {
+  if (booking.status !== 'CHECKED_OUT') return false
+  const checkOut = toTime(booking.checkOutAt)
+  return checkOut <= now
+}
+
+function toStayRow(booking: RoomBookingResponse): StayRow {
   return {
-    occupied,
-    available: Math.max(rooms.length - occupied, 0),
-    checkInsToday,
+    id: booking.id,
+    guestName: booking.guestName || 'Guest',
+    roomCode: booking.roomCode,
+    source: normalizeBookingSource(booking.source),
+    checkInAt: booking.checkInAt,
+    checkOutAt: booking.checkOutAt,
+    status: booking.status,
   }
 }
 
-function buildActivityFeed(
-  bookings: BookingResponse[],
-  serviceRequests: ServiceRequestResponse[],
-  experienceRequests: ExperienceRequestResponse[],
-) {
-  const items = [
-    ...bookings.map((item) => ({
-      id: `booking-${item.id}`,
-      title: item.customerName,
-      subtitle: item.destinationName,
-      type: 'Direct booking',
-      createdAt: item.createdAt,
-      status: item.status,
-      to: '/admin/bookings',
-    })),
-    ...serviceRequests.map((item) => ({
-      id: `service-${item.id}`,
-      title: item.customerName,
-      subtitle: item.serviceName,
-      type: 'Service request',
-      createdAt: item.createdAt,
-      status: item.status,
-      to: '/admin/service-requests',
-    })),
-    ...experienceRequests.map((item) => ({
-      id: `experience-${item.id}`,
-      title: item.customerName,
-      subtitle: item.experienceName,
-      type: 'Experience request',
-      createdAt: item.createdAt,
-      status: item.status,
-      to: '/admin/experience-requests',
-    })),
-  ]
-
-  return items.sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt)).slice(0, 6)
+function buildSourceSummary(roomBookings: RoomBookingResponse[]) {
+  const counts = new Map<string, number>()
+  roomBookings.forEach((booking) => {
+    if (booking.status === 'CANCELLED') return
+    const source = normalizeBookingSource(booking.source)
+    counts.set(source, (counts.get(source) ?? 0) + 1)
+  })
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name))
+    .slice(0, 6)
 }
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData>({
-    destinations: [],
-    services: [],
-    experiences: [],
-    users: [],
-    sellers: [],
+    rooms: [],
+    roomBookings: [],
     bookings: [],
     serviceRequests: [],
     experienceRequests: [],
-    rooms: [],
-    roomBookings: [],
+    serviceOrders: [],
     requestSummary: null,
   })
-  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -160,44 +165,33 @@ export default function AdminDashboardPage() {
     setError(null)
 
     const now = new Date()
-    const monthStart = startOfMonth(now)
-    const monthEnd = endOfMonth(now)
+    const rangeStart = addDays(startOfDay(now), -7)
+    const rangeEnd = addDays(endOfDay(now), 30)
 
     const requests = await Promise.allSettled([
-      apiFetch<Destination[]>('/api/destinations'),
-      apiFetch<TravelService[]>('/api/services'),
-      apiFetch<Experience[]>('/api/experiences'),
-      apiFetch<User[]>('/api/admin/users'),
-      apiFetch<User[]>('/api/admin/users/sellers'),
+      apiFetch<Room[]>('/api/admin/rooms'),
+      apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(rangeStart)}&to=${toIsoDate(rangeEnd)}`),
       apiFetch<BookingResponse[]>('/api/bookings'),
       apiFetch<ServiceRequestResponse[]>('/api/service-requests'),
       apiFetch<ExperienceRequestResponse[]>('/api/experience-requests'),
-      apiFetch<Room[]>('/api/admin/rooms'),
-      apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(monthStart)}&to=${toIsoDate(monthEnd)}`),
+      apiFetch<VillaServiceOrder[]>('/api/admin/villa-service-orders'),
       apiFetch<AdminRequestSummary>('/api/admin/requests/summary'),
     ])
 
-    const [destinations, services, experiences, users, sellers, bookings, serviceRequests, experienceRequests, rooms, roomBookings, requestSummary] =
-      requests
+    const [rooms, roomBookings, bookings, serviceRequests, experienceRequests, serviceOrders, requestSummary] = requests
 
     const firstFailure = requests.find((item) => item.status === 'rejected')
-    if (firstFailure && firstFailure.reason instanceof HttpError) {
-      setError(firstFailure.reason.message)
-    } else if (firstFailure) {
-      setError('Could not load the admin dashboard.')
+    if (firstFailure) {
+      setError(getErrorMessage(firstFailure.reason, 'Could not load the dashboard overview.'))
     }
 
     setData({
-      destinations: destinations.status === 'fulfilled' ? destinations.value : [],
-      services: services.status === 'fulfilled' ? services.value : [],
-      experiences: experiences.status === 'fulfilled' ? experiences.value : [],
-      users: users.status === 'fulfilled' ? users.value : [],
-      sellers: sellers.status === 'fulfilled' ? sellers.value : [],
+      rooms: rooms.status === 'fulfilled' ? rooms.value : [],
+      roomBookings: roomBookings.status === 'fulfilled' ? roomBookings.value : [],
       bookings: bookings.status === 'fulfilled' ? bookings.value : [],
       serviceRequests: serviceRequests.status === 'fulfilled' ? serviceRequests.value : [],
       experienceRequests: experienceRequests.status === 'fulfilled' ? experienceRequests.value : [],
-      rooms: rooms.status === 'fulfilled' ? rooms.value : [],
-      roomBookings: roomBookings.status === 'fulfilled' ? roomBookings.value : [],
+      serviceOrders: serviceOrders.status === 'fulfilled' ? serviceOrders.value : [],
       requestSummary: requestSummary.status === 'fulfilled' ? requestSummary.value : null,
     })
     setLoading(false)
@@ -207,206 +201,391 @@ export default function AdminDashboardPage() {
     void load()
   }, [])
 
-  const modules = useMemo(() => buildAdminModules(data.requestSummary), [data.requestSummary])
+  const now = Date.now()
+  const todayStart = startOfDay(new Date()).getTime()
+  const todayEnd = endOfDay(new Date()).getTime()
+  const tomorrowEnd = endOfDay(addDays(new Date(), 1)).getTime()
 
-  const filteredModules = useMemo(() => {
-    const keyword = search.trim().toLowerCase()
-    if (!keyword) return modules
-    return modules.filter((module) => `${module.label} ${module.description}`.toLowerCase().includes(keyword))
-  }, [modules, search])
-
-  const bookingValue = useMemo(
-    () => sumRevenue(data.bookings) + sumRevenue(data.serviceRequests) + sumRevenue(data.experienceRequests),
-    [data.bookings, data.serviceRequests, data.experienceRequests],
+  const liveStays = useMemo(
+    () => data.roomBookings.filter((booking) => isLiveStay(booking, now)).sort((left, right) => toTime(left.checkOutAt) - toTime(right.checkOutAt)).map(toStayRow),
+    [data.roomBookings, now],
   )
 
-  const pendingDirectBookings = useMemo(
-    () => data.bookings.filter((item) => item.status === 'PENDING').length,
-    [data.bookings],
+  const upcomingCheckIns = useMemo(
+    () =>
+      data.roomBookings
+        .filter((booking) => {
+          if (!isUpcomingCheckIn(booking, now)) return false
+          const checkIn = toTime(booking.checkInAt)
+          return checkIn >= todayStart && checkIn <= tomorrowEnd
+        })
+        .sort((left, right) => toTime(left.checkInAt) - toTime(right.checkInAt))
+        .slice(0, 8)
+        .map(toStayRow),
+    [data.roomBookings, now, todayStart, tomorrowEnd],
   )
 
-  const roomAvailability = useMemo(
-    () => getRoomAvailabilityToday(data.roomBookings, data.rooms),
-    [data.roomBookings, data.rooms],
+  const recentCheckIns = useMemo(
+    () =>
+      data.roomBookings
+        .filter((booking) => {
+          if (booking.status === 'CANCELLED') return false
+          const checkIn = toTime(booking.checkInAt)
+          return checkIn <= now
+        })
+        .sort((left, right) => toTime(right.checkInAt) - toTime(left.checkInAt))
+        .slice(0, 8)
+        .map(toStayRow),
+    [data.roomBookings, now],
   )
 
-  const activityFeed = useMemo(
-    () => buildActivityFeed(data.bookings, data.serviceRequests, data.experienceRequests),
-    [data.bookings, data.serviceRequests, data.experienceRequests],
+  const recentCheckOuts = useMemo(
+    () =>
+      data.roomBookings
+        .filter((booking) => isRecentCheckOut(booking, now))
+        .sort((left, right) => toTime(right.checkOutAt) - toTime(left.checkOutAt))
+        .slice(0, 8)
+        .map(toStayRow),
+    [data.roomBookings, now],
   )
 
-  const totalProducts = data.destinations.length + data.services.length + data.experiences.length
+  const todayCheckIns = useMemo(
+    () => data.roomBookings.filter((booking) => {
+      const checkIn = toTime(booking.checkInAt)
+      return booking.status !== 'CANCELLED' && checkIn >= todayStart && checkIn <= todayEnd
+    }),
+    [data.roomBookings, todayStart, todayEnd],
+  )
+
+  const todayCheckOuts = useMemo(
+    () => data.roomBookings.filter((booking) => {
+      const checkOut = toTime(booking.checkOutAt)
+      return booking.status !== 'CANCELLED' && checkOut >= todayStart && checkOut <= todayEnd
+    }),
+    [data.roomBookings, todayStart, todayEnd],
+  )
+
+  const occupiedCount = liveStays.length
+  const availableCount = Math.max(data.rooms.length - occupiedCount, 0)
+  const occupancyRate = data.rooms.length > 0 ? Math.round((occupiedCount / data.rooms.length) * 100) : 0
+
+  const pendingApprovals = data.requestSummary?.totalPendingRequests ?? 0
+  const pendingDirectBookings = data.bookings.filter((item) => item.status === 'PENDING').length
+
+  const openServiceOrders = useMemo(
+    () =>
+      data.serviceOrders
+        .filter((order) => order.status !== 'CANCELLED')
+        .sort((left, right) => {
+          const leftTime = toTime(left.serviceDate ?? left.updatedAt ?? left.createdAt)
+          const rightTime = toTime(right.serviceDate ?? right.updatedAt ?? right.createdAt)
+          return rightTime - leftTime
+        })
+        .slice(0, 6),
+    [data.serviceOrders],
+  )
+
+  const sourceSummary = useMemo(() => buildSourceSummary(data.roomBookings), [data.roomBookings])
+
+  const serviceRevenue = useMemo(
+    () => data.serviceOrders.reduce((sum, order) => sum + (order.serviceTotal ?? 0), 0),
+    [data.serviceOrders],
+  )
+
+  const serviceOutstanding = useMemo(
+    () => data.serviceOrders.reduce((sum, order) => sum + Math.max((order.serviceTotal ?? 0) - (order.depositAmount ?? 0), 0), 0),
+    [data.serviceOrders],
+  )
+
+  const quickActions = [
+    { label: 'Villa schedule', value: `${todayCheckIns.length} arrivals today`, to: '/admin/room-bookings' },
+    { label: 'Villa services', value: `${openServiceOrders.length} recent service orders`, to: '/admin/villa-services' },
+    { label: 'Direct bookings', value: `${pendingDirectBookings} pending requests`, to: '/admin/bookings' },
+    { label: 'Experience requests', value: `${data.requestSummary?.pendingExperienceRequests ?? 0} waiting review`, to: '/admin/experience-requests' },
+  ]
 
   return (
     <section className="section admin-dashboard-section">
-      <div className="container admin-dashboard-main-shell">
-          <div className="admin-dashboard-topbar">
-            <div>
-              <div className="admin-dashboard-eyebrow">Admin dashboard</div>
-              <h1>Overview</h1>
+      <div className="container admin-dashboard-shell">
+        <div className="admin-dashboard-header">
+          <div>
+            <div className="admin-dashboard-kicker">Villa Operations</div>
+            <h1 className="admin-dashboard-title">Overview Dashboard</h1>
+            <p className="admin-dashboard-subtitle">
+              A live operations board for bookings, arrivals, departures, service orders, and pending approvals.
+            </p>
+          </div>
+          <div className="admin-dashboard-header-actions">
+            <Link to="/admin/room-bookings" className="btn">Open schedule</Link>
+            <button className="btn primary" type="button" onClick={() => void load()} disabled={loading}>
+              {loading ? 'Refreshing...' : 'Refresh dashboard'}
+            </button>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="card error">
+            <div className="error-title">Some dashboard data could not be loaded</div>
+            <div className="muted">{error}</div>
+          </div>
+        ) : null}
+
+        {loading ? <div className="card detail-card muted">Loading dashboard...</div> : null}
+
+        <div className="admin-dashboard-top-metrics">
+          <article className="admin-dashboard-metric-card is-emerald">
+            <span>Check-in today</span>
+            <strong>{todayCheckIns.length}</strong>
+            <small>{todayCheckIns.filter((booking) => booking.status === 'CHECKED_IN').length} already checked in</small>
+          </article>
+          <article className="admin-dashboard-metric-card is-cyan">
+            <span>Check-out today</span>
+            <strong>{todayCheckOuts.length}</strong>
+            <small>{todayCheckOuts.filter((booking) => booking.status === 'CHECKED_OUT').length} already checked out</small>
+          </article>
+          <article className="admin-dashboard-metric-card is-violet">
+            <span>Occupied now</span>
+            <strong>{occupiedCount}</strong>
+            <small>{occupancyRate}% of {data.rooms.length} villas</small>
+          </article>
+          <article className="admin-dashboard-metric-card is-amber">
+            <span>Pending approvals</span>
+            <strong>{pendingApprovals}</strong>
+            <small>{pendingDirectBookings} direct bookings need review</small>
+          </article>
+        </div>
+
+        <div className="admin-dashboard-main-grid">
+          <section className="admin-dashboard-panel admin-dashboard-panel--wide">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Today summary</h3>
+                <p>Track room flow and service cash collection at a glance.</p>
+              </div>
+              <Link to="/admin/room-bookings" className="admin-dashboard-link">Open calendar</Link>
             </div>
 
-            <div className="admin-dashboard-actions">
-              <label className="admin-dashboard-search">
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search pages, rooms, customers..."
-                />
-              </label>
-              <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
-                Reload
-              </button>
-              <Link to="/?customerPreview=1" className="btn primary">
-                View website
+            <div className="admin-dashboard-summary-grid">
+              <div className="admin-dashboard-summary-card">
+                <span>Available villas</span>
+                <strong>{availableCount}</strong>
+                <small>{data.rooms.length} total inventory</small>
+              </div>
+              <div className="admin-dashboard-summary-card">
+                <span>Service revenue</span>
+                <strong>{formatMoney(serviceRevenue)}</strong>
+                <small>Only service booking amount</small>
+              </div>
+              <div className="admin-dashboard-summary-card">
+                <span>Service outstanding</span>
+                <strong>{formatMoney(serviceOutstanding)}</strong>
+                <small>Remaining service balance</small>
+              </div>
+              <div className="admin-dashboard-summary-card">
+                <span>Booking sources</span>
+                <strong>{sourceSummary.length}</strong>
+                <small>Channels active this month</small>
+              </div>
+            </div>
+
+            <div className="admin-dashboard-source-list">
+              {sourceSummary.length === 0 ? (
+                <div className="muted">No booking source data yet.</div>
+              ) : (
+                sourceSummary.map((source) => (
+                  <div key={source.name} className="admin-dashboard-source-item">
+                    <span>{source.name}</span>
+                    <strong>{source.count}</strong>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="admin-dashboard-panel">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Quick access</h3>
+                <p>Jump straight into the busiest modules.</p>
+              </div>
+            </div>
+            <div className="admin-dashboard-action-list">
+              {quickActions.map((action) => (
+                <Link key={action.to} to={action.to} className="admin-dashboard-action-card">
+                  <strong>{action.label}</strong>
+                  <span>{action.value}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <div className="admin-dashboard-lists-grid">
+          <section className="admin-dashboard-panel">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Guests in house</h3>
+                <p>{liveStays.length} current stays</p>
+              </div>
+            </div>
+            <div className="admin-dashboard-booking-list">
+              {liveStays.length === 0 ? (
+                <div className="muted">No guests currently staying.</div>
+              ) : (
+                liveStays.map((booking) => (
+                  <div key={booking.id} className="admin-dashboard-booking-item">
+                    <div>
+                      <strong>{booking.guestName}</strong>
+                      <span>{booking.roomCode} • {booking.source}</span>
+                    </div>
+                    <div className="admin-dashboard-booking-meta">
+                      <span>Out</span>
+                      <strong>{formatDateTime(booking.checkOutAt)}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="admin-dashboard-panel">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Upcoming check-ins</h3>
+                <p>Today and tomorrow</p>
+              </div>
+            </div>
+            <div className="admin-dashboard-booking-list">
+              {upcomingCheckIns.length === 0 ? (
+                <div className="muted">No upcoming check-ins in the next two days.</div>
+              ) : (
+                upcomingCheckIns.map((booking) => (
+                  <div key={booking.id} className="admin-dashboard-booking-item">
+                    <div>
+                      <strong>{booking.guestName}</strong>
+                      <span>{booking.roomCode} • {booking.source}</span>
+                    </div>
+                    <div className="admin-dashboard-booking-meta">
+                      <span>In</span>
+                      <strong>{formatDateTime(booking.checkInAt)}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="admin-dashboard-panel">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Recent check-ins</h3>
+                <p>Latest arrivals</p>
+              </div>
+            </div>
+            <div className="admin-dashboard-booking-list">
+              {recentCheckIns.length === 0 ? (
+                <div className="muted">No recent check-ins yet.</div>
+              ) : (
+                recentCheckIns.map((booking) => (
+                  <div key={booking.id} className="admin-dashboard-booking-item">
+                    <div>
+                      <strong>{booking.guestName}</strong>
+                      <span>{booking.roomCode} • {booking.source}</span>
+                    </div>
+                    <div className="admin-dashboard-booking-meta">
+                      <span>In</span>
+                      <strong>{formatDateTime(booking.checkInAt)}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="admin-dashboard-panel">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Recent check-outs</h3>
+                <p>Latest departures</p>
+              </div>
+            </div>
+            <div className="admin-dashboard-booking-list">
+              {recentCheckOuts.length === 0 ? (
+                <div className="muted">No recent check-outs yet.</div>
+              ) : (
+                recentCheckOuts.map((booking) => (
+                  <div key={booking.id} className="admin-dashboard-booking-item">
+                    <div>
+                      <strong>{booking.guestName}</strong>
+                      <span>{booking.roomCode} • {booking.source}</span>
+                    </div>
+                    <div className="admin-dashboard-booking-meta">
+                      <span>Out</span>
+                      <strong>{formatDateTime(booking.checkOutAt)}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="admin-dashboard-bottom-grid">
+          <section className="admin-dashboard-panel">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Service booking activity</h3>
+                <p>Latest active service orders</p>
+              </div>
+              <Link to="/admin/villa-services" className="admin-dashboard-link">Open service management</Link>
+            </div>
+            <div className="admin-dashboard-service-list">
+              {openServiceOrders.length === 0 ? (
+                <div className="muted">No active service orders yet.</div>
+              ) : (
+                openServiceOrders.map((order) => (
+                  <div key={`${order.orderType}-${order.id}`} className="admin-dashboard-service-item">
+                    <div>
+                      <strong>{order.bookingGuestName || order.customerName}</strong>
+                      <span>{order.bookingRoomCode || 'Standalone'} • {formatShortDate(order.serviceDate)}</span>
+                    </div>
+                    <div className="admin-dashboard-booking-meta">
+                      <span>{order.orderType}</span>
+                      <strong>{formatMoney(order.serviceTotal)}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="admin-dashboard-panel">
+            <div className="admin-dashboard-panel-head">
+              <div>
+                <h3>Approvals inbox</h3>
+                <p>Requests waiting for action</p>
+              </div>
+            </div>
+            <div className="admin-dashboard-approval-grid">
+              <Link to="/admin/bookings" className="admin-dashboard-approval-card">
+                <span>Direct bookings</span>
+                <strong>{pendingDirectBookings}</strong>
+              </Link>
+              <Link to="/admin/service-requests" className="admin-dashboard-approval-card">
+                <span>Service requests</span>
+                <strong>{data.requestSummary?.pendingServiceRequests ?? 0}</strong>
+              </Link>
+              <Link to="/admin/experience-requests" className="admin-dashboard-approval-card">
+                <span>Experience requests</span>
+                <strong>{data.requestSummary?.pendingExperienceRequests ?? 0}</strong>
+              </Link>
+              <Link to="/admin/users" className="admin-dashboard-approval-card">
+                <span>Open service orders</span>
+                <strong>{openServiceOrders.length}</strong>
               </Link>
             </div>
-          </div>
-
-          {loading ? (
-            <div className="card detail-card muted">Loading dashboard...</div>
-          ) : (
-            <>
-              {error ? (
-                <div className="card error">
-                  <div className="error-title">Some dashboard data could not be loaded</div>
-                  <div className="muted">{error}</div>
-                </div>
-              ) : null}
-
-              <div className="admin-dashboard-hero-grid">
-                <div className="admin-dashboard-panel admin-dashboard-panel-gradient">
-                  <div className="admin-dashboard-alert-chip">
-                    {pendingDirectBookings > 0
-                      ? `${pendingDirectBookings} direct booking request${pendingDirectBookings === 1 ? '' : 's'} need review`
-                      : 'All direct booking requests are up to date'}
-                  </div>
-                  <div className="admin-dashboard-hero-row">
-                    <div className="admin-dashboard-property-card">
-                      <div className="admin-dashboard-property-title">Customer website</div>
-                      <div className="admin-dashboard-property-value">Live and synced with public view</div>
-                      <div className="admin-dashboard-property-meta">
-                        {totalProducts} products live
-                        <span className="admin-dashboard-dot" />
-                        {data.rooms.length} rooms managed
-                      </div>
-                    </div>
-                    <div className="admin-dashboard-property-card">
-                      <div className="admin-dashboard-property-title">Requests inbox</div>
-                      <div className="admin-dashboard-property-value">
-                        {data.requestSummary?.totalPendingRequests ?? 0} pending approvals
-                      </div>
-                      <div className="admin-dashboard-property-meta">
-                        Service {data.requestSummary?.pendingServiceRequests ?? 0}
-                        <span className="admin-dashboard-dot" />
-                        Experience {data.requestSummary?.pendingExperienceRequests ?? 0}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="admin-dashboard-panel">
-                  <div className="admin-dashboard-panel-head">
-                    <h3>Website preview</h3>
-                    <Link to="/?customerPreview=1" className="admin-dashboard-inline-link">
-                      Open full page
-                    </Link>
-                  </div>
-                  <div className="admin-dashboard-preview-frame">
-                    <iframe src="/?customerPreview=1" title="Customer website preview" loading="lazy" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="admin-dashboard-quick-grid">
-                {filteredModules.map((module) => (
-                  <Link key={module.to} to={module.to} className={`admin-dashboard-quick-card tone-${module.tone}`}>
-                    <div className="admin-dashboard-quick-title-row">
-                      <strong>{module.label}</strong>
-                      {module.badge ? <span className="admin-dashboard-side-badge">{module.badge}</span> : null}
-                    </div>
-                    <span>{module.description}</span>
-                  </Link>
-                ))}
-              </div>
-
-              <div className="admin-dashboard-stats-grid">
-                <div className="admin-dashboard-stat-card">
-                  <div className="admin-dashboard-stat-label">Pipeline value</div>
-                  <div className="admin-dashboard-stat-value">{formatMoney(bookingValue)}</div>
-                  <div className="muted">Combined direct bookings, services and experiences</div>
-                </div>
-                <div className="admin-dashboard-stat-card">
-                  <div className="admin-dashboard-stat-label">Products live</div>
-                  <div className="admin-dashboard-stat-value">{totalProducts}</div>
-                  <div className="muted">
-                    {data.destinations.length} destinations, {data.services.length} services, {data.experiences.length} experiences
-                  </div>
-                </div>
-                <div className="admin-dashboard-stat-card">
-                  <div className="admin-dashboard-stat-label">People</div>
-                  <div className="admin-dashboard-stat-value">{data.users.length}</div>
-                  <div className="muted">{data.sellers.length} sellers with admin-tracked accounts</div>
-                </div>
-                <div className="admin-dashboard-stat-card">
-                  <div className="admin-dashboard-stat-label">Room inventory today</div>
-                  <div className="admin-dashboard-stat-value">
-                    {roomAvailability.occupied}/{data.rooms.length}
-                  </div>
-                  <div className="muted">{roomAvailability.available} rooms currently available</div>
-                </div>
-              </div>
-
-              <div className="admin-dashboard-detail-grid">
-                <div className="admin-dashboard-panel">
-                  <div className="admin-dashboard-panel-head">
-                    <h3>Today at a glance</h3>
-                  </div>
-                  <div className="admin-dashboard-mini-metrics">
-                    <div className="admin-dashboard-mini-metric">
-                      <span>Check-ins today</span>
-                      <strong>{roomAvailability.checkInsToday}</strong>
-                    </div>
-                    <div className="admin-dashboard-mini-metric">
-                      <span>Pending direct bookings</span>
-                      <strong>{pendingDirectBookings}</strong>
-                    </div>
-                    <div className="admin-dashboard-mini-metric">
-                      <span>Pending approvals</span>
-                      <strong>{data.requestSummary?.totalPendingRequests ?? 0}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="admin-dashboard-panel">
-                  <div className="admin-dashboard-panel-head">
-                    <h3>Recent activity</h3>
-                  </div>
-                  <div className="admin-dashboard-activity-list">
-                    {activityFeed.length === 0 ? (
-                      <div className="muted">No recent activity yet.</div>
-                    ) : (
-                      activityFeed.map((item) => (
-                        <Link key={item.id} to={item.to} className="admin-dashboard-activity-item">
-                          <div>
-                            <strong>{item.title}</strong>
-                            <div className="muted">
-                              {item.type} • {item.subtitle}
-                            </div>
-                          </div>
-                          <div className="admin-dashboard-activity-meta">
-                            <span>{item.status}</span>
-                            <span>{formatShortDate(item.createdAt)}</span>
-                          </div>
-                        </Link>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+          </section>
+        </div>
       </div>
     </section>
   )

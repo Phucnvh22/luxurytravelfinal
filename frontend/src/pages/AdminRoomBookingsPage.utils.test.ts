@@ -60,19 +60,22 @@ describe('AdminRoomBookingsPage utils', () => {
     expect(compareRoomsByLocation(beta, alpha)).toBeGreaterThan(0)
   })
 
-  it('groups schedule rows by location', () => {
+  it('groups schedule rows by area and villa tier', () => {
     const roomByCode = {
-      V101: createRoom({ code: 'V101', location: 'Beach Front', floorNumber: 101 }),
-      V102: createRoom({ code: 'V102', location: 'Beach Front', floorNumber: 102 }),
-      V201: createRoom({ code: 'V201', location: 'City Center', floorNumber: 201 }),
+      V107: createRoom({ code: 'V107', areaCode: 'PREMIER', areaName: 'Premier', location: 'Beach Front', floorNumber: 107 }),
+      V208: createRoom({ code: 'V208', areaCode: 'PREMIER', areaName: 'Premier', location: 'Beach Access', floorNumber: 208 }),
+      V331: createRoom({ code: 'V331', areaCode: 'OCEAN', areaName: 'Ocean', location: 'Garden', floorNumber: 331 }),
     }
 
-    expect(buildGroupedScheduleRows(['V101', 'V102', 'V201'], roomByCode)).toEqual([
-      { type: 'location', location: 'Beach Front', count: 2 },
-      { type: 'villa', roomCode: 'V101', location: 'Beach Front' },
-      { type: 'villa', roomCode: 'V102', location: 'Beach Front' },
-      { type: 'location', location: 'City Center', count: 1 },
-      { type: 'villa', roomCode: 'V201', location: 'City Center' },
+    expect(buildGroupedScheduleRows(['V107', 'V208', 'V331'], roomByCode)).toEqual([
+      { type: 'area', areaKey: 'OCEAN', label: 'Ocean' },
+      { type: 'villa-tier', tierKey: 'garden-view-villa', label: 'Garden View-Villa', count: 1, toneClass: 'garden-view-villa', emoji: '🟢' },
+      { type: 'villa', roomCode: 'V331', tierKey: 'garden-view-villa' },
+      { type: 'area', areaKey: 'PREMIER', label: 'Premier' },
+      { type: 'villa-tier', tierKey: 'beach-access-villa', label: 'Beach Access-Villa', count: 1, toneClass: 'beach-access-villa', emoji: '📙' },
+      { type: 'villa', roomCode: 'V208', tierKey: 'beach-access-villa' },
+      { type: 'villa-tier', tierKey: 'beach-front-luxury-villa', label: 'Beach Front-Luxury Villa', count: 1, toneClass: 'beach-front-luxury-villa', emoji: '🟡' },
+      { type: 'villa', roomCode: 'V107', tierKey: 'beach-front-luxury-villa' },
     ])
   })
 

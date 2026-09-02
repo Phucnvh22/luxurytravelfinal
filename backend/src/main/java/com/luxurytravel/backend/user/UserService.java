@@ -109,7 +109,7 @@ public class UserService {
         if (cleanerId == null) {
             return;
         }
-        List<Room> rooms = roomRepository.findAllByAssignedCleanerIdOrderByLocationAscFloorNumberAscCodeAsc(cleanerId);
+        List<Room> rooms = roomRepository.findAllByAssignedCleanerIdOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc(cleanerId);
         if (rooms.isEmpty()) {
             return;
         }

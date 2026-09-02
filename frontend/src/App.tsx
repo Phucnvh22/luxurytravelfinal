@@ -9,6 +9,9 @@ import AdminExperienceRequestsPage from './pages/AdminExperienceRequestsPage'
 import AdminRoomCleaningHistoryPage from './pages/AdminRoomCleaningHistoryPage'
 import AdminRoomBookingsPage from './pages/AdminRoomBookingsPage'
 import AdminRoomRepairHistoryPage from './pages/AdminRoomRepairHistoryPage'
+import AdminRoomAreasPage from './pages/AdminRoomAreasPage'
+import AdminVillaSettingsPage from './pages/AdminVillaSettingsPage'
+import AdminVillaServicesPage from './pages/AdminVillaServicesPage'
 import AdminRoomsPage from './pages/AdminRoomsPage'
 import AdminServiceRequestsPage from './pages/AdminServiceRequestsPage'
 import AdminServicesPage from './pages/AdminServicesPage'
@@ -26,7 +29,6 @@ import OAuth2SuccessPage from './pages/OAuth2SuccessPage'
 import RegisterPage from './pages/RegisterPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PublicRoomCalendarPage from './pages/PublicRoomCalendarPage'
-import MaintenanceDashboardPage from './pages/MaintenanceDashboardPage'
 import SellerBookingsPage from './pages/SellerBookingsPage'
 import SellerExperienceRequestsPage from './pages/SellerExperienceRequestsPage'
 import SellerServiceRequestsPage from './pages/SellerServiceRequestsPage'
@@ -100,7 +102,7 @@ function ProtectedRoute({
 
   const roles = requiredRoles ?? (requiredRole ? [requiredRole] : undefined)
   if (roles && !roles.includes(user?.role ?? '')) {
-    const fallbackPath = user?.role === 'CLEANER' ? '/cleaner' : user?.role === 'MAINTENANCE' ? '/maintenance' : '/'
+    const fallbackPath = user?.role === 'CLEANER' ? '/cleaner' : '/'
     return <Navigate to={fallbackPath} replace />
   }
 
@@ -115,11 +117,6 @@ export default function App() {
         <Route path="/cleaner" element={
           <ProtectedRoute requiredRole="CLEANER">
             <CleanerDashboardPage />
-          </ProtectedRoute>
-        } />
-        <Route path="/maintenance" element={
-          <ProtectedRoute requiredRole="MAINTENANCE">
-            <MaintenanceDashboardPage />
           </ProtectedRoute>
         } />
         <Route element={<Layout />}>
@@ -195,9 +192,24 @@ export default function App() {
               <AdminRoomsPage />
             </ProtectedRoute>
           } />
+          <Route path="/admin/room-areas" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminRoomAreasPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/villa-settings" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminVillaSettingsPage />
+            </ProtectedRoute>
+          } />
           <Route path="/admin/services" element={
             <ProtectedRoute requiredRole="ADMIN">
               <AdminServicesPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/villa-services" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminVillaServicesPage />
             </ProtectedRoute>
           } />
           <Route path="/admin/experiences" element={

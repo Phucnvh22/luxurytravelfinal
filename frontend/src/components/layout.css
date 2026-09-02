@@ -200,6 +200,29 @@
   height: 24px;
 }
 
+.admin-mobile-sidebar-fab {
+  display: none;
+  position: fixed;
+  top: 108px;
+  left: 12px;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(183, 223, 196, 0.9);
+  background: rgba(255, 255, 255, 0.97);
+  color: #173c2e;
+  box-shadow: 0 12px 30px rgba(23, 60, 46, 0.12);
+  cursor: pointer;
+  z-index: 181;
+}
+
+.admin-mobile-sidebar-fab svg {
+  width: 20px;
+  height: 20px;
+}
+
 .notif-badge {
   position: absolute;
   top: 1px;
@@ -339,13 +362,31 @@
 }
 
 .app-main-admin.sidebar-collapsed {
-  padding-left: 0;
+  padding-left: 94px;
+}
+
+.admin-sidebar-mobile-overlay {
+  display: none;
 }
 
 @media (max-width: 1100px) {
   .app-main-admin,
   .app-main-admin.sidebar-collapsed {
     padding-left: 0;
+  }
+
+  .admin-mobile-sidebar-fab {
+    display: inline-flex;
+  }
+
+  .admin-sidebar-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    border: 0;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.24);
+    z-index: 180;
   }
 }
 

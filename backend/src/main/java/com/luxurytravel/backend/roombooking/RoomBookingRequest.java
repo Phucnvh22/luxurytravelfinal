@@ -36,7 +36,6 @@ public class RoomBookingRequest {
     @NotNull
     private LocalDateTime checkOutAt;
 
-    @NotNull
     private RoomBookingStatus status;
 
     @Min(0)

@@ -10,6 +10,9 @@ public class RoomUpsertRequest {
     @Size(max = 50)
     private String code;
 
+    @NotNull
+    private Long areaId;
+
     @NotBlank
     @Size(max = 255)
     private String name;
@@ -64,6 +67,14 @@ public class RoomUpsertRequest {
 
     public void setCode(String code) {
         this.code = code;
+    }
+
+    public Long getAreaId() {
+        return areaId;
+    }
+
+    public void setAreaId(Long areaId) {
+        this.areaId = areaId;
     }
 
     public String getName() {

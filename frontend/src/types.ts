@@ -121,9 +121,47 @@ export type ExperienceUpsertRequest = {
   videoUrls?: string[]
 }
 
+export type RoomArea = {
+  id: number
+  code: string
+  name: string
+  sortOrder: number
+  active: boolean
+}
+
+export type RoomAreaUpsertRequest = {
+  name: string
+  sortOrder: number
+  active: boolean
+}
+
+export type VillaSettingCategory = 'ROOM_TYPE' | 'HOST' | 'BOOKING_SOURCE'
+
+export type VillaSettingOption = {
+  id: number
+  category: VillaSettingCategory
+  label: string
+  sortOrder: number
+  active: boolean
+}
+
+export type VillaSettingUpsertRequest = {
+  category: VillaSettingCategory
+  label: string
+}
+
+export type VillaSettingsResponse = {
+  roomTypes: VillaSettingOption[]
+  hosts: VillaSettingOption[]
+  bookingSources: VillaSettingOption[]
+}
+
 export type Room = {
   id: number
   code: string
+  areaId?: number
+  areaCode?: string
+  areaName?: string
   name: string
   host: string
   type: string
@@ -167,6 +205,7 @@ export type Room = {
 
 export type RoomUpsertRequest = {
   code: string
+  areaId: number
   name: string
   host: string
   type: string
@@ -235,6 +274,8 @@ export type RoomBookingResponse = {
   checkOutAt: string
   status: RoomBookingStatus
   villaRate?: number
+  serviceTotal?: number
+  totalAmount?: number
   depositAmount?: number
   remainingAmount?: number
   notes: string
@@ -281,6 +322,89 @@ export type SophiaSyncRunResponse = {
   success: boolean
   message: string
   logs: string[]
+}
+
+export type VillaServiceCatalog = {
+  id: number
+  name: string
+  unitPrice?: number | null
+  active: boolean
+  usageCount: number
+  vendors: VillaServiceVendor[]
+  createdAt: string
+  updatedAt: string
+}
+
+export type VillaServiceVendor = {
+  id: number
+  name: string
+}
+
+export type VillaServiceCatalogUpsertRequest = {
+  name: string
+  unitPrice?: number
+  active?: boolean
+  vendorNames: string[]
+}
+
+export type VillaServiceOrderStatus = 'OPEN' | 'COMPLETED' | 'CANCELLED'
+export type VillaServiceOrderType = 'BOOKING' | 'STANDALONE'
+
+export type VillaServiceOrderItemRequest = {
+  serviceId: number
+  quantity: number
+  unitPrice?: number
+  vendorId?: number | null
+  vendorCost?: number
+}
+
+export type VillaServiceOrderUpsertRequest = {
+  customerName?: string
+  customerPhone?: string
+  serviceDate?: string
+  depositAmount?: number
+  notes?: string
+  status?: VillaServiceOrderStatus
+  items: VillaServiceOrderItemRequest[]
+}
+
+export type VillaServiceOrderItem = {
+  id: number
+  serviceId: number
+  serviceName: string
+  vendorId?: number | null
+  vendorName?: string | null
+  unitPrice: number
+  quantity: number
+  lineTotal: number
+  vendorCost?: number | null
+}
+
+export type VillaServiceOrder = {
+  id: number | null
+  orderType: VillaServiceOrderType
+  status: VillaServiceOrderStatus
+  bookingId?: number | null
+  bookingRoomCode?: string | null
+  bookingGuestName?: string | null
+  customerName: string
+  customerPhone: string
+  serviceDate?: string | null
+  notes: string
+  serviceTotal?: number
+  vendorCostTotal?: number | null
+  depositAmount?: number | null
+  remainingAmount?: number | null
+  bookingBaseAmount?: number | null
+  finalTotal?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
+  items: VillaServiceOrderItem[]
+}
+
+export type VillaServiceBookingOrderResponse = {
+  booking: RoomBookingResponse
+  order: VillaServiceOrder
 }
 
 export type BookingResponse = {

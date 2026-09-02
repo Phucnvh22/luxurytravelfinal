@@ -3,6 +3,8 @@ package com.luxurytravel.backend.roombooking;
 import com.luxurytravel.backend.room.Room;
 import com.luxurytravel.backend.room.RoomOperationalStatus;
 import com.luxurytravel.backend.room.RoomRepository;
+import com.luxurytravel.backend.villaservice.VillaServiceOrderService;
+import com.luxurytravel.backend.villaservice.VillaServicePricing;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +21,16 @@ import java.util.Set;
 public class RoomBookingService {
     private final RoomBookingRepository roomBookingRepository;
     private final RoomRepository roomRepository;
+    private final VillaServiceOrderService villaServiceOrderService;
 
-    public RoomBookingService(RoomBookingRepository roomBookingRepository, RoomRepository roomRepository) {
+    public RoomBookingService(
+            RoomBookingRepository roomBookingRepository,
+            RoomRepository roomRepository,
+            VillaServiceOrderService villaServiceOrderService
+    ) {
         this.roomBookingRepository = roomBookingRepository;
         this.roomRepository = roomRepository;
+        this.villaServiceOrderService = villaServiceOrderService;
     }
 
     @Transactional(readOnly = true)
@@ -50,7 +58,7 @@ public class RoomBookingService {
         }
 
         DateRange range = buildRange(from, to);
-        List<PublicRoomCalendarRoomResponse> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc().stream()
+        List<PublicRoomCalendarRoomResponse> rooms = roomRepository.findAllByOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc().stream()
                 .filter(Room::isActive)
                 .filter(room -> normalizedCodes.contains(room.getCode().trim().toUpperCase()))
                 .map(PublicRoomCalendarRoomResponse::from)
@@ -83,6 +91,7 @@ public class RoomBookingService {
         RoomBooking booking = new RoomBooking();
         apply(booking, request, null);
         RoomBooking saved = roomBookingRepository.save(booking);
+        villaServiceOrderService.syncBookingOrderSummary(saved);
         syncRoomOperationalStatus(saved.getRoomCode());
         return RoomBookingResponse.from(saved);
     }
@@ -96,6 +105,7 @@ public class RoomBookingService {
         }
         apply(booking, request, id);
         RoomBooking saved = roomBookingRepository.save(booking);
+        villaServiceOrderService.syncBookingOrderSummary(saved);
         syncRoomOperationalStatus(previousRoomCode);
         syncRoomOperationalStatus(saved.getRoomCode());
         return RoomBookingResponse.from(saved);
@@ -155,7 +165,7 @@ public class RoomBookingService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only checked-in bookings can be checked out");
         }
 
-        Double normalizedCollected = normalizeMoney(collectedAmount);
+        Double normalizedCollected = VillaServicePricing.normalizeMoney(collectedAmount);
         double currentRemaining = booking.getRemainingAmount() == null ? 0D : booking.getRemainingAmount();
 
         if (normalizedCollected != null && normalizedCollected > 0) {
@@ -234,10 +244,13 @@ public class RoomBookingService {
         String notes = request.getNotes() == null ? "" : request.getNotes().trim();
         LocalDateTime checkInAt = request.getCheckInAt();
         LocalDateTime checkOutAt = request.getCheckOutAt();
-        Double villaRate = normalizeMoney(request.getVillaRate());
-        Double depositAmount = normalizeMoney(request.getDepositAmount());
-        Double requestedRemainingAmount = normalizeMoney(request.getRemainingAmount());
-        Double remainingAmount = calculateRemainingAmount(villaRate, depositAmount, requestedRemainingAmount);
+        Double villaRate = VillaServicePricing.normalizeMoney(request.getVillaRate());
+        Double serviceTotal = VillaServicePricing.normalizeMoney(booking.getServiceTotal());
+        Double totalAmount = VillaServicePricing.calculateBookingTotal(villaRate, serviceTotal);
+        Double depositAmount = VillaServicePricing.normalizeMoney(request.getDepositAmount());
+        Double requestedRemainingAmount = VillaServicePricing.normalizeMoney(request.getRemainingAmount());
+        Double remainingAmount = VillaServicePricing.calculateRemainingAmount(totalAmount, depositAmount, requestedRemainingAmount);
+        RoomBookingStatus status = request.getStatus() == null ? RoomBookingStatus.CONFIRMED : request.getStatus();
         LocalDate today = LocalDate.now();
 
         Room room = findRoom(roomCode);
@@ -270,8 +283,10 @@ public class RoomBookingService {
         booking.setChildren(request.getChildren());
         booking.setCheckInAt(checkInAt);
         booking.setCheckOutAt(checkOutAt);
-        booking.setStatus(request.getStatus());
+        booking.setStatus(status);
         booking.setVillaRate(villaRate);
+        booking.setServiceTotal(serviceTotal);
+        booking.setTotalAmount(totalAmount);
         booking.setDepositAmount(depositAmount);
         booking.setRemainingAmount(remainingAmount);
         booking.setNotes(notes);
@@ -336,24 +351,6 @@ public class RoomBookingService {
         return status == RoomBookingStatus.AIRBNB_BLOCK
                 || status == RoomBookingStatus.KAYSTAY_BLOCK
                 || status == RoomBookingStatus.SOPHIA_BLOCK;
-    }
-
-    private Double normalizeMoney(Double value) {
-        if (value == null) {
-            return null;
-        }
-        if (value < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Amount cannot be negative");
-        }
-        return value;
-    }
-
-    private Double calculateRemainingAmount(Double totalAmount, Double depositAmount, Double fallbackAmount) {
-        if (totalAmount == null) {
-            return fallbackAmount;
-        }
-        double remaining = totalAmount - (depositAmount == null ? 0D : depositAmount);
-        return Math.max(remaining, 0D);
     }
 
     private DateRange buildRange(LocalDate from, LocalDate to) {

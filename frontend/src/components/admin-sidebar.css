@@ -13,21 +13,19 @@
   transition: width 180ms ease;
 }
 
-.admin-global-sidebar-collapsed-button {
-  width: auto;
-  height: auto;
-  bottom: auto;
-  border: 0;
-  background: transparent;
-  backdrop-filter: none;
-  box-shadow: none;
-  border-radius: 0;
+.admin-global-sidebar.is-collapsed {
+  width: 74px;
+  border-radius: 20px;
 }
 
 .admin-global-sidebar-scroll {
   height: 100%;
   overflow-y: auto;
   padding: 18px;
+}
+
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-scroll {
+  padding: 14px 10px;
 }
 
 .admin-global-sidebar-toggle {
@@ -45,35 +43,10 @@
   line-height: 1;
 }
 
-.admin-global-sidebar-dashboard-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 16px 0 10px;
-  border: 1px solid rgba(183, 223, 196, 0.82);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 254, 249, 0.98), rgba(247, 251, 248, 0.98));
-  color: #173c2e;
-  box-shadow: 0 18px 34px rgba(23, 60, 46, 0.08);
-  cursor: pointer;
-  font-weight: 800;
-}
-
-.admin-global-sidebar-dashboard-button:hover {
-  background: #eef8f1;
-}
-
-.admin-global-sidebar-dashboard-icon {
-  width: 34px;
-  height: 34px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(45, 90, 70, 0.14), rgba(219, 192, 143, 0.24));
-  color: #173c2e;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-toggle {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
 }
 
 .admin-global-sidebar-brand {
@@ -97,6 +70,18 @@
   flex: 0 0 auto;
 }
 
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-brand {
+  justify-content: center;
+  padding: 34px 0 14px;
+}
+
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  font-size: 11px;
+}
+
 .admin-global-sidebar-brand-label {
   color: #173c2e;
   font-weight: 800;
@@ -110,6 +95,10 @@
 
 .admin-global-sidebar-group {
   margin-top: 18px;
+}
+
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-group {
+  margin-top: 14px;
 }
 
 .admin-global-sidebar-title {
@@ -129,7 +118,8 @@
 .admin-global-sidebar-link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  position: relative;
   gap: 10px;
   padding: 11px 12px;
   border-radius: 14px;
@@ -139,11 +129,37 @@
   min-height: 44px;
 }
 
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-link,
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-preview-link {
+  justify-content: center;
+  padding: 10px 0;
+  min-height: 42px;
+}
+
 .admin-global-sidebar-link:hover,
 .admin-global-sidebar-preview-link:hover,
 .admin-global-sidebar-link.active {
   background: rgba(233, 249, 239, 0.96);
   transform: translateY(-1px);
+}
+
+.admin-global-sidebar-link-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+}
+
+.admin-global-sidebar-link-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-global-sidebar-link-label {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .admin-global-sidebar-badge {
@@ -159,10 +175,23 @@
   font-weight: 800;
 }
 
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10px;
+}
+
 .admin-global-sidebar-preview-link {
   margin-top: 20px;
   display: inline-flex;
+  align-items: center;
   justify-content: center;
+  position: relative;
+  gap: 10px;
   width: 100%;
   padding: 12px 14px;
   border-radius: 14px;
@@ -171,8 +200,34 @@
   font-weight: 900;
 }
 
+.admin-global-sidebar.is-collapsed .admin-global-sidebar-preview-link {
+  margin-top: 16px;
+  padding: 10px 0;
+}
+
 @media (max-width: 1100px) {
   .admin-global-sidebar {
     display: none;
+  }
+
+  .admin-global-sidebar.is-mobile-open {
+    display: block;
+    top: 96px;
+    left: 12px;
+    bottom: 12px;
+    width: min(320px, calc(100vw - 24px));
+    z-index: 190;
+    border-radius: 18px;
+  }
+
+  .admin-global-sidebar.is-mobile-open .admin-global-sidebar-scroll {
+    padding: 18px 14px 14px;
+  }
+
+  .admin-global-sidebar.is-mobile-open .admin-global-sidebar-toggle {
+    top: 12px;
+    right: 12px;
+    left: auto;
+    transform: none;
   }
 }

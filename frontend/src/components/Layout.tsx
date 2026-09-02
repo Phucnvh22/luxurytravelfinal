@@ -24,6 +24,7 @@ export default function Layout() {
   const serviceIconUrl = encodeURI('/—Pngtree—classic metallic desk bell with_21118389.png')
   const vf9ImageUrl = encodeURI(`${import.meta.env.BASE_URL}VF9.jpg`)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [adminSidebarMobileOpen, setAdminSidebarMobileOpen] = useState(false)
   const [adminSidebarCollapsed, setAdminSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('adminSidebarCollapsed') === '1'
@@ -44,12 +45,10 @@ export default function Layout() {
     return <Navigate to="/cleaner" replace />
   }
 
-  if (user?.role === 'MAINTENANCE') {
-    return <Navigate to="/maintenance" replace />
-  }
-
   const toggleMenu = () => setMobileMenuOpen(!mobileMenuOpen)
   const closeMenu = () => setMobileMenuOpen(false)
+  const toggleAdminSidebarMobile = () => setAdminSidebarMobileOpen((current) => !current)
+  const closeAdminSidebarMobile = () => setAdminSidebarMobileOpen(false)
 
   const copyText = async (text: string) => {
     if (window.isSecureContext && navigator.clipboard?.writeText) {
@@ -135,11 +134,18 @@ export default function Layout() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMenu()
+      if (e.key === 'Escape') {
+        closeMenu()
+        closeAdminSidebarMobile()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  useEffect(() => {
+    closeAdminSidebarMobile()
+  }, [location.pathname])
 
   const showHeaderOnMobile = true
   const headerClass = `app-header ${!showHeaderOnMobile ? 'hide-on-mobile' : ''} ${isAdminRoute ? 'app-header-admin' : ''} ${!isAdminRoute ? 'with-topnav' : ''}`
@@ -341,11 +347,38 @@ export default function Layout() {
       ) : null}
 
       {showAdminSidebar ? (
-        <AdminSidebar
-          requestSummary={requestSummary}
-          collapsed={adminSidebarCollapsed}
-          onToggle={() => setAdminSidebarCollapsed((current) => !current)}
-        />
+        <>
+          {!adminSidebarMobileOpen ? (
+            <button
+              className="admin-mobile-sidebar-fab"
+              type="button"
+              onClick={toggleAdminSidebarMobile}
+              aria-label="Open admin sidebar"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="7" x2="20" y2="7"></line>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+                <line x1="4" y1="17" x2="20" y2="17"></line>
+              </svg>
+            </button>
+          ) : null}
+          {adminSidebarMobileOpen ? (
+            <button
+              className="admin-sidebar-mobile-overlay"
+              type="button"
+              aria-label="Close admin sidebar"
+              onClick={closeAdminSidebarMobile}
+            />
+          ) : null}
+          <AdminSidebar
+            requestSummary={requestSummary}
+            collapsed={adminSidebarCollapsed}
+            onToggle={() => setAdminSidebarCollapsed((current) => !current)}
+            mobileOpen={adminSidebarMobileOpen}
+            onNavigate={closeAdminSidebarMobile}
+            onCloseMobile={closeAdminSidebarMobile}
+          />
+        </>
       ) : null}
 
       <main className={`app-main ${showAdminSidebar ? `app-main-admin ${adminSidebarCollapsed ? 'sidebar-collapsed' : ''}` : ''}`}>

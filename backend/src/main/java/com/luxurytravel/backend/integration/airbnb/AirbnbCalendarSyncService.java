@@ -414,7 +414,7 @@ public class AirbnbCalendarSyncService {
             return List.of(room.get());
         }
 
-        return roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc().stream()
+        return roomRepository.findAllByOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc().stream()
                 .filter(room -> room.isActive())
                 .filter(room -> room.getAirbnbUrl() != null && !room.getAirbnbUrl().isBlank())
                 .filter(this::isRoomAllowed)

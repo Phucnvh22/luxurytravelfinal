@@ -18,6 +18,7 @@ export type VillaTierDefinition = {
 }
 
 export type GroupedScheduleRow =
+  | { type: 'area'; areaKey: string; label: string }
   | { type: 'villa-tier'; tierKey: VillaTierKey; label: string; count: number; toneClass: string; emoji: string }
   | { type: 'villa'; roomCode: string; tierKey: VillaTierKey }
 
@@ -97,6 +98,14 @@ function normalizeLocation(location?: string) {
   return location?.trim() || 'Unassigned location'
 }
 
+function normalizeAreaName(areaName?: string) {
+  return areaName?.trim() || 'Premier'
+}
+
+function normalizeAreaKey(room?: Room) {
+  return room?.areaCode?.trim() || normalizeAreaName(room?.areaName).toUpperCase()
+}
+
 function normalizeRoomCode(roomCode?: string) {
   return roomCode?.trim().toUpperCase() || ''
 }
@@ -135,6 +144,7 @@ function buildDateKeysBetween(startKey: string, endKey: string) {
 export function compareRoomsByLocation(a?: Room, b?: Room, fallbackA = '', fallbackB = '') {
   if (a && b) {
     return (
+      normalizeAreaName(a.areaName).localeCompare(normalizeAreaName(b.areaName), 'vi-VN', { sensitivity: 'base' }) ||
       normalizeLocation(a.location).localeCompare(normalizeLocation(b.location), 'vi-VN', { sensitivity: 'base' }) ||
       a.floorNumber - b.floorNumber ||
       a.code.localeCompare(b.code, 'vi-VN', { numeric: true })
@@ -196,8 +206,21 @@ export function buildGroupedScheduleRows(roomCodes: string[], roomByCode: Record
     other: 0,
   })
 
+  let currentAreaKey = ''
   let currentTierKey = '' as VillaTierKey | ''
   orderedRoomCodes.forEach((roomCode) => {
+    const room = roomByCode[roomCode]
+    const areaKey = normalizeAreaKey(room)
+    if (areaKey !== currentAreaKey) {
+      currentAreaKey = areaKey
+      currentTierKey = '' as VillaTierKey | ''
+      groups.push({
+        type: 'area',
+        areaKey,
+        label: normalizeAreaName(room?.areaName),
+      })
+    }
+
     const tier = getVillaTierDefinition(roomCode)
     if (tier.key !== currentTierKey) {
       currentTierKey = tier.key

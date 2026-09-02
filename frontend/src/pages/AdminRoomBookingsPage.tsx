@@ -1,7 +1,20 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
-import type { AirbnbSyncRunResponse, KayStaySyncRunResponse, Room, RoomBookingRequest, RoomBookingResponse, RoomBookingStatus, SophiaSyncRunResponse } from '../types'
+import type {
+  AirbnbSyncRunResponse,
+  KayStaySyncRunResponse,
+  Room,
+  RoomBookingRequest,
+  RoomBookingResponse,
+  RoomBookingStatus,
+  VillaServiceBookingOrderResponse,
+  VillaServiceCatalog,
+  VillaServiceOrder,
+  VillaServiceOrderUpsertRequest,
+  SophiaSyncRunResponse,
+  VillaSettingsResponse,
+} from '../types'
 import {
   buildGroupedScheduleRows,
   buildQuickBookingDateRange,
@@ -15,6 +28,7 @@ import {
   type QuickBookingSelection,
   type VillaTierKey,
 } from './AdminRoomBookingsPage.utils'
+import { calculateVillaServiceTotal, calculateVillaServiceVendorCostTotal } from './villa-service-utils'
 import './pages.css'
 import './admin-room-bookings.css'
 
@@ -58,6 +72,20 @@ type PendingMoveConfirmation = {
   targetRoomCode: string
   targetDateKey: string
 }
+type ConfirmationTemplate = {
+  includedServices: string
+  importantNotes: string
+  guestSupport: string
+}
+type VillaMonthCalendarCell = {
+  date: Date
+  dateKey: string
+  inMonth: boolean
+  isToday: boolean
+  activeBooking: ScheduleBooking | null
+  checkInBookings: ScheduleBooking[]
+  checkOutBookings: ScheduleBooking[]
+}
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
@@ -78,6 +106,7 @@ const FALLBACK_ROOM_CODE = 'V107'
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 const STANDARD_CHECK_IN_HOUR = 15
 const STANDARD_CHECK_OUT_HOUR = 11
+const MONTH_CALENDAR_WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoomBookingStatus, string>> = {
   en: {
@@ -277,7 +306,15 @@ function formatMoney(value?: number, language: ConfirmationLanguage = 'vi') {
   }).format(value)
 }
 
-function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): RoomBookingRequest {
+function buildDefaultConfirmationTemplate(): ConfirmationTemplate {
+  return {
+    includedServices: 'Welcome fruit and drinks, internet, private pool, daily housekeeping, buggy 08:00 - 22:00.',
+    importantNotes: 'Check-in after 15:00, check-out before 11:00, no smoking, quiet hours 22:00 - 06:00.',
+    guestSupport: '24/7 support via WhatsApp.',
+  }
+}
+
+function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE, source = 'Direct'): RoomBookingRequest {
   const today = startOfDay(new Date())
   const safeStart = monthStart.getTime() < today.getTime() ? today : monthStart
   const checkInAt = new Date(safeStart)
@@ -288,7 +325,7 @@ function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): Room
   return {
     roomCode,
     guestName: '',
-    source: 'Direct',
+    source,
     phone: '',
     adults: 2,
     children: 0,
@@ -299,6 +336,43 @@ function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE): Room
     depositAmount: undefined,
     remainingAmount: undefined,
     notes: '',
+  }
+}
+
+function calculateBookingTotalAmount(villaRate?: number, serviceTotal?: number) {
+  const total = (villaRate ?? 0) + (serviceTotal ?? 0)
+  return total > 0 ? total : undefined
+}
+
+function buildDefaultServiceOrderForm(booking?: RoomBookingResponse): VillaServiceOrderUpsertRequest {
+  return {
+    customerName: booking?.guestName ?? '',
+    customerPhone: booking?.phone ?? '',
+    serviceDate: toDateInputValue(booking?.checkInAt),
+    depositAmount: undefined,
+    status: 'OPEN',
+    notes: '',
+    items: [{ serviceId: 0, quantity: 1, unitPrice: undefined, vendorId: undefined, vendorCost: undefined }],
+  }
+}
+
+function mapServiceOrderToForm(order: VillaServiceOrder): VillaServiceOrderUpsertRequest {
+  return {
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    serviceDate: order.serviceDate ?? '',
+    depositAmount: order.depositAmount ?? undefined,
+    status: order.status,
+    notes: order.notes,
+    items: order.items.length > 0
+      ? order.items.map((item) => ({
+          serviceId: item.serviceId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          vendorId: item.vendorId ?? undefined,
+          vendorCost: item.vendorCost ?? undefined,
+        }))
+      : [{ serviceId: 0, quantity: 1, unitPrice: undefined, vendorId: undefined, vendorCost: undefined }],
   }
 }
 
@@ -387,19 +461,7 @@ function formatDayNumber(value: Date) {
   }).format(value)
 }
 
-function formatDateRange(start: Date, end: Date) {
-  return `${new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(start)} - ${new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(end)}`
-}
-
-function formatMonthLabel(value: Date) {
+function formatMonthYear(value: Date) {
   return new Intl.DateTimeFormat('en-GB', {
     month: 'long',
     year: 'numeric',
@@ -430,6 +492,19 @@ function formatDateOnly(value: string) {
 function countGuests(booking: RoomBookingResponse) {
   const total = booking.adults + booking.children
   return `${total} guests`
+}
+
+function getMonthCalendarGridDates(monthStart: Date) {
+  const firstDayOffset = monthStart.getDay()
+  const gridStart = addDays(monthStart, -firstDayOffset)
+  return Array.from({ length: 35 }, (_, index) => addDays(gridStart, index))
+}
+
+function isDateInsideBooking(dateKey: string, booking: RoomBookingResponse) {
+  const checkInDateKey = toDateInputValue(booking.checkInAt)
+  const checkOutDateKey = toDateInputValue(booking.checkOutAt)
+  if (!checkInDateKey || !checkOutDateKey) return false
+  return dateKey >= checkInDateKey && dateKey < checkOutDateKey
 }
 
 function sortBookingsByTime<T extends RoomBookingResponse>(items: T[]) {
@@ -586,8 +661,11 @@ export default function AdminRoomBookingsPage() {
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
   const [roomsCatalog, setRoomsCatalog] = useState<Room[]>([])
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
+  const [bookingSources, setBookingSources] = useState<string[]>(['Direct'])
+  const [serviceCatalog, setServiceCatalog] = useState<VillaServiceCatalog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedAreaId, setSelectedAreaId] = useState('')
   const [selectedVillaType, setSelectedVillaType] = useState<VillaTierKey | ''>('')
   const [selectedHost, setSelectedHost] = useState('')
   const [selectedBedroomLayout, setSelectedBedroomLayout] = useState('')
@@ -596,7 +674,11 @@ export default function AdminRoomBookingsPage() {
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null)
   const [bookingModalMode, setBookingModalMode] = useState<BookingModalMode | null>(null)
   const [showConfirmInformation, setShowConfirmInformation] = useState(false)
+  const [showServiceOrderModal, setShowServiceOrderModal] = useState(false)
   const confirmationLanguage: ConfirmationLanguage = 'en'
+  const [confirmationTemplate, setConfirmationTemplate] = useState<ConfirmationTemplate>(() => buildDefaultConfirmationTemplate())
+  const [confirmationDetailsNotes, setConfirmationDetailsNotes] = useState('')
+  const [isConfirmationEditing, setIsConfirmationEditing] = useState(false)
   const [quickSelection, setQuickSelection] = useState<QuickBookingSelection | null>(null)
   const [form, setForm] = useState<RoomBookingRequest>(() => buildDefaultForm(startOfMonth(new Date())))
   const [formError, setFormError] = useState<string | null>(null)
@@ -606,6 +688,10 @@ export default function AdminRoomBookingsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
   const [checkoutCollectedAmount, setCheckoutCollectedAmount] = useState<string>('')
+  const [serviceOrderForm, setServiceOrderForm] = useState<VillaServiceOrderUpsertRequest>(() => buildDefaultServiceOrderForm())
+  const [serviceOrderLoading, setServiceOrderLoading] = useState(false)
+  const [serviceOrderSaving, setServiceOrderSaving] = useState(false)
+  const [serviceOrderError, setServiceOrderError] = useState<string | null>(null)
   const [syncingAirbnb, setSyncingAirbnb] = useState(false)
   const [syncingKaystay, setSyncingKaystay] = useState(false)
   const [syncingSophia, setSyncingSophia] = useState(false)
@@ -616,6 +702,7 @@ export default function AdminRoomBookingsPage() {
   const [pendingMoveConfirmation, setPendingMoveConfirmation] = useState<PendingMoveConfirmation | null>(null)
   const [repairInsightRoomCode, setRepairInsightRoomCode] = useState<string | null>(null)
   const [ooiInsightRoomCode, setOoiInsightRoomCode] = useState<string | null>(null)
+  const [villaCalendarRoomCode, setVillaCalendarRoomCode] = useState<string | null>(null)
   const [touchDrag, setTouchDrag] = useState<TouchDragState | null>(null)
   const loadingRef = useRef(false)
   const scheduleScrollRef = useRef<HTMLDivElement | null>(null)
@@ -624,6 +711,7 @@ export default function AdminRoomBookingsPage() {
   const dropTargetRoomCodeRef = useRef<string | null>(null)
   const dropTargetDateKeyRef = useRef<string | null>(null)
   const monthDaysRef = useRef<Date[]>([])
+  const pendingScrollToTodayRef = useRef(false)
   const ignoreNextClickBookingIdRef = useRef<number | null>(null)
 
   const monthStart = useMemo(() => startOfMonth(monthCursor), [monthCursor])
@@ -655,6 +743,17 @@ export default function AdminRoomBookingsPage() {
       VILLA_TIER_DEFINITIONS.filter((tier) => roomsCatalog.some((room) => getVillaTierDefinition(room.code).key === tier.key)),
     [roomsCatalog],
   )
+  const areaOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          roomsCatalog
+            .filter((room) => room.areaId && room.areaName)
+            .map((room) => [String(room.areaId), { id: String(room.areaId), name: room.areaName }]),
+        ).values(),
+      ).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'vi')),
+    [roomsCatalog],
+  )
   const hostOptions = useMemo(
     () =>
       Array.from(new Set(roomsCatalog.map((room) => room.host?.trim()).filter((value): value is string => Boolean(value))))
@@ -683,9 +782,55 @@ export default function AdminRoomBookingsPage() {
     () => (ooiInsightRoomCode ? roomByCode[ooiInsightRoomCode] ?? null : null),
     [ooiInsightRoomCode, roomByCode],
   )
+  const villaCalendarRoom = useMemo(
+    () => (villaCalendarRoomCode ? roomByCode[villaCalendarRoomCode] ?? null : null),
+    [roomByCode, villaCalendarRoomCode],
+  )
   const draggedBooking = useMemo(
     () => bookings.find((booking) => booking.id === draggingBookingId) ?? null,
     [bookings, draggingBookingId],
+  )
+  const bookingSourceOptions = useMemo(() => {
+    const normalized = bookingSources
+      .map((value) => value.trim())
+      .filter(Boolean)
+    const currentValue = form.source?.trim()
+    if (currentValue && !normalized.includes(currentValue)) {
+      normalized.push(currentValue)
+    }
+    if (normalized.length === 0) normalized.push('Direct')
+    return normalized
+  }, [bookingSources, form.source])
+  const bookingServiceOptions = useMemo(
+    () =>
+      serviceCatalog.filter(
+        (service) => service.active || serviceOrderForm.items.some((item) => item.serviceId === service.id),
+      ),
+    [serviceCatalog, serviceOrderForm.items],
+  )
+  const serviceOrderDraftTotal = useMemo(
+    () => calculateVillaServiceTotal(serviceOrderForm.items.filter((item) => item.serviceId > 0), serviceCatalog),
+    [serviceCatalog, serviceOrderForm.items],
+  )
+  const serviceOrderDraftVendorCost = useMemo(
+    () => calculateVillaServiceVendorCostTotal(serviceOrderForm.items.filter((item) => item.serviceId > 0)),
+    [serviceOrderForm.items],
+  )
+  const selectedBookingGrandTotal = useMemo(
+    () => calculateBookingTotalAmount(selectedBooking?.villaRate, selectedBooking?.serviceTotal),
+    [selectedBooking],
+  )
+  const serviceOrderDraftGrandTotal = useMemo(
+    () => calculateBookingTotalAmount(selectedBooking?.villaRate, serviceOrderDraftTotal),
+    [selectedBooking, serviceOrderDraftTotal],
+  )
+  const serviceOrderDraftRemaining = useMemo(
+    () => calculateRemainingAmount(
+      serviceOrderDraftGrandTotal,
+      (selectedBooking?.depositAmount ?? 0) + (serviceOrderForm.depositAmount ?? 0),
+      selectedBooking?.remainingAmount,
+    ),
+    [selectedBooking, serviceOrderDraftGrandTotal, serviceOrderForm.depositAmount],
   )
 
   useEffect(() => {
@@ -708,9 +853,57 @@ export default function AdminRoomBookingsPage() {
     monthDaysRef.current = monthDays
   }, [monthDays])
 
+  const scrollToToday = () => {
+    const container = scheduleScrollRef.current
+    if (!container) return false
+    const todayKey = toIsoDate(startOfDay(new Date()))
+    const target = container.querySelector<HTMLElement>(`.room-schedule-day-head[data-day-key="${todayKey}"]`)
+    if (!target) return false
+    target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    return true
+  }
+
+  const handleGoToToday = () => {
+    const today = new Date()
+    const todayMonthStart = startOfMonth(today)
+    const isCurrentMonth =
+      monthCursor.getFullYear() === todayMonthStart.getFullYear() &&
+      monthCursor.getMonth() === todayMonthStart.getMonth()
+
+    if (isCurrentMonth) {
+      requestAnimationFrame(() => {
+        scrollToToday()
+      })
+      return
+    }
+
+    pendingScrollToTodayRef.current = true
+    setMonthCursor(todayMonthStart)
+  }
+
+  useEffect(() => {
+    if (!pendingScrollToTodayRef.current || loading) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      if (scrollToToday()) {
+        pendingScrollToTodayRef.current = false
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [loading, monthCursor, monthDays])
+
   const updateMonthCursor = (nextMonth: number, nextYear: number) => {
     setMonthCursor(new Date(nextYear, nextMonth, 1))
   }
+
+  useEffect(() => {
+    if (bookingModalMode === 'details' && selectedBooking) {
+      setConfirmationDetailsNotes(selectedBooking.notes ?? '')
+      return
+    }
+    setConfirmationDetailsNotes('')
+  }, [bookingModalMode, selectedBooking])
 
   async function load(opts?: { silent?: boolean }) {
     if (loadingRef.current) return
@@ -720,12 +913,20 @@ export default function AdminRoomBookingsPage() {
       setError(null)
     }
     try {
-      const [bookingsData, roomsData] = await Promise.all([
+      const [bookingsData, roomsData, settingsData, servicesData] = await Promise.all([
         apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(monthStart)}&to=${toIsoDate(monthEnd)}`),
         apiFetch<Room[]>('/api/admin/rooms'),
+        apiFetch<VillaSettingsResponse>('/api/admin/villa-settings'),
+        apiFetch<VillaServiceCatalog[]>('/api/admin/villa-services'),
       ])
       setBookings(bookingsData)
       setRoomsCatalog(roomsData)
+      setServiceCatalog(servicesData)
+      setBookingSources(
+        settingsData.bookingSources
+          .map((item) => item.label.trim())
+          .filter(Boolean),
+      )
       setError(null)
     } catch (e: unknown) {
       if (!opts?.silent) {
@@ -853,6 +1054,15 @@ export default function AdminRoomBookingsPage() {
   }, [editingId, roomsCatalog])
 
   useEffect(() => {
+    if (editingId || bookingModalMode !== 'create') return
+    const defaultSource = bookingSourceOptions[0] || 'Direct'
+    setForm((current) => {
+      if (current.source === defaultSource) return current
+      return { ...current, source: defaultSource, status: 'CONFIRMED' }
+    })
+  }, [bookingModalMode, bookingSourceOptions, editingId])
+
+  useEffect(() => {
     if (!selectedBookingId) return
     if (bookings.some((booking) => booking.id === selectedBookingId)) return
     setSelectedBookingId(null)
@@ -877,14 +1087,45 @@ export default function AdminRoomBookingsPage() {
     counts.CONFIRMED += counts.AIRBNB_BLOCK + counts.KAYSTAY_BLOCK + counts.SOPHIA_BLOCK
     return counts
   }, [bookings])
+  const villaCalendarBookings = useMemo(() => {
+    if (!villaCalendarRoomCode) return []
 
+    return sortBookingsByTime(
+      bookings.flatMap<ScheduleBooking>((booking) => {
+        if (booking.roomCode !== villaCalendarRoomCode) return []
+        const visibleStatus = normalizeDisplayStatus(booking.status)
+        if (!visibleStatus) return []
+        return [{ ...booking, displayStatus: visibleStatus }]
+      }),
+    )
+  }, [bookings, villaCalendarRoomCode])
+  const villaCalendarGridCells = useMemo<VillaMonthCalendarCell[]>(() => {
+    const currentTodayDateKey = toIsoDate(startOfDay(new Date()))
+    return getMonthCalendarGridDates(monthStart).map((date) => {
+      const dateKey = toIsoDate(date)
+      const activeBooking = villaCalendarBookings.find((booking) => isDateInsideBooking(dateKey, booking)) ?? null
+      const checkInBookings = villaCalendarBookings.filter((booking) => toDateInputValue(booking.checkInAt) === dateKey)
+      const checkOutBookings = villaCalendarBookings.filter((booking) => toDateInputValue(booking.checkOutAt) === dateKey)
+
+      return {
+        date,
+        dateKey,
+        inMonth: date >= monthStart && date <= monthEnd,
+        isToday: dateKey === currentTodayDateKey,
+        activeBooking,
+        checkInBookings,
+        checkOutBookings,
+      }
+    })
+  }, [monthEnd, monthStart, villaCalendarBookings])
   const matchesRoomFilters = (room?: Room | null) => {
     if (!room) {
-      return !selectedVillaType && !selectedHost && !selectedBedroomLayout
+      return !selectedAreaId && !selectedVillaType && !selectedHost && !selectedBedroomLayout
     }
     const roomTierKey = getVillaTierDefinition(room.code).key
     const roomHost = room.host?.trim() ?? ''
     const roomBedroomLayout = room.bedroomLayout?.trim() ?? ''
+    if (selectedAreaId && String(room.areaId) !== selectedAreaId) return false
     if (selectedVillaType && roomTierKey !== selectedVillaType) return false
     if (selectedHost && roomHost !== selectedHost) return false
     if (selectedBedroomLayout && roomBedroomLayout !== selectedBedroomLayout) return false
@@ -901,7 +1142,7 @@ export default function AdminRoomBookingsPage() {
       if (!matchesRoomFilters(roomByCode[booking.roomCode])) return []
       return [{ ...booking, displayStatus: visibleStatus }]
     })
-  }, [activeStatuses, bookings, roomByCode, selectedBedroomLayout, selectedHost, selectedVillaType])
+  }, [activeStatuses, bookings, roomByCode, selectedAreaId, selectedBedroomLayout, selectedHost, selectedVillaType])
 
   const rooms = useMemo(() => {
     const catalogCodes = roomsCatalog
@@ -911,7 +1152,7 @@ export default function AdminRoomBookingsPage() {
     const uniqueRooms = Array.from(new Set([...catalogCodes, ...bookingCodes].filter(Boolean)))
 
     return sortRoomCodesByVillaTier(uniqueRooms, roomByCode)
-  }, [filteredBookings, roomByCode, roomsCatalog, selectedBedroomLayout, selectedHost, selectedVillaType])
+  }, [filteredBookings, roomByCode, roomsCatalog, selectedAreaId, selectedBedroomLayout, selectedHost, selectedVillaType])
 
   const roomOptions = useMemo(() => {
     return Array.from(new Set([...roomsCatalog.map((room) => room.code), ...bookings.map((booking) => booking.roomCode)]))
@@ -960,8 +1201,9 @@ export default function AdminRoomBookingsPage() {
 
       const checkInDateKey = toDateInputValue(booking.checkInAt)
       const checkOutDateKey = toDateInputValue(booking.checkOutAt)
-      const remaining = calculateRemainingAmount(booking.villaRate, booking.depositAmount, booking.remainingAmount) ?? 0
+      const remaining = calculateRemainingAmount(booking.totalAmount ?? booking.villaRate, booking.depositAmount, booking.remainingAmount) ?? 0
       const deposit = booking.depositAmount ?? 0
+      const bookingTotal = booking.totalAmount ?? booking.villaRate ?? 0
       const isFinancialBooking =
         visibleStatus !== 'TEMP_BLOCK' &&
         visibleStatus !== 'AIRBNB_BLOCK' &&
@@ -988,7 +1230,7 @@ export default function AdminRoomBookingsPage() {
       if (isFinancialBooking && remaining > 0.001) {
         items.unpaid += 1
       }
-      if (isFinancialBooking && (booking.villaRate ?? 0) > 0 && remaining <= 0.001) {
+      if (isFinancialBooking && bookingTotal > 0 && remaining <= 0.001) {
         items.paid += 1
       }
       if (isFinancialBooking && deposit > 0.001) {
@@ -1042,7 +1284,13 @@ export default function AdminRoomBookingsPage() {
 
   const resetForm = () => {
     setEditingId(null)
-    setForm(buildDefaultForm(monthStart, roomsCatalog[0]?.code ?? FALLBACK_ROOM_CODE))
+    setForm(buildDefaultForm(monthStart, roomsCatalog[0]?.code ?? FALLBACK_ROOM_CODE, bookingSources[0] ?? 'Direct'))
+    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationDetailsNotes('')
+    setIsConfirmationEditing(false)
+    setServiceOrderForm(buildDefaultServiceOrderForm())
+    setServiceOrderError(null)
+    setShowServiceOrderModal(false)
     setFormError(null)
   }
 
@@ -1050,6 +1298,12 @@ export default function AdminRoomBookingsPage() {
     setBookingModalMode(null)
     setSelectedBookingId(null)
     setShowConfirmInformation(false)
+    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationDetailsNotes('')
+    setIsConfirmationEditing(false)
+    setServiceOrderForm(buildDefaultServiceOrderForm())
+    setServiceOrderError(null)
+    setShowServiceOrderModal(false)
     setFormError(null)
     setEditingId(null)
   }
@@ -1203,7 +1457,7 @@ export default function AdminRoomBookingsPage() {
     }
 
     setForm({
-      ...buildDefaultForm(monthStart, quickSelection.roomCode),
+      ...buildDefaultForm(monthStart, quickSelection.roomCode, bookingSources[0] ?? 'Direct'),
       roomCode: quickSelection.roomCode,
       checkInAt: range.checkInAt,
       checkOutAt: range.checkOutAt,
@@ -1273,8 +1527,21 @@ export default function AdminRoomBookingsPage() {
     setSelectedBookingId(booking.id)
     setBookingModalMode('details')
     setShowConfirmInformation(false)
+    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationDetailsNotes(booking.notes ?? '')
+    setIsConfirmationEditing(false)
     setFormError(null)
     setEditingId(null)
+  }
+
+  const openVillaMonthCalendar = (roomCode: string) => {
+    setVillaCalendarRoomCode(roomCode)
+  }
+
+  const handleVillaCellDoubleClick = (roomCode: string, event: ReactMouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (target.closest('a, button')) return
+    openVillaMonthCalendar(roomCode)
   }
 
   const editBooking = (booking: RoomBookingResponse) => {
@@ -1283,6 +1550,9 @@ export default function AdminRoomBookingsPage() {
     setForm(mapBookingToForm(booking))
     setBookingModalMode('edit')
     setShowConfirmInformation(false)
+    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationDetailsNotes('')
+    setIsConfirmationEditing(false)
     setFormError(null)
   }
 
@@ -1393,13 +1663,13 @@ export default function AdminRoomBookingsPage() {
     const payload: RoomBookingRequest = {
       roomCode: form.roomCode.trim(),
       guestName: form.guestName.trim(),
-      source: form.source?.trim() || 'Direct',
+      source: form.source?.trim() || bookingSourceOptions[0] || 'Direct',
       phone: form.phone?.trim() || '',
       adults: Number(form.adults),
       children: Number(form.children),
       checkInAt: form.checkInAt,
       checkOutAt: form.checkOutAt,
-      status: form.status,
+      status: editingId ? form.status : 'CONFIRMED',
       villaRate,
       depositAmount,
       remainingAmount,
@@ -1489,7 +1759,7 @@ export default function AdminRoomBookingsPage() {
   const initiateCheckOut = async () => {
     if (!selectedBooking) return
     const currentRemaining =
-      calculateRemainingAmount(selectedBooking.villaRate, selectedBooking.depositAmount, selectedBooking.remainingAmount) ?? 0
+      calculateRemainingAmount(selectedBooking.totalAmount ?? selectedBooking.villaRate, selectedBooking.depositAmount, selectedBooking.remainingAmount) ?? 0
     if (currentRemaining > 0) {
       setCheckoutCollectedAmount(toMoneyInputValue(currentRemaining))
       setShowCheckoutModal(true)
@@ -1553,6 +1823,56 @@ export default function AdminRoomBookingsPage() {
     }
   }
 
+  const openServiceOrderModal = async () => {
+    if (!selectedBooking) return
+    setShowServiceOrderModal(true)
+    setServiceOrderLoading(true)
+    setServiceOrderError(null)
+    try {
+      const response = await apiFetch<VillaServiceBookingOrderResponse>(`/api/admin/room-bookings/${selectedBooking.id}/service-order`)
+      setServiceOrderForm(mapServiceOrderToForm(response.order))
+      setBookings((current) => current.map((booking) => (booking.id === response.booking.id ? response.booking : booking)))
+    } catch (e: unknown) {
+      setServiceOrderError(getErrorMessage(e, 'Could not load service order'))
+      setServiceOrderForm(buildDefaultServiceOrderForm(selectedBooking))
+    } finally {
+      setServiceOrderLoading(false)
+    }
+  }
+
+  const handleSaveServiceOrder = async () => {
+    if (!selectedBooking) return
+    setServiceOrderSaving(true)
+    setServiceOrderError(null)
+    try {
+      const payload: VillaServiceOrderUpsertRequest = {
+        customerName: serviceOrderForm.customerName?.trim() || selectedBooking.guestName,
+        customerPhone: serviceOrderForm.customerPhone?.trim() || selectedBooking.phone,
+        serviceDate: serviceOrderForm.serviceDate || toDateInputValue(selectedBooking.checkInAt),
+        depositAmount: serviceOrderForm.depositAmount,
+        status: 'OPEN',
+        notes: serviceOrderForm.notes?.trim() || '',
+        items: serviceOrderForm.items.filter((item) => item.serviceId > 0 && item.quantity > 0),
+      }
+      const response = await apiFetch<VillaServiceBookingOrderResponse>(`/api/admin/room-bookings/${selectedBooking.id}/service-order`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+      setServiceOrderForm(mapServiceOrderToForm(response.order))
+      setBookings((current) => current.map((booking) => (booking.id === response.booking.id ? response.booking : booking)))
+      setSelectedBookingId(response.booking.id)
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Service order saved',
+        message: `Updated service total for ${response.booking.roomCode}.`,
+      })
+    } catch (e: unknown) {
+      setServiceOrderError(getErrorMessage(e, 'Could not save service order'))
+    } finally {
+      setServiceOrderSaving(false)
+    }
+  }
+
   const checkInDateValue = toDateInputValue(form.checkInAt)
   const checkOutDateValue = toDateInputValue(form.checkOutAt)
   const minCheckOutDateValue = nextCheckoutDateValue(form.checkInAt)
@@ -1580,6 +1900,7 @@ export default function AdminRoomBookingsPage() {
           adults: selectedBooking.adults,
           children: selectedBooking.children,
           villaRate: selectedBooking.villaRate,
+          totalAmount: selectedBooking.totalAmount,
           depositAmount: selectedBooking.depositAmount,
           remainingAmount: selectedBooking.remainingAmount,
           checkInAt: selectedBooking.checkInAt,
@@ -1601,21 +1922,22 @@ export default function AdminRoomBookingsPage() {
     Number.isNaN(confirmationCheckInMs) || Number.isNaN(confirmationCheckOutMs)
       ? 0
       : Math.max(1, Math.round((confirmationCheckOutMs - confirmationCheckInMs) / DAY_DURATION_MS))
-  const confirmationNotes = confirmationSource.notes?.trim() || ''
   const confirmationRoom = roomByCode[confirmationSource.roomCode]
   const confirmationStatusLabel =
     CONFIRMATION_STATUS_LABELS[confirmationLanguage][normalizeEditableStatus(confirmationSource.status)]
   const confirmationBookingId = selectedBooking?.id ? `#${selectedBooking.id}` : 'TBA'
-  const confirmationVillaType = [confirmationRoom?.location, confirmationRoom?.type].filter(Boolean).join(' • ') ||
-    'TBA'
+  const confirmationVillaType = confirmationRoom?.type?.trim() || 'TBA'
   const confirmationVillaRateValue = parseMoneyInput(confirmationSource.villaRate)
+  const confirmationTotalAmountSource = parseMoneyInput(
+    'totalAmount' in confirmationSource ? confirmationSource.totalAmount : undefined,
+  )
   const confirmationDepositAmountValue = parseMoneyInput(confirmationSource.depositAmount)
   const confirmationRemainingAmountValue = calculateRemainingAmount(
-    confirmationVillaRateValue,
+    confirmationTotalAmountSource ?? confirmationVillaRateValue,
     confirmationDepositAmountValue,
     parseMoneyInput(confirmationSource.remainingAmount),
   )
-  const confirmationTotalAmountValue = confirmationVillaRateValue
+  const confirmationTotalAmountValue = confirmationTotalAmountSource ?? confirmationVillaRateValue
   const confirmationVillaRate = formatMoney(confirmationVillaRateValue, confirmationLanguage)
   const confirmationTotalAmount = formatMoney(confirmationTotalAmountValue, confirmationLanguage)
   const confirmationDepositAmount = formatMoney(confirmationDepositAmountValue, confirmationLanguage)
@@ -1626,12 +1948,14 @@ export default function AdminRoomBookingsPage() {
       : confirmationDepositAmountValue !== undefined && confirmationDepositAmountValue > 0
         ? 'Deposit paid'
         : 'Pending update'
-  const confirmationSupportText =
-    '24/7 support via WhatsApp.'
-  const confirmationIncludedText =
-    'Welcome fruit and drinks, internet, private pool, daily housekeeping, buggy 08:00 - 22:00.'
-  const confirmationImportantText =
-    'Check-in after 15:00, check-out before 11:00, no smoking, quiet hours 22:00 - 06:00.'
+  const isConfirmationEditable = isConfirmationEditing
+  const defaultConfirmationTemplate = buildDefaultConfirmationTemplate()
+  const confirmationSupportText = isConfirmationEditable ? confirmationTemplate.guestSupport : defaultConfirmationTemplate.guestSupport
+  const confirmationIncludedText = isConfirmationEditable ? confirmationTemplate.includedServices : defaultConfirmationTemplate.includedServices
+  const confirmationImportantText = isConfirmationEditable ? confirmationTemplate.importantNotes : defaultConfirmationTemplate.importantNotes
+  const confirmationAdditionalNotes = bookingModalMode === 'details'
+    ? confirmationDetailsNotes.trim()
+    : (form.notes?.trim() || '')
   const confirmationPrimaryRows =
     [
       ['Accommodation', confirmationRoomName],
@@ -1664,7 +1988,7 @@ export default function AdminRoomBookingsPage() {
   return (
     <section className="section">
       <div className="container">
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div className="row room-bookings-page-topbar" style={{ justifyContent: 'space-between' }}>
           <div className="row">
             <Link to="/" className="btn">
               ← Home
@@ -1691,10 +2015,10 @@ export default function AdminRoomBookingsPage() {
             <h2>Admin • Villa booking calendar</h2>
             <div className="muted">
               Grouped by villa tier. Double click one available day to start a booking range, then double click a later day on the
-              same villa row to extend the stay.
+              same villa row to extend the stay. Double click the villa cell to open a monthly desktop calendar popup for that villa.
             </div>
           </div>
-          <div className="row" style={{ gap: 10 }}>
+          <div className="row room-bookings-sync-actions" style={{ gap: 10 }}>
             <button className="btn" type="button" onClick={() => void handleAirbnbSync()} disabled={syncingAirbnb}>
               {syncingAirbnb ? 'Syncing Airbnb...' : 'Sync Airbnb'}
             </button>
@@ -1710,157 +2034,171 @@ export default function AdminRoomBookingsPage() {
           </div>
         </div>
 
-        <div className="room-bookings-toolbar card detail-card">
-          <div className="row room-bookings-toolbar-top">
-            <div className="room-bookings-filter-group">
-              <label className="field room-bookings-filter-field">
-                <div className="field-label">Hạng villa</div>
-                <select
-                  className="select"
-                  value={selectedVillaType}
-                  onChange={(e) => setSelectedVillaType(e.target.value as VillaTierKey | '')}
-                >
-                  <option value="">Tất cả</option>
-                  {villaTypeOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field room-bookings-filter-field">
-                <div className="field-label">Host</div>
-                <select
-                  className="select"
-                  value={selectedHost}
-                  onChange={(e) => setSelectedHost(e.target.value)}
-                >
-                  <option value="">Tất cả</option>
-                  {hostOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field room-bookings-filter-field">
-                <div className="field-label">Kết cấu giường</div>
-                <select
-                  className="select"
-                  value={selectedBedroomLayout}
-                  onChange={(e) => setSelectedBedroomLayout(e.target.value)}
-                >
-                  <option value="">Tất cả</option>
-                  {bedroomLayoutOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="room-bookings-week-nav">
-              <div className="room-bookings-nav-strip">
-                <button
-                  className="btn room-bookings-nav-btn"
-                  type="button"
-                  onClick={() => setMonthCursor((current) => addMonths(current, -1))}
-                >
-                  ←
-                </button>
-                <div className="room-bookings-week-label room-bookings-current-month">
-                  <div className="room-bookings-week-title">Month</div>
-                  <div className="room-bookings-week-range">{formatMonthLabel(monthCursor)}</div>
-                </div>
-                <button
-                  className="btn room-bookings-nav-btn"
-                  type="button"
-                  onClick={() => setMonthCursor((current) => addMonths(current, 1))}
-                >
-                  →
-                </button>
-              </div>
-              <div className="room-bookings-picker-group">
-                <label className="field room-bookings-month-field">
-                  <div className="field-label">Month</div>
+        <div className="room-bookings-workspace">
+          <div className="room-bookings-toolbar card detail-card">
+            <div className="row room-bookings-toolbar-top">
+              <div className="room-bookings-filter-group">
+                <label className="field room-bookings-filter-field">
+                  <div className="field-label">Khu</div>
                   <select
                     className="select"
-                    value={monthValue}
-                    onChange={(e) => updateMonthCursor(Number(e.target.value), yearValue)}
+                    value={selectedAreaId}
+                    onChange={(e) => setSelectedAreaId(e.target.value)}
                   >
-                    {monthOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
+                    <option value="">Tất cả</option>
+                    {areaOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field room-bookings-filter-field">
+                  <div className="field-label">Hạng villa</div>
+                  <select
+                    className="select"
+                    value={selectedVillaType}
+                    onChange={(e) => setSelectedVillaType(e.target.value as VillaTierKey | '')}
+                  >
+                    <option value="">Tất cả</option>
+                    {villaTypeOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
                         {option.label}
                       </option>
                     ))}
                   </select>
                 </label>
-                <label className="field room-bookings-month-field room-bookings-year-field">
-                  <div className="field-label">Year</div>
+
+                <label className="field room-bookings-filter-field">
+                  <div className="field-label">Host</div>
                   <select
                     className="select"
-                    value={yearValue}
-                    onChange={(e) => updateMonthCursor(monthValue, Number(e.target.value))}
+                    value={selectedHost}
+                    onChange={(e) => setSelectedHost(e.target.value)}
                   >
-                    {yearOptions.map((year) => (
-                      <option key={year} value={year}>
-                        {year}
+                    <option value="">Tất cả</option>
+                    {hostOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="field room-bookings-filter-field">
+                  <div className="field-label">Kết cấu giường</div>
+                  <select
+                    className="select"
+                    value={selectedBedroomLayout}
+                    onChange={(e) => setSelectedBedroomLayout(e.target.value)}
+                  >
+                    <option value="">Tất cả</option>
+                    {bedroomLayoutOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
                       </option>
                     ))}
                   </select>
                 </label>
               </div>
-              <div className="room-bookings-week-label room-bookings-range-pill">
-                <div className="room-bookings-week-title">Range</div>
-                <div className="room-bookings-week-range">{formatDateRange(monthStart, monthEnd)}</div>
+
+              <div className="room-bookings-week-nav">
+                <div className="room-bookings-nav-strip">
+                  <button
+                    className="btn room-bookings-nav-btn"
+                    type="button"
+                    onClick={() => setMonthCursor((current) => addMonths(current, -1))}
+                  >
+                    ←
+                  </button>
+                  <label className="field room-bookings-month-field room-bookings-nav-month-field">
+                    <div className="field-label">Tháng</div>
+                    <select
+                      className="select"
+                      value={monthValue}
+                      onChange={(e) => updateMonthCursor(Number(e.target.value), yearValue)}
+                    >
+                      {monthOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="btn room-bookings-nav-btn"
+                    type="button"
+                    onClick={() => setMonthCursor((current) => addMonths(current, 1))}
+                  >
+                    →
+                  </button>
+                </div>
+                <div className="room-bookings-picker-group">
+                  <label className="field room-bookings-month-field room-bookings-year-field">
+                    <div className="field-label">Năm</div>
+                    <select
+                      className="select"
+                      value={yearValue}
+                      onChange={(e) => updateMonthCursor(monthValue, Number(e.target.value))}
+                    >
+                      {yearOptions.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="btn room-bookings-today-btn"
+                    type="button"
+                    onClick={handleGoToToday}
+                  >
+                    Hôm nay
+                  </button>
+                </div>
               </div>
+            </div>
+
+            <div className="room-bookings-status-row">
+              {STATUS_FILTER_PILLS.map((status) => {
+                const meta = STATUS_META[status]
+                const active =
+                  status === 'CONFIRMED'
+                    ? RESERVED_FILTER_STATUSES.every((value) => activeStatuses.includes(value))
+                    : activeStatuses.includes(status)
+                return (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`room-bookings-status-pill ${meta.toneClass} ${active ? 'active' : ''}`}
+                    onClick={() => toggleStatus(status)}
+                  >
+                    <span className="room-bookings-status-dot" />
+                    <span>{meta.label}</span>
+                    <strong>{statusCounts[status] ?? 0}</strong>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
-          <div className="room-bookings-status-row">
-            {STATUS_FILTER_PILLS.map((status) => {
-              const meta = STATUS_META[status]
-              const active =
-                status === 'CONFIRMED'
-                  ? RESERVED_FILTER_STATUSES.every((value) => activeStatuses.includes(value))
-                  : activeStatuses.includes(status)
-              return (
-                <button
-                  key={status}
-                  type="button"
-                  className={`room-bookings-status-pill ${meta.toneClass} ${active ? 'active' : ''}`}
-                  onClick={() => toggleStatus(status)}
-                >
-                  <span className="room-bookings-status-dot" />
-                  <span>{meta.label}</span>
-                  <strong>{statusCounts[status] ?? 0}</strong>
-                </button>
-              )
-            })}
-          </div>
-        </div>
+          {touchDrag?.hasMoved && draggedBooking ? (
+            <div
+              className="room-booking-touch-ghost"
+              style={{
+                left: touchDrag.clientX,
+                top: touchDrag.clientY,
+              }}
+            >
+              <strong>{roomByCode[draggedBooking.roomCode]?.name || draggedBooking.roomCode}</strong>
+              <span>
+                {formatDateOnly(draggedBooking.checkInAt)} → {formatDateOnly(draggedBooking.checkOutAt)}
+              </span>
+            </div>
+          ) : null}
 
-
-
-        {touchDrag?.hasMoved && draggedBooking ? (
-          <div
-            className="room-booking-touch-ghost"
-            style={{
-              left: touchDrag.clientX,
-              top: touchDrag.clientY,
-            }}
-          >
-            <strong>{roomByCode[draggedBooking.roomCode]?.name || draggedBooking.roomCode}</strong>
-            <span>
-              {formatDateOnly(draggedBooking.checkInAt)} → {formatDateOnly(draggedBooking.checkOutAt)}
-            </span>
-          </div>
-        ) : null}
-
-        <div className="room-bookings-stack">
+          <div className="room-bookings-stack">
           <div className="card detail-card room-schedule-card">
             {loading ? (
               <div className="card detail-card muted">Loading villa calendar...</div>
@@ -1881,7 +2219,11 @@ export default function AdminRoomBookingsPage() {
                         const isToday = toIsoDate(day) === toIsoDate(today)
                         const isPast = toIsoDate(day) < todayDateKey
                         return (
-                          <div key={day.toISOString()} className={`room-schedule-day-head ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}`}>
+                          <div
+                            key={day.toISOString()}
+                            className={`room-schedule-day-head ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}`}
+                            data-day-key={toIsoDate(day)}
+                          >
                             <span className="room-schedule-day-weekday">{formatDayLabel(day)}</span>
                             <strong className="room-schedule-day-number">{formatDayNumber(day)}</strong>
                           </div>
@@ -1891,6 +2233,17 @@ export default function AdminRoomBookingsPage() {
                   </div>
 
                   {groupedScheduleRows.map((row) => {
+                    if (row.type === 'area') {
+                      return (
+                        <div key={`area-${row.areaKey}`} className="room-schedule-area-row">
+                          <div className="room-schedule-area-cell">
+                            <strong>{row.label}</strong>
+                          </div>
+                          <div className="room-schedule-area-track" />
+                        </div>
+                      )
+                    }
+
                     if (row.type === 'villa-tier') {
                       return (
                         <div key={`tier-${row.tierKey}`} className={`room-schedule-host-row room-schedule-host-row-${row.toneClass}`}>
@@ -1926,7 +2279,11 @@ export default function AdminRoomBookingsPage() {
                         key={roomCode}
                         className={`room-schedule-row ${hasQuickAction ? 'has-quick-action' : ''} ${isDropTarget ? 'is-drop-target' : ''}`}
                       >
-                        <div className="room-schedule-room-cell">
+                        <div
+                          className="room-schedule-room-cell room-schedule-room-cell-interactive"
+                          onDoubleClick={(event) => handleVillaCellDoubleClick(roomCode, event)}
+                          title={`Double click to open ${roomCode} monthly calendar`}
+                        >
                           <div className="room-schedule-room-cell-content">
                             <div>{roomCode}</div>
                             {room?.airbnbUrl ? (
@@ -2185,6 +2542,16 @@ export default function AdminRoomBookingsPage() {
                   selectedBooking.status !== 'KAYSTAY_BLOCK' &&
                   selectedBooking.status !== 'SOPHIA_BLOCK' &&
                   selectedBooking.status !== 'CANCELLED' ? (
+                    <button className="btn" type="button" onClick={() => void openServiceOrderModal()}>
+                      Services
+                    </button>
+                  ) : null}
+                  {bookingModalMode === 'details' &&
+                  selectedBooking &&
+                  selectedBooking.status !== 'AIRBNB_BLOCK' &&
+                  selectedBooking.status !== 'KAYSTAY_BLOCK' &&
+                  selectedBooking.status !== 'SOPHIA_BLOCK' &&
+                  selectedBooking.status !== 'CANCELLED' ? (
                     <button className="btn" type="button" onClick={() => editBooking(selectedBooking)}>
                       Edit
                     </button>
@@ -2300,6 +2667,14 @@ export default function AdminRoomBookingsPage() {
                       <strong>{formatMoney(selectedBooking.villaRate, 'vi')}</strong>
                     </div>
                     <div className="room-booking-detail-row">
+                      <span>Service total</span>
+                      <strong>{formatMoney(selectedBooking.serviceTotal, 'vi')}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
+                      <span>Grand total</span>
+                      <strong>{formatMoney(selectedBookingGrandTotal, 'vi')}</strong>
+                    </div>
+                    <div className="room-booking-detail-row">
                       <span>Deposit</span>
                       <strong>{formatMoney(selectedBooking.depositAmount, 'vi')}</strong>
                     </div>
@@ -2308,7 +2683,7 @@ export default function AdminRoomBookingsPage() {
                       <strong>
                         {formatMoney(
                           calculateRemainingAmount(
-                            selectedBooking.villaRate,
+                            selectedBooking.totalAmount ?? selectedBooking.villaRate,
                             selectedBooking.depositAmount,
                             selectedBooking.remainingAmount,
                           ),
@@ -2343,20 +2718,22 @@ export default function AdminRoomBookingsPage() {
                         })}
                       </select>
                     </label>
-                    <label className="field" style={{ flex: 1, minWidth: 180 }}>
-                      <div className="field-label">Status</div>
-                      <select
-                        className="select"
-                        value={form.status}
-                        onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as VisibleRoomBookingStatus }))}
-                      >
-                        {ALL_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {STATUS_META[status].label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    {editingId ? (
+                      <label className="field" style={{ flex: 1, minWidth: 180 }}>
+                        <div className="field-label">Status</div>
+                        <select
+                          className="select"
+                          value={form.status}
+                          onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as VisibleRoomBookingStatus }))}
+                        >
+                          {ALL_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {STATUS_META[status].label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
                   </div>
 
                   <label className="field">
@@ -2371,11 +2748,17 @@ export default function AdminRoomBookingsPage() {
                   <div className="row">
                     <label className="field" style={{ flex: 1, minWidth: 160 }}>
                       <div className="field-label">Source</div>
-                      <input
-                        className="input"
+                      <select
+                        className="select"
                         value={form.source}
                         onChange={(e) => setForm((current) => ({ ...current, source: e.target.value }))}
-                      />
+                      >
+                        {bookingSourceOptions.map((source) => (
+                          <option key={source} value={source}>
+                            {source}
+                          </option>
+                        ))}
+                      </select>
                     </label>
                     <label className="field" style={{ flex: 1, minWidth: 160 }}>
                       <div className="field-label">Phone</div>
@@ -2449,6 +2832,29 @@ export default function AdminRoomBookingsPage() {
                       />
                     </label>
                     <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Service total</div>
+                      <input
+                        className="input"
+                        type="text"
+                        inputMode="numeric"
+                        value={toMoneyInputValue(selectedBooking?.serviceTotal)}
+                        readOnly
+                      />
+                    </label>
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <div className="field-label">Grand total</div>
+                      <input
+                        className="input"
+                        type="text"
+                        inputMode="numeric"
+                        value={toMoneyInputValue(calculateBookingTotalAmount(parseMoneyInput(form.villaRate), selectedBooking?.serviceTotal))}
+                        readOnly
+                      />
+                    </label>
+                  </div>
+
+                  <div className="row">
+                    <label className="field" style={{ flex: 1, minWidth: 160 }}>
                       <div className="field-label">Deposit paid</div>
                       <input
                         className="input"
@@ -2468,7 +2874,7 @@ export default function AdminRoomBookingsPage() {
                         inputMode="numeric"
                         value={toMoneyInputValue(
                           calculateRemainingAmount(
-                            parseMoneyInput(form.villaRate),
+                            calculateBookingTotalAmount(parseMoneyInput(form.villaRate), selectedBooking?.serviceTotal),
                             parseMoneyInput(form.depositAmount),
                             parseMoneyInput(form.remainingAmount),
                           ),
@@ -2511,27 +2917,307 @@ export default function AdminRoomBookingsPage() {
           </div>
         ) : null}
 
+        {bookingModalMode === 'details' && showServiceOrderModal && selectedBooking ? (
+          <div className="room-booking-modal-overlay" role="dialog" aria-modal="true" onClick={() => setShowServiceOrderModal(false)}>
+            <div className="room-booking-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+              <div className="room-booking-modal-head">
+                <div>
+                  <div className="room-booking-editor-title">Booking services</div>
+                  <div className="muted">
+                    {selectedBooking.roomCode} • {selectedBooking.guestName}
+                  </div>
+                </div>
+                <div className="room-booking-modal-actions">
+                  <button className="btn primary" type="button" onClick={() => void handleSaveServiceOrder()} disabled={serviceOrderSaving || serviceOrderLoading}>
+                    {serviceOrderSaving ? 'Saving...' : 'Save services'}
+                  </button>
+                  <button className="btn" type="button" onClick={() => setShowServiceOrderModal(false)}>
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="room-booking-modal-body">
+                {serviceOrderLoading ? (
+                  <div className="card">Loading services...</div>
+                ) : (
+                  <>
+                    <div className="room-booking-details-grid">
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Customer</div>
+                        <input
+                          className="input"
+                          value={serviceOrderForm.customerName ?? ''}
+                          onChange={(e) => setServiceOrderForm((current) => ({ ...current, customerName: e.target.value }))}
+                        />
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Phone</div>
+                        <input
+                          className="input"
+                          value={serviceOrderForm.customerPhone ?? ''}
+                          onChange={(e) => setServiceOrderForm((current) => ({ ...current, customerPhone: e.target.value }))}
+                        />
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Service date</div>
+                        <input
+                          className="input"
+                          type="date"
+                          value={serviceOrderForm.serviceDate ?? ''}
+                          onChange={(e) => setServiceOrderForm((current) => ({ ...current, serviceDate: e.target.value }))}
+                        />
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Villa rate</div>
+                        <strong>{formatMoney(selectedBooking.villaRate, 'vi')}</strong>
+                        <div className="muted">Base booking price</div>
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Service total</div>
+                        <strong>{formatMoney(serviceOrderDraftTotal, 'vi')}</strong>
+                        <div className="muted">Updates live while editing</div>
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Service deposit</div>
+                        <input
+                          className="input"
+                          type="number"
+                          min={0}
+                          value={serviceOrderForm.depositAmount ?? ''}
+                          onChange={(e) =>
+                            setServiceOrderForm((current) => ({
+                              ...current,
+                              depositAmount: e.target.value === '' ? undefined : Number(e.target.value),
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <label className="field">
+                      <div className="field-label">Service order notes</div>
+                      <textarea
+                        className="textarea"
+                        value={serviceOrderForm.notes ?? ''}
+                        onChange={(e) => setServiceOrderForm((current) => ({ ...current, notes: e.target.value }))}
+                      />
+                    </label>
+
+                    <div className="room-booking-detail-panel">
+                      {serviceOrderForm.items.map((item, index) => {
+                        const vendorOptions = bookingServiceOptions.find((service) => service.id === item.serviceId)?.vendors ?? []
+                        const lineTotal = (item.unitPrice ?? 0) * Math.max(item.quantity ?? 0, 0)
+
+                        return (
+                          <div key={`${item.serviceId}-${index}`} className="room-booking-detail-row" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <select
+                              className="select"
+                              value={item.serviceId}
+                              onChange={(e) => {
+                                const nextServiceId = Number(e.target.value)
+                                const selectedService = bookingServiceOptions.find((service) => service.id === nextServiceId)
+                                setServiceOrderForm((current) => ({
+                                  ...current,
+                                  items: current.items.map((currentItem, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          ...currentItem,
+                                          serviceId: nextServiceId,
+                                          vendorId: selectedService?.vendors.some((vendor) => vendor.id === currentItem.vendorId)
+                                            ? currentItem.vendorId
+                                            : undefined,
+                                          unitPrice: currentItem.unitPrice ?? selectedService?.unitPrice ?? undefined,
+                                        }
+                                      : currentItem,
+                                  ),
+                                }))
+                              }}
+                              style={{ flex: 1, minWidth: 180 }}
+                            >
+                              <option value={0}>Select service</option>
+                              {bookingServiceOptions.map((service) => (
+                                <option key={service.id} value={service.id}>
+                                  {service.name}{service.unitPrice ? ` - ${formatMoney(service.unitPrice ?? undefined, 'vi')}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              className="select"
+                              value={item.vendorId ?? 0}
+                              onChange={(e) =>
+                                setServiceOrderForm((current) => ({
+                                  ...current,
+                                  items: current.items.map((currentItem, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...currentItem, vendorId: Number(e.target.value) > 0 ? Number(e.target.value) : undefined }
+                                      : currentItem,
+                                  ),
+                                }))
+                              }
+                              style={{ minWidth: 150 }}
+                            >
+                              <option value={0}>Vendor</option>
+                              {vendorOptions.map((vendor) => (
+                                <option key={vendor.id} value={vendor.id}>
+                                  {vendor.name}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              className="input"
+                              type="number"
+                              min={0}
+                              value={item.unitPrice ?? ''}
+                              onChange={(e) =>
+                                setServiceOrderForm((current) => ({
+                                  ...current,
+                                  items: current.items.map((currentItem, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...currentItem, unitPrice: e.target.value === '' ? undefined : Number(e.target.value) }
+                                      : currentItem,
+                                  ),
+                                }))
+                              }
+                              placeholder="Guest price"
+                              style={{ width: 120 }}
+                            />
+                            <input
+                              className="input"
+                              type="number"
+                              min={1}
+                              value={item.quantity}
+                              onChange={(e) =>
+                                setServiceOrderForm((current) => ({
+                                  ...current,
+                                  items: current.items.map((currentItem, itemIndex) =>
+                                    itemIndex === index ? { ...currentItem, quantity: Number(e.target.value) } : currentItem,
+                                  ),
+                                }))
+                              }
+                              style={{ width: 96 }}
+                            />
+                            <input
+                              className="input"
+                              type="number"
+                              min={0}
+                              value={item.vendorCost ?? ''}
+                              onChange={(e) =>
+                                setServiceOrderForm((current) => ({
+                                  ...current,
+                                  items: current.items.map((currentItem, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...currentItem, vendorCost: e.target.value === '' ? undefined : Number(e.target.value) }
+                                      : currentItem,
+                                  ),
+                                }))
+                              }
+                              placeholder="Vendor cost"
+                              style={{ width: 120 }}
+                            />
+                            <div className="muted" style={{ minWidth: 120 }}>
+                              {formatMoney(lineTotal, 'vi')}
+                            </div>
+                            <button
+                              className="btn"
+                              type="button"
+                              onClick={() =>
+                                setServiceOrderForm((current) => ({
+                                  ...current,
+                                  items: current.items.length > 1
+                                    ? current.items.filter((_, itemIndex) => itemIndex !== index)
+                                    : [{ serviceId: 0, quantity: 1, unitPrice: undefined, vendorId: undefined, vendorCost: undefined }],
+                                }))
+                              }
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )
+                      })}
+
+                      <div className="row" style={{ justifyContent: 'space-between', marginTop: 12 }}>
+                        <button
+                          className="btn"
+                          type="button"
+                          onClick={() =>
+                            setServiceOrderForm((current) => ({
+                              ...current,
+                              items: [...current.items, { serviceId: 0, quantity: 1, unitPrice: undefined, vendorId: undefined, vendorCost: undefined }],
+                            }))
+                          }
+                        >
+                          Add service
+                        </button>
+                        <div className="muted">Choose the exact day the guest needs this service.</div>
+                      </div>
+                    </div>
+
+                    <div className="room-booking-details-grid" style={{ marginTop: 12 }}>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Grand total</div>
+                        <strong>{formatMoney(serviceOrderDraftGrandTotal, 'vi')}</strong>
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Deposit</div>
+                        <strong>{formatMoney(serviceOrderForm.depositAmount, 'vi')}</strong>
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Remaining</div>
+                        <strong>{formatMoney(serviceOrderDraftRemaining, 'vi')}</strong>
+                      </div>
+                      <div className="room-booking-detail-card">
+                        <div className="room-booking-detail-label">Vendor cost</div>
+                        <strong>{formatMoney(serviceOrderDraftVendorCost, 'vi')}</strong>
+                      </div>
+                    </div>
+
+                    {serviceOrderError ? (
+                      <div className="card error" style={{ marginTop: 12 }}>
+                        <div className="error-title">Could not save services</div>
+                        <div className="muted">{serviceOrderError}</div>
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {bookingModalMode && showConfirmInformation ? (
           <div
             className="room-booking-confirm-overlay"
             role="dialog"
             aria-modal="true"
-            onClick={() => setShowConfirmInformation(false)}
+            onClick={() => {
+              setShowConfirmInformation(false)
+              setIsConfirmationEditing(false)
+            }}
           >
             <div className="room-booking-confirm-modal" onClick={(e) => e.stopPropagation()}>
               <div className="room-booking-confirm-actions">
-                <button className="btn" type="button" onClick={() => setShowConfirmInformation(false)}>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => setIsConfirmationEditing((current) => !current)}
+                >
+                  {isConfirmationEditing ? 'Done' : 'Edit'}
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => {
+                    setShowConfirmInformation(false)
+                    setIsConfirmationEditing(false)
+                  }}
+                >
                   Close
                 </button>
               </div>
 
               <div className="room-booking-confirm-sheet">
                 <div className="room-booking-confirm-brand">
-                  <img
-                    src="/logo.png"
-                    alt="Da Nang Luxury Travel"
-                    className="room-booking-confirm-logo"
-                  />
                   <div className="room-booking-confirm-brand-main">
                     Booking confirmation
                   </div>
@@ -2566,29 +3252,75 @@ export default function AdminRoomBookingsPage() {
                       <div className="room-booking-confirm-side-title">
                         Included services
                       </div>
-                      <div className="room-booking-confirm-side-text">{confirmationIncludedText}</div>
+                      {isConfirmationEditable ? (
+                        <textarea
+                          className="room-booking-confirm-side-textarea"
+                          value={confirmationIncludedText}
+                          onChange={(e) =>
+                            setConfirmationTemplate((current) => ({ ...current, includedServices: e.target.value }))
+                          }
+                          rows={2}
+                        />
+                      ) : (
+                        <div className="room-booking-confirm-side-text">{confirmationIncludedText}</div>
+                      )}
                     </div>
 
                     <div className="room-booking-confirm-side-card">
                       <div className="room-booking-confirm-side-title">
                         Important notes
                       </div>
-                      <div className="room-booking-confirm-side-text">{confirmationImportantText}</div>
+                      {isConfirmationEditable ? (
+                        <textarea
+                          className="room-booking-confirm-side-textarea"
+                          value={confirmationImportantText}
+                          onChange={(e) =>
+                            setConfirmationTemplate((current) => ({ ...current, importantNotes: e.target.value }))
+                          }
+                          rows={3}
+                        />
+                      ) : (
+                        <div className="room-booking-confirm-side-text">{confirmationImportantText}</div>
+                      )}
                     </div>
 
                     <div className="room-booking-confirm-side-card">
                       <div className="room-booking-confirm-side-title">
                         Guest support via WhatsApp
                       </div>
-                      <div className="room-booking-confirm-side-text">{confirmationSupportText}</div>
+                      {isConfirmationEditable ? (
+                        <textarea
+                          className="room-booking-confirm-side-textarea"
+                          value={confirmationSupportText}
+                          onChange={(e) =>
+                            setConfirmationTemplate((current) => ({ ...current, guestSupport: e.target.value }))
+                          }
+                          rows={2}
+                        />
+                      ) : (
+                        <div className="room-booking-confirm-side-text">{confirmationSupportText}</div>
+                      )}
                     </div>
 
-                    {confirmationNotes ? (
+                    {isConfirmationEditable ? (
                       <div className="room-booking-confirm-side-card">
                         <div className="room-booking-confirm-side-title">
                           Additional notes
                         </div>
-                        <div className="room-booking-confirm-side-text">{confirmationNotes}</div>
+                        <textarea
+                          className="room-booking-confirm-side-textarea"
+                          value={confirmationAdditionalNotes}
+                          onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
+                          rows={2}
+                          placeholder="Add extra notes for this booking confirmation"
+                        />
+                      </div>
+                    ) : confirmationAdditionalNotes ? (
+                      <div className="room-booking-confirm-side-card">
+                        <div className="room-booking-confirm-side-title">
+                          Additional notes
+                        </div>
+                        <div className="room-booking-confirm-side-text">{confirmationAdditionalNotes}</div>
                       </div>
                     ) : null}
                   </div>
@@ -2836,6 +3568,65 @@ export default function AdminRoomBookingsPage() {
               <div className="room-booking-modal-body">
                 <div className={`room-bookings-feedback-popup-message ${calendarFeedback.tone}`}>
                   {calendarFeedback.message}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        </div>
+
+        {villaCalendarRoom ? (
+          <div
+            className="room-booking-modal-overlay"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setVillaCalendarRoomCode(null)}
+          >
+            <div className="room-booking-modal villa-month-calendar-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="villa-month-calendar-simple-head">
+                <div className="villa-month-calendar-simple-title">{formatMonthYear(monthStart)}</div>
+                <button
+                  className="villa-month-calendar-close"
+                  type="button"
+                  onClick={() => setVillaCalendarRoomCode(null)}
+                  aria-label="Close villa calendar"
+                >
+                  ›
+                </button>
+              </div>
+              <div className="villa-month-calendar-simple-subtitle">
+                {villaCalendarRoom.code} • {villaCalendarRoom.name || 'Villa'}
+              </div>
+              <div className="room-booking-modal-body villa-month-calendar-body villa-month-calendar-body-simple">
+                <div className="villa-month-calendar-panel villa-month-calendar-panel-simple">
+                  <div className="villa-month-calendar-weekdays villa-month-calendar-weekdays-simple">
+                    {MONTH_CALENDAR_WEEKDAYS.map((weekday) => (
+                      <div key={weekday} className="villa-month-calendar-weekday villa-month-calendar-weekday-simple">
+                        {weekday}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="villa-month-calendar-grid villa-month-calendar-grid-simple">
+                    {villaCalendarGridCells.map((cell) => {
+                      const activeBooking = cell.activeBooking
+                      const title = activeBooking
+                        ? `${STATUS_META[activeBooking.displayStatus].label} • ${activeBooking.guestName || 'Guest'} • ${formatDateOnly(activeBooking.checkInAt)} → ${formatDateOnly(activeBooking.checkOutAt)}`
+                        : cell.inMonth
+                          ? `${formatDateOnly(`${cell.dateKey}T00:00:00`)}`
+                          : ''
+
+                      return (
+                        <div
+                          key={cell.dateKey}
+                          className={`villa-month-calendar-cell villa-month-calendar-cell-simple ${cell.inMonth ? '' : 'is-outside'} ${cell.isToday ? 'is-today' : ''} ${activeBooking ? 'is-booked' : ''}`}
+                          title={title}
+                        >
+                          <span className="villa-month-calendar-cell-day">{cell.inMonth ? formatDayNumber(cell.date) : ''}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             </div>

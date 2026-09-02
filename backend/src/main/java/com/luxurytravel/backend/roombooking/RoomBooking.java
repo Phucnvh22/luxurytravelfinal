@@ -49,6 +49,12 @@ public class RoomBooking {
     private Double villaRate;
 
     @Column
+    private Double serviceTotal;
+
+    @Column
+    private Double totalAmount;
+
+    @Column
     private Double depositAmount;
 
     @Column
@@ -175,6 +181,22 @@ public class RoomBooking {
 
     public Double getDepositAmount() {
         return depositAmount;
+    }
+
+    public Double getServiceTotal() {
+        return serviceTotal;
+    }
+
+    public void setServiceTotal(Double serviceTotal) {
+        this.serviceTotal = serviceTotal;
+    }
+
+    public Double getTotalAmount() {
+        return totalAmount;
+    }
+
+    public void setTotalAmount(Double totalAmount) {
+        this.totalAmount = totalAmount;
     }
 
     public void setDepositAmount(Double depositAmount) {

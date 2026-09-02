@@ -1,0 +1,48 @@
+.admin-room-areas-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 392px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-room-areas-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-room-areas-list-card {
+  min-width: 0;
+}
+
+.admin-room-areas-table-wrap .table {
+  min-width: 0;
+}
+
+.admin-room-areas-table-wrap .table th,
+.admin-room-areas-table-wrap .table td {
+  padding: 10px 8px;
+  font-size: 12px;
+}
+
+.admin-room-areas-table-wrap .row {
+  gap: 6px;
+}
+
+.admin-room-areas-table-wrap .btn {
+  min-height: 34px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 1180px) {
+  .admin-room-areas-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-room-areas-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

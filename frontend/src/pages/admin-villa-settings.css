@@ -1,0 +1,61 @@
+.admin-villa-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 392px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-villa-settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-villa-settings-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-villa-settings-panels > .detail-card {
+  min-width: 0;
+}
+
+.admin-villa-settings-table-wrap .table {
+  min-width: 0;
+}
+
+.admin-villa-settings-table-wrap .table th,
+.admin-villa-settings-table-wrap .table td {
+  padding: 10px 8px;
+  font-size: 12px;
+}
+
+.admin-villa-settings-table-wrap .row {
+  gap: 6px;
+}
+
+.admin-villa-settings-table-wrap .btn {
+  padding: 8px 10px;
+  min-height: 34px;
+  font-size: 12px;
+}
+
+@media (max-width: 1180px) {
+  .admin-villa-settings-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .admin-villa-settings-panels {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-villa-settings-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

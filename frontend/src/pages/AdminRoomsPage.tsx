@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiFetch, HttpError } from '../lib/api'
-import type { Room, RoomUpsertRequest } from '../types'
+import type { Room, RoomArea, RoomUpsertRequest, VillaSettingOption, VillaSettingsResponse } from '../types'
 import './pages.css'
 import './admin-rooms.css'
 
@@ -12,6 +12,7 @@ function deriveSortOrderFromCode(code: string) {
 
 const INITIAL_FORM: RoomUpsertRequest = {
   code: 'V107',
+  areaId: 0,
   name: '',
   host: '',
   type: '4BR',
@@ -40,6 +41,29 @@ function formatGuestCapacity(maxAdults?: number, maxChildren?: number) {
   const adults = maxAdults ?? 0
   const children = maxChildren ?? 0
   return children > 0 ? `${adults} / ${children}` : `${adults}`
+}
+
+function buildDropdownOptions(managedOptions: VillaSettingOption[], roomValues: string[], currentValue: string) {
+  const normalized = new Map<string, string>()
+
+  for (const option of managedOptions) {
+    const value = option.label.trim()
+    if (!value) continue
+    normalized.set(value.toLocaleLowerCase('vi-VN'), value)
+  }
+
+  for (const value of roomValues) {
+    const trimmed = value.trim()
+    if (!trimmed) continue
+    normalized.set(trimmed.toLocaleLowerCase('vi-VN'), trimmed)
+  }
+
+  const currentTrimmed = currentValue.trim()
+  if (currentTrimmed) {
+    normalized.set(currentTrimmed.toLocaleLowerCase('vi-VN'), currentTrimmed)
+  }
+
+  return Array.from(normalized.values())
 }
 
 function getOperationalStatusLabel(status?: Room['operationalStatus']) {
@@ -74,6 +98,8 @@ async function copyText(text: string) {
 
 export default function AdminRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([])
+  const [areas, setAreas] = useState<RoomArea[]>([])
+  const [villaSettings, setVillaSettings] = useState<VillaSettingsResponse>({ roomTypes: [], hosts: [], bookingSources: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -97,12 +123,21 @@ export default function AdminRoomsPage() {
   const sortedRooms = useMemo(() => {
     return [...rooms].sort((a, b) => {
       return (
+        (a.areaName || '').localeCompare(b.areaName || '', 'vi-VN', { sensitivity: 'base' }) ||
         a.location.localeCompare(b.location, 'vi-VN', { sensitivity: 'base' }) ||
         a.floorNumber - b.floorNumber ||
         a.code.localeCompare(b.code, 'vi-VN', { numeric: true })
       )
     })
   }, [rooms])
+  const roomTypeOptions = useMemo(
+    () => buildDropdownOptions(villaSettings.roomTypes, rooms.map((room) => room.type), form.type),
+    [form.type, rooms, villaSettings.roomTypes],
+  )
+  const hostOptions = useMemo(
+    () => buildDropdownOptions(villaSettings.hosts, rooms.map((room) => room.host), form.host),
+    [form.host, rooms, villaSettings.hosts],
+  )
 
   async function load(opts?: { silent?: boolean }) {
     if (loadingRef.current) return
@@ -112,12 +147,18 @@ export default function AdminRoomsPage() {
       setError(null)
     }
     try {
-      const roomsData = await apiFetch<Room[]>('/api/admin/rooms')
+      const [roomsData, areasData, villaSettingsData] = await Promise.all([
+        apiFetch<Room[]>('/api/admin/rooms'),
+        apiFetch<RoomArea[]>('/api/admin/room-areas'),
+        apiFetch<VillaSettingsResponse>('/api/admin/villa-settings'),
+      ])
       setRooms(roomsData)
+      setAreas(areasData)
+      setVillaSettings(villaSettingsData)
       setError(null)
     } catch (e: unknown) {
       if (!opts?.silent) {
-        setError(getErrorMessage(e, 'Khong the tai danh sach phong'))
+        setError(getErrorMessage(e, 'Could not load villas'))
       }
     } finally {
       if (!opts?.silent) setLoading(false)
@@ -128,6 +169,21 @@ export default function AdminRoomsPage() {
   useEffect(() => {
     void load()
   }, [])
+
+  useEffect(() => {
+    if (areas.length === 0) return
+    setForm((current) => (current.areaId ? current : { ...current, areaId: areas[0].id }))
+  }, [areas])
+
+  useEffect(() => {
+    if (!modalMode) return
+    setForm((current) => {
+      const nextType = current.type || roomTypeOptions[0] || ''
+      const nextHost = current.host || hostOptions[0] || ''
+      if (nextType === current.type && nextHost === current.host) return current
+      return { ...current, type: nextType, host: nextHost }
+    })
+  }, [hostOptions, modalMode, roomTypeOptions])
 
   useEffect(() => {
     const tick = () => {
@@ -153,7 +209,12 @@ export default function AdminRoomsPage() {
   function openCreateModal() {
     setEditingId(null)
     setModalMode('create')
-    setForm(INITIAL_FORM)
+    setForm({
+      ...INITIAL_FORM,
+      areaId: areas[0]?.id ?? 0,
+      host: hostOptions[0] ?? '',
+      type: roomTypeOptions[0] ?? '',
+    })
     setSaveError(null)
   }
 
@@ -190,6 +251,7 @@ export default function AdminRoomsPage() {
     setModalMode('edit')
     setForm({
       code: room.code,
+      areaId: room.areaId ?? areas[0]?.id ?? 0,
       name: room.name,
       host: room.host,
       type: room.type,
@@ -214,6 +276,7 @@ export default function AdminRoomsPage() {
     try {
       const payload: RoomUpsertRequest = {
         code: form.code.trim(),
+        areaId: Number(form.areaId),
         name: form.name.trim(),
         host: form.host.trim(),
         type: form.type.trim(),
@@ -245,7 +308,7 @@ export default function AdminRoomsPage() {
       resetForm()
       await load()
     } catch (e: unknown) {
-      setSaveError(getErrorMessage(e, 'Khong the save villa'))
+      setSaveError(getErrorMessage(e, 'Could not save villa'))
     } finally {
       setSaving(false)
     }
@@ -259,7 +322,7 @@ export default function AdminRoomsPage() {
       setRooms((current) => current.filter((room) => room.id !== id))
       if (editingId === id) resetForm()
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Khong the delete villa'))
+      setError(getErrorMessage(e, 'Could not delete villa'))
     } finally {
       setBusyId(null)
     }
@@ -301,7 +364,7 @@ export default function AdminRoomsPage() {
       closeRepairModal()
       await load()
     } catch (e: unknown) {
-      setRepairError(getErrorMessage(e, 'Khong the report repair'))
+      setRepairError(getErrorMessage(e, 'Could not report repair'))
     } finally {
       setRepairSaving(false)
     }
@@ -314,7 +377,7 @@ export default function AdminRoomsPage() {
       await apiFetch<Room>(`/api/admin/rooms/${room.id}/resolve-repair`, { method: 'POST' })
       await load({ silent: true })
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Khong the resolve repair'))
+      setError(getErrorMessage(e, 'Could not resolve repair'))
     } finally {
       setBusyId(null)
     }
@@ -333,7 +396,7 @@ export default function AdminRoomsPage() {
       await apiFetch<Room>(`/api/admin/rooms/${room.id}/clear-ooi`, { method: 'POST' })
       await load({ silent: true })
     } catch (e: unknown) {
-      setError(getErrorMessage(e, 'Khong the update OOI status'))
+      setError(getErrorMessage(e, 'Could not update OOI status'))
     } finally {
       setBusyId(null)
     }
@@ -351,7 +414,7 @@ export default function AdminRoomsPage() {
       closeOOIModal()
       await load({ silent: true })
     } catch (e: unknown) {
-      setOoiError(getErrorMessage(e, 'Khong the mark OOI'))
+      setOoiError(getErrorMessage(e, 'Could not mark OOI'))
     } finally {
       setOoiSaving(false)
     }
@@ -362,35 +425,26 @@ export default function AdminRoomsPage() {
       <div className="container">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div className="row">
-            <Link to="/" className="btn">
-              ← Home
+            <Link to="/admin/room-areas" className="btn">
+              Villa areas
             </Link>
-            <Link to="/admin/room-bookings" className="btn">
-              Villa calendar
-            </Link>
-            <Link to="/admin/room-cleaning-history" className="btn">
-              Cleaning history
-            </Link>
-            <Link to="/admin/room-repair-history" className="btn">
-              Repair history
+            <Link to="/admin/villa-settings" className="btn">
+              Villa settings
             </Link>
           </div>
           <div className="row">
-            <button className="btn" type="button" onClick={() => void load()} disabled={loading}>
-              Tai lai
-            </button>
             <button className="btn" type="button" onClick={() => void copySelectedCalendarLink()} disabled={selectedRoomCodes.length === 0}>
               Copy calendar link{selectedRoomCodes.length > 0 ? ` (${selectedRoomCodes.length})` : ''}
             </button>
             <button className="btn primary" type="button" onClick={openCreateModal}>
-              Tao villa moi
+              Add villa
             </button>
           </div>
         </div>
 
         <div className="section-head" style={{ marginTop: 14 }}>
           <div>
-            <h2>Admin • Danh muc phong</h2>
+            <h2>Admin • Villa Directory</h2>
             <div className="muted">Manage villa details, location groups, Airbnb links, capacity, access info, and operating status.</div>
           </div>
           <div className="muted">
@@ -431,10 +485,14 @@ export default function AdminRoomsPage() {
                       />
                       <span className="admin-room-mobile-code">{room.code}</span>
                     </label>
-                    <span className="admin-room-mobile-type">{room.type}</span>
+                      <span className="admin-room-mobile-type">{room.areaName || room.type}</span>
                   </div>
 
                   <div className="admin-room-mobile-meta">
+                    <div className="admin-room-mobile-meta-row">
+                      <span>Area</span>
+                      <strong>{room.areaName || '-'}</strong>
+                    </div>
                     <div className="admin-room-mobile-meta-row">
                       <span>Guests</span>
                       <strong>{formatGuestCapacity(room.maxAdults, room.maxChildren)}</strong>
@@ -524,6 +582,7 @@ export default function AdminRoomsPage() {
                       />
                     </th>
                     <th style={{ width: 150 }}>Code</th>
+                    <th style={{ width: 120 }}>Area</th>
                     <th style={{ width: 120 }}>Type</th>
                     <th style={{ width: 90 }}>Guests</th>
                     <th style={{ width: 120 }}>Status</th>
@@ -557,6 +616,7 @@ export default function AdminRoomsPage() {
                           </div>
                         )}
                       </td>
+                      <td>{room.areaName || '-'}</td>
                       <td>{room.type}</td>
                       <td>{formatGuestCapacity(room.maxAdults, room.maxChildren)}</td>
                       <td>
@@ -662,6 +722,20 @@ export default function AdminRoomsPage() {
                       placeholder="V107"
                     />
                   </label>
+                  <label className="field" style={{ width: 180 }}>
+                    <div className="field-label">Area</div>
+                    <select
+                      className="select"
+                      value={form.areaId}
+                      onChange={(e) => setForm((current) => ({ ...current, areaId: Number(e.target.value) }))}
+                    >
+                      {areas.map((area) => (
+                        <option key={area.id} value={area.id}>
+                          {area.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="field" style={{ flex: 1, minWidth: 220 }}>
                     <div className="field-label">Villa name</div>
                     <input
@@ -673,12 +747,21 @@ export default function AdminRoomsPage() {
                   </label>
                   <label className="field" style={{ width: 180 }}>
                     <div className="field-label">Villa type</div>
-                    <input
-                      className="input"
+                    <select
+                      className="select"
                       value={form.type}
                       onChange={(e) => setForm((current) => ({ ...current, type: e.target.value }))}
-                      placeholder="5BR"
-                    />
+                    >
+                      {roomTypeOptions.length > 0 ? (
+                        roomTypeOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No villa types available</option>
+                      )}
+                    </select>
                   </label>
                   <label className="field" style={{ flex: 1, minWidth: 240 }}>
                     <div className="field-label">Airbnb URL</div>
@@ -694,12 +777,21 @@ export default function AdminRoomsPage() {
                 <div className="row">
                   <label className="field" style={{ flex: 1, minWidth: 220 }}>
                     <div className="field-label">Host</div>
-                    <input
-                      className="input"
+                    <select
+                      className="select"
                       value={form.host}
                       onChange={(e) => setForm((current) => ({ ...current, host: e.target.value }))}
-                      placeholder="Mr Phuc - DN Luxury Travel"
-                    />
+                    >
+                      {hostOptions.length > 0 ? (
+                        hostOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No hosts available</option>
+                      )}
+                    </select>
                   </label>
                   <label className="field" style={{ width: 200 }}>
                     <div className="field-label">Location</div>
@@ -731,6 +823,16 @@ export default function AdminRoomsPage() {
                     />
                   </label>
                 </div>
+
+                {roomTypeOptions.length === 0 || hostOptions.length === 0 ? (
+                  <div className="card detail-card" style={{ padding: 14 }}>
+                    <div style={{ fontWeight: 800, marginBottom: 4 }}>Missing dropdown data</div>
+                    <div className="muted">
+                      Update the villa types or host list in{' '}
+                      <Link to="/admin/villa-settings">Villa settings</Link> to use this form.
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="row">
                   <label className="field" style={{ flex: 1, minWidth: 260 }}>

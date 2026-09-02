@@ -1,5 +1,7 @@
 package com.luxurytravel.backend.room;
 
+import com.luxurytravel.backend.roomarea.RoomArea;
+import com.luxurytravel.backend.roomarea.RoomAreaRepository;
 import com.luxurytravel.backend.roomlog.RoomWorkLogAction;
 import com.luxurytravel.backend.roomlog.RoomWorkLogService;
 import com.luxurytravel.backend.roombooking.RoomBookingStatus;
@@ -21,22 +23,25 @@ public class RoomService {
     private final RoomBookingRepository roomBookingRepository;
     private final RoomWorkLogService roomWorkLogService;
     private final UserRepository userRepository;
+    private final RoomAreaRepository roomAreaRepository;
 
     public RoomService(
             RoomRepository roomRepository,
             RoomBookingRepository roomBookingRepository,
             RoomWorkLogService roomWorkLogService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            RoomAreaRepository roomAreaRepository
     ) {
         this.roomRepository = roomRepository;
         this.roomBookingRepository = roomBookingRepository;
         this.roomWorkLogService = roomWorkLogService;
         this.userRepository = userRepository;
+        this.roomAreaRepository = roomAreaRepository;
     }
 
     @Transactional
     public List<Room> findAll() {
-        List<Room> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc();
+        List<Room> rooms = roomRepository.findAllByOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc();
         boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
         if (changed) {
             roomRepository.saveAll(rooms);
@@ -98,7 +103,10 @@ public class RoomService {
     }
 
     private void apply(Room room, RoomUpsertRequest request, String code) {
+        RoomArea area = roomAreaRepository.findById(request.getAreaId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Area does not exist"));
         room.setCode(code);
+        room.setArea(area);
         room.setName(request.getName().trim());
         room.setHost(request.getHost().trim());
         room.setType(request.getType().trim());
@@ -221,7 +229,7 @@ public class RoomService {
 
     @Transactional
     public List<Room> findNeedsCleaning() {
-        List<Room> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc();
+        List<Room> rooms = roomRepository.findAllByOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc();
         boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
         if (changed) {
             roomRepository.saveAll(rooms);
@@ -238,7 +246,7 @@ public class RoomService {
             return List.of();
         }
 
-        List<Room> rooms = roomRepository.findAllByAssignedCleanerIdOrderByLocationAscFloorNumberAscCodeAsc(cleaner.getId());
+        List<Room> rooms = roomRepository.findAllByAssignedCleanerIdOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc(cleaner.getId());
         boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
         if (changed) {
             roomRepository.saveAll(rooms);
@@ -251,7 +259,7 @@ public class RoomService {
 
     @Transactional
     public List<Room> findNeedsRepair() {
-        List<Room> rooms = roomRepository.findAllByOrderByLocationAscFloorNumberAscCodeAsc();
+        List<Room> rooms = roomRepository.findAllByOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc();
         boolean changed = rooms.stream().anyMatch(this::ensureOperationalState);
         if (changed) {
             roomRepository.saveAll(rooms);

@@ -35,9 +35,7 @@ export default function OAuth2SuccessPage() {
     const redirectTo =
       role === 'CLEANER'
         ? '/cleaner'
-        : role === 'MAINTENANCE'
-          ? '/maintenance'
-          : role === 'ADMIN'
+        : role === 'ADMIN'
             ? (sessionStorage.getItem('postLoginRedirect') || '/') === '/'
               ? '/admin'
               : (sessionStorage.getItem('postLoginRedirect') || '/')

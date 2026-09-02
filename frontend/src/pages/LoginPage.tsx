@@ -41,9 +41,7 @@ export default function LoginPage() {
       const nextPath =
         data.role === 'CLEANER'
           ? '/cleaner'
-          : data.role === 'MAINTENANCE'
-            ? '/maintenance'
-            : data.role === 'ADMIN'
+          : data.role === 'ADMIN'
               ? redirectTo === '/' ? '/admin' : redirectTo
               : redirectTo
       hardRedirectAfterLogin(nextPath)
