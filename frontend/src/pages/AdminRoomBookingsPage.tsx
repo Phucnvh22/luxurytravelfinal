@@ -91,9 +91,9 @@ type VillaMonthCalendarCell = {
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
   TEMP_BLOCK: { label: 'Temp lock', toneClass: 'temp-block' },
-  AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
-  KAYSTAY_BLOCK: { label: 'KayStay', toneClass: 'kaystay-block' },
-  SOPHIA_BLOCK: { label: 'Sophia', toneClass: 'sophia-block' },
+  AIRBNB_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
+  KAYSTAY_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
+  SOPHIA_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
   CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
   CANCELLED: { label: 'Cancelled', toneClass: 'cancelled' },
@@ -113,9 +113,9 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
   en: {
     CONFIRMED: 'Reserved',
     TEMP_BLOCK: 'Temp lock',
-    AIRBNB_BLOCK: 'AirBnbBlock',
-    KAYSTAY_BLOCK: 'KayStay',
-    SOPHIA_BLOCK: 'Sophia',
+    AIRBNB_BLOCK: 'Reserved',
+    KAYSTAY_BLOCK: 'Reserved',
+    SOPHIA_BLOCK: 'Reserved',
     CHECKED_IN: 'Checked in',
     CHECKED_OUT: 'Checked out',
     CANCELLED: 'Cancelled',
@@ -123,9 +123,9 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
   vi: {
     CONFIRMED: 'Reserved',
     TEMP_BLOCK: 'Tạm khóa',
-    AIRBNB_BLOCK: 'AirBnbBlock',
-    KAYSTAY_BLOCK: 'KayStay',
-    SOPHIA_BLOCK: 'Sophia',
+    AIRBNB_BLOCK: 'Reserved',
+    KAYSTAY_BLOCK: 'Reserved',
+    SOPHIA_BLOCK: 'Reserved',
     CHECKED_IN: 'Checked in',
     CHECKED_OUT: 'Checked out',
     CANCELLED: 'Cancelled',
@@ -407,6 +407,10 @@ function canMoveBookingStatus(status: RoomBookingStatus): boolean {
 
 function canMoveVisibleBookingStatus(status: VisibleRoomBookingStatus): boolean {
   return MOVABLE_BOOKING_STATUSES.has(status)
+}
+
+function isImportedPlatformVisibleStatus(status: VisibleRoomBookingStatus) {
+  return status === 'AIRBNB_BLOCK' || status === 'KAYSTAY_BLOCK' || status === 'SOPHIA_BLOCK'
 }
 
 function mapBookingToForm(booking: RoomBookingResponse): RoomBookingRequest {
@@ -2425,7 +2429,13 @@ export default function AdminRoomBookingsPage() {
                                   handleBookingDragStart(booking)
                                 }}
                                 onDragEnd={handleBookingDragEnd}
-                                title={canMoveBooking ? 'Drag to move this booking to another villa' : 'Only Reserved, Temp lock and Check-in bookings can be moved'}
+                                title={
+                                  isImportedPlatformVisibleStatus(booking.displayStatus)
+                                    ? 'Imported platform reservations stay locked for editing and moving'
+                                    : canMoveBooking
+                                      ? 'Drag to move this booking to another villa'
+                                      : 'Only Reserved, Temp lock and Check-in bookings can be moved'
+                                }
                               >
                                 <div className="room-booking-bar-title">{booking.source || 'Direct'}</div>
                                 <div className="room-booking-bar-meta">
