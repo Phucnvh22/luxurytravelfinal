@@ -5,6 +5,7 @@ import type {
   AirbnbSyncRunResponse,
   KayStaySyncRunResponse,
   Room,
+  RoomArea,
   RoomBookingRequest,
   RoomBookingResponse,
   RoomBookingStatus,
@@ -660,6 +661,7 @@ function findScheduleDropTarget(clientX: number, clientY: number, monthDays: Dat
 export default function AdminRoomBookingsPage() {
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(new Date()))
   const [roomsCatalog, setRoomsCatalog] = useState<Room[]>([])
+  const [areas, setAreas] = useState<RoomArea[]>([])
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
   const [bookingSources, setBookingSources] = useState<string[]>(['Direct'])
   const [serviceCatalog, setServiceCatalog] = useState<VillaServiceCatalog[]>([])
@@ -745,14 +747,14 @@ export default function AdminRoomBookingsPage() {
   )
   const areaOptions = useMemo(
     () =>
-      Array.from(
-        new Map(
-          roomsCatalog
-            .filter((room) => room.areaId && room.areaName)
-            .map((room) => [String(room.areaId), { id: String(room.areaId), name: room.areaName }]),
-        ).values(),
-      ).sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'vi')),
-    [roomsCatalog],
+      areas
+        .map((area) => ({ id: String(area.id), name: area.name, sortOrder: area.sortOrder }))
+        .sort(
+          (a, b) =>
+            (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+            || (a.name ?? '').localeCompare(b.name ?? '', 'vi', { sensitivity: 'base' }),
+        ),
+    [areas],
   )
   const hostOptions = useMemo(
     () =>
@@ -913,14 +915,16 @@ export default function AdminRoomBookingsPage() {
       setError(null)
     }
     try {
-      const [bookingsData, roomsData, settingsData, servicesData] = await Promise.all([
+      const [bookingsData, roomsData, areasData, settingsData, servicesData] = await Promise.all([
         apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(monthStart)}&to=${toIsoDate(monthEnd)}`),
         apiFetch<Room[]>('/api/admin/rooms'),
+        apiFetch<RoomArea[]>('/api/admin/room-areas'),
         apiFetch<VillaSettingsResponse>('/api/admin/villa-settings'),
         apiFetch<VillaServiceCatalog[]>('/api/admin/villa-services'),
       ])
       setBookings(bookingsData)
       setRoomsCatalog(roomsData)
+      setAreas(areasData)
       setServiceCatalog(servicesData)
       setBookingSources(
         settingsData.bookingSources
