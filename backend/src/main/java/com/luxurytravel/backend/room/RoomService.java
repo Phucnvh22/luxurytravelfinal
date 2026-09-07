@@ -131,8 +131,13 @@ public class RoomService {
 
     @Transactional
     public Room markReady(Long id, User cleaner) {
-        Room room = findById(id);
-        if (room.getOperationalStatus() != RoomOperationalStatus.NEEDS_CLEANING) {
+        Room room = roomRepository.findById(id)
+                .orElseThrow(() -> new RoomNotFoundException(id));
+        RoomOperationalStatus effectiveStatus = deriveOperationalStatus(room);
+        if (effectiveStatus == RoomOperationalStatus.READY) {
+            return room;
+        }
+        if (effectiveStatus != RoomOperationalStatus.NEEDS_CLEANING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Villa is not waiting for cleaning");
         }
         Instant now = Instant.now();

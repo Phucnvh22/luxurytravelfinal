@@ -1,8 +1,10 @@
 package com.luxurytravel.backend.roombooking;
 
+import com.luxurytravel.backend.user.User;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,8 +43,11 @@ public class RoomBookingController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public RoomBookingResponse create(@Valid @RequestBody RoomBookingRequest request) {
-        return roomBookingService.create(request);
+    public RoomBookingResponse create(
+            @Valid @RequestBody RoomBookingRequest request,
+            @AuthenticationPrincipal User user
+    ) {
+        return roomBookingService.create(request, user);
     }
 
     @PutMapping("/{id}")

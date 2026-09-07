@@ -135,7 +135,7 @@ export type RoomAreaUpsertRequest = {
   active: boolean
 }
 
-export type VillaSettingCategory = 'ROOM_TYPE' | 'HOST' | 'BOOKING_SOURCE'
+export type VillaSettingCategory = 'ROOM_TYPE' | 'BEDROOM_LAYOUT' | 'HOST' | 'BOOKING_SOURCE' | 'SUPPORT_LINK'
 
 export type VillaSettingOption = {
   id: number
@@ -152,8 +152,10 @@ export type VillaSettingUpsertRequest = {
 
 export type VillaSettingsResponse = {
   roomTypes: VillaSettingOption[]
+  bedroomLayouts: VillaSettingOption[]
   hosts: VillaSettingOption[]
   bookingSources: VillaSettingOption[]
+  supportLinks: VillaSettingOption[]
 }
 
 export type Room = {
@@ -264,6 +266,8 @@ export type RoomBookingRequest = {
 
 export type RoomBookingResponse = {
   id: number
+  bookingCode?: string
+  createdByUsername?: string
   roomCode: string
   guestName: string
   source: string

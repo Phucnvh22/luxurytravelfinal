@@ -45,11 +45,27 @@ const baseRooms: Room[] = [
   },
 ]
 
+const legacyRooms: Room[] = [
+  ...baseRooms,
+  {
+    ...baseRooms[0],
+    id: 2,
+    code: 'V108',
+    name: 'Villa V108',
+    type: 'Legacy Type',
+    host: 'Legacy Host',
+  },
+]
+
 function createSettingsResponse(overrides?: Partial<VillaSettingsResponse>): VillaSettingsResponse {
   return {
     roomTypes: [
       { id: 11, category: 'ROOM_TYPE', label: '4BR', sortOrder: 1, active: true },
       { id: 12, category: 'ROOM_TYPE', label: '5BR', sortOrder: 2, active: true },
+    ],
+    bedroomLayouts: [
+      { id: 15, category: 'BEDROOM_LAYOUT', label: '1 DBL + 3 TWN', sortOrder: 1, active: true },
+      { id: 16, category: 'BEDROOM_LAYOUT', label: '2 DBL + 2 TWN', sortOrder: 2, active: true },
     ],
     hosts: [
       { id: 21, category: 'HOST', label: 'Host A', sortOrder: 1, active: true },
@@ -59,6 +75,7 @@ function createSettingsResponse(overrides?: Partial<VillaSettingsResponse>): Vil
       { id: 31, category: 'BOOKING_SOURCE', label: 'Direct', sortOrder: 1, active: true },
       { id: 32, category: 'BOOKING_SOURCE', label: 'Airbnb', sortOrder: 2, active: true },
     ],
+    supportLinks: [],
     ...overrides,
   }
 }
@@ -74,6 +91,15 @@ function setupStatefulApi(settingsState: { current: VillaSettingsResponse }) {
         ...JSON.parse(String(options.body)),
       }
     }
+    throw new Error(`Unexpected request: ${options?.method || 'GET'} ${endpoint}`)
+  })
+}
+
+function setupApiWithRooms(settingsState: { current: VillaSettingsResponse }, roomsState: Room[]) {
+  mockedApiFetch.mockImplementation(async (endpoint: string, options?: RequestInit) => {
+    if (endpoint === '/api/admin/rooms' && !options?.method) return roomsState
+    if (endpoint === '/api/admin/room-areas' && !options?.method) return baseAreas
+    if (endpoint === '/api/admin/villa-settings' && !options?.method) return settingsState.current
     throw new Error(`Unexpected request: ${options?.method || 'GET'} ${endpoint}`)
   })
 }
@@ -98,10 +124,13 @@ describe('AdminRoomsPage', () => {
     await userEvent.click((await screen.findAllByRole('button', { name: 'Edit' }))[0])
 
     const typeSelect = screen.getByLabelText('Villa type') as HTMLSelectElement
+    const bedroomLayoutSelect = screen.getByLabelText('Bedroom layout') as HTMLSelectElement
     const hostSelect = screen.getByLabelText('Host') as HTMLSelectElement
 
     expect(within(typeSelect).getByRole('option', { name: '4BR' })).toBeInTheDocument()
     expect(within(typeSelect).getByRole('option', { name: '5BR' })).toBeInTheDocument()
+    expect(within(bedroomLayoutSelect).getByRole('option', { name: '1 DBL + 3 TWN' })).toBeInTheDocument()
+    expect(within(bedroomLayoutSelect).getByRole('option', { name: '2 DBL + 2 TWN' })).toBeInTheDocument()
     expect(within(hostSelect).getByRole('option', { name: 'Host A' })).toBeInTheDocument()
     expect(within(hostSelect).getByRole('option', { name: 'Host B' })).toBeInTheDocument()
   })
@@ -119,6 +148,7 @@ describe('AdminRoomsPage', () => {
     await userEvent.click((await screen.findAllByRole('button', { name: 'Edit' }))[0])
 
     await userEvent.selectOptions(screen.getByLabelText('Villa type'), '5BR')
+    await userEvent.selectOptions(screen.getByLabelText('Bedroom layout'), '2 DBL + 2 TWN')
     await userEvent.selectOptions(screen.getByLabelText('Host'), 'Host B')
     await userEvent.click(screen.getByRole('button', { name: 'Update villa' }))
 
@@ -138,6 +168,7 @@ describe('AdminRoomsPage', () => {
     expect(updateCall).toBeTruthy()
     expect(JSON.parse(String(updateCall?.[1]?.body))).toMatchObject({
       type: '5BR',
+      bedroomLayout: '2 DBL + 2 TWN',
       host: 'Host B',
     })
   })
@@ -159,6 +190,10 @@ describe('AdminRoomsPage', () => {
         { id: 11, category: 'ROOM_TYPE', label: '4BR', sortOrder: 1, active: true },
         { id: 13, category: 'ROOM_TYPE', label: '6BR', sortOrder: 3, active: true },
       ],
+      bedroomLayouts: [
+        { id: 15, category: 'BEDROOM_LAYOUT', label: '3 DBL + 1 TWN', sortOrder: 1, active: true },
+        { id: 16, category: 'BEDROOM_LAYOUT', label: '4 DBL', sortOrder: 2, active: true },
+      ],
       hosts: [
         { id: 21, category: 'HOST', label: 'Host A', sortOrder: 1, active: true },
         { id: 23, category: 'HOST', label: 'Host C', sortOrder: 3, active: true },
@@ -172,11 +207,40 @@ describe('AdminRoomsPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Add villa' }))
 
     const typeSelect = screen.getByLabelText('Villa type')
+    const bedroomLayoutSelect = screen.getByLabelText('Bedroom layout')
     const hostSelect = screen.getByLabelText('Host')
 
     expect(Array.from((typeSelect as HTMLSelectElement).options).map((option) => option.text)).toEqual(['4BR', '6BR'])
+    expect(Array.from((bedroomLayoutSelect as HTMLSelectElement).options).map((option) => option.text)).toEqual(['3 DBL + 1 TWN', '4 DBL'])
     expect(Array.from((hostSelect as HTMLSelectElement).options).map((option) => option.text)).toEqual(['Host A', 'Host C'])
     expect(within(typeSelect).getByRole('option', { name: '6BR' })).toBeInTheDocument()
+    expect(within(bedroomLayoutSelect).getByRole('option', { name: '4 DBL' })).toBeInTheDocument()
     expect(within(hostSelect).getByRole('option', { name: 'Host C' })).toBeInTheDocument()
+  })
+
+  it('does not mix legacy room values into create dropdowns', async () => {
+    const settingsState = { current: createSettingsResponse() }
+    setupApiWithRooms(settingsState, legacyRooms)
+
+    render(
+      <MemoryRouter>
+        <AdminRoomsPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Villa list')).toBeInTheDocument()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Add villa' }))
+
+    const typeSelect = screen.getByLabelText('Villa type') as HTMLSelectElement
+    const bedroomLayoutSelect = screen.getByLabelText('Bedroom layout') as HTMLSelectElement
+    const hostSelect = screen.getByLabelText('Host') as HTMLSelectElement
+
+    expect(Array.from(typeSelect.options).map((option) => option.text)).toEqual(['4BR', '5BR'])
+    expect(Array.from(bedroomLayoutSelect.options).map((option) => option.text)).toEqual(['1 DBL + 3 TWN', '2 DBL + 2 TWN'])
+    expect(Array.from(hostSelect.options).map((option) => option.text)).toEqual(['Host A', 'Host B'])
+    expect(screen.queryByRole('option', { name: 'Legacy Type' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: '4BR | 4 DBL' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Legacy Host' })).not.toBeInTheDocument()
   })
 })

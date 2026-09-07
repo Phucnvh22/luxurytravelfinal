@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 
 public record RoomBookingResponse(
         Long id,
+        String bookingCode,
+        String createdByUsername,
         String roomCode,
         String guestName,
         String source,
@@ -28,6 +30,8 @@ public record RoomBookingResponse(
     public static RoomBookingResponse from(RoomBooking entity) {
         return new RoomBookingResponse(
                 entity.getId(),
+                entity.getBookingCode(),
+                entity.getCreatedByUsername(),
                 entity.getRoomCode(),
                 entity.getGuestName(),
                 entity.getSource(),

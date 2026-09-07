@@ -3,6 +3,7 @@ package com.luxurytravel.backend.roombooking;
 import com.luxurytravel.backend.room.Room;
 import com.luxurytravel.backend.room.RoomOperationalStatus;
 import com.luxurytravel.backend.room.RoomRepository;
+import com.luxurytravel.backend.user.User;
 import com.luxurytravel.backend.villaservice.VillaServiceOrderService;
 import com.luxurytravel.backend.villaservice.VillaServicePricing;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.text.Normalizer;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -87,10 +89,15 @@ public class RoomBookingService {
     }
 
     @Transactional
-    public RoomBookingResponse create(RoomBookingRequest request) {
+    public RoomBookingResponse create(RoomBookingRequest request, User actor) {
         RoomBooking booking = new RoomBooking();
         apply(booking, request, null);
+        booking.setCreatedByUsername(resolveCreatorUsername(actor));
         RoomBooking saved = roomBookingRepository.save(booking);
+        if (saved.getBookingCode() == null || saved.getBookingCode().isBlank()) {
+            saved.setBookingCode(buildBookingCode(saved, actor));
+            saved = roomBookingRepository.save(saved);
+        }
         villaServiceOrderService.syncBookingOrderSummary(saved);
         syncRoomOperationalStatus(saved.getRoomCode());
         return RoomBookingResponse.from(saved);
@@ -351,6 +358,41 @@ public class RoomBookingService {
         return status == RoomBookingStatus.AIRBNB_BLOCK
                 || status == RoomBookingStatus.KAYSTAY_BLOCK
                 || status == RoomBookingStatus.SOPHIA_BLOCK;
+    }
+
+    private String resolveCreatorUsername(User actor) {
+        if (actor == null || actor.getUsername() == null || actor.getUsername().isBlank()) {
+            return "system";
+        }
+        return actor.getUsername().trim();
+    }
+
+    private String buildBookingCode(RoomBooking booking, User actor) {
+        String initial = extractCreatorInitial(actor);
+        long bookingId = booking.getId() == null ? System.currentTimeMillis() % 1_000_000L : booking.getId();
+        return "BK-" + initial + String.format("%06d", bookingId % 1_000_000L);
+    }
+
+    private String extractCreatorInitial(User actor) {
+        String seed = null;
+        if (actor != null) {
+            seed = actor.getFullName();
+            if (seed == null || seed.isBlank()) {
+                seed = actor.getUsername();
+            }
+        }
+        if (seed == null || seed.isBlank()) {
+            return "S";
+        }
+
+        String normalized = Normalizer.normalize(seed.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replaceAll("[^A-Za-z0-9 ]", "")
+                .trim();
+        if (normalized.isBlank()) {
+            return "S";
+        }
+        return normalized.substring(0, 1).toUpperCase();
     }
 
     private DateRange buildRange(LocalDate from, LocalDate to) {

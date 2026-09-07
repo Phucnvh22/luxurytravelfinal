@@ -66,6 +66,12 @@ public class RoomBooking {
     @Column(length = 100)
     private String externalReservationId;
 
+    @Column(length = 64)
+    private String bookingCode;
+
+    @Column(length = 100)
+    private String createdByUsername;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RoomBookingStatus status = RoomBookingStatus.PENDING;
@@ -225,6 +231,22 @@ public class RoomBooking {
 
     public void setExternalReservationId(String externalReservationId) {
         this.externalReservationId = externalReservationId;
+    }
+
+    public String getBookingCode() {
+        return bookingCode;
+    }
+
+    public void setBookingCode(String bookingCode) {
+        this.bookingCode = bookingCode;
+    }
+
+    public String getCreatedByUsername() {
+        return createdByUsername;
+    }
+
+    public void setCreatedByUsername(String createdByUsername) {
+        this.createdByUsername = createdByUsername;
     }
 
     public RoomBookingStatus getStatus() {

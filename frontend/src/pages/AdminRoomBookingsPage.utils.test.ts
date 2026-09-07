@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest'
 import type { Room, RoomBookingResponse } from '../types'
 import {
   buildGroupedScheduleRows,
+  buildDateRangeFromPreset,
+  formatBookingDateRange,
   buildQuickBookingDateRange,
   compareRoomsByLocation,
   getBookedDateKeysForRoom,
+  shiftBookingDateRange,
   toggleQuickBookingDate,
+  validateBookingDateRange,
   validateQuickBookingSelection,
 } from './AdminRoomBookingsPage.utils'
 
@@ -139,5 +143,30 @@ describe('AdminRoomBookingsPage utils', () => {
       checkInAt: '2026-08-14T15:00',
       checkOutAt: '2026-08-17T11:00',
     })
+  })
+
+  it('builds a month range from preset', () => {
+    expect(buildDateRangeFromPreset('month', new Date('2026-09-05T10:00:00'))).toEqual({
+      from: '2026-09-01',
+      to: '2026-09-30',
+    })
+  })
+
+  it('validates date range order', () => {
+    expect(validateBookingDateRange({ from: '2026-09-10', to: '2026-09-09' })).toBe(
+      'Ngày kết thúc không được nhỏ hơn ngày bắt đầu.',
+    )
+    expect(validateBookingDateRange({ from: '2026-09-10', to: '2026-09-10' })).toBeNull()
+  })
+
+  it('shifts custom date ranges while preserving the span', () => {
+    expect(shiftBookingDateRange({ from: '2026-09-10', to: '2026-09-14' }, 'custom', 1)).toEqual({
+      from: '2026-09-15',
+      to: '2026-09-19',
+    })
+  })
+
+  it('formats a date range label for display', () => {
+    expect(formatBookingDateRange({ from: '2026-09-10', to: '2026-09-14' })).toBe('10/09/2026 → 14/09/2026')
   })
 })

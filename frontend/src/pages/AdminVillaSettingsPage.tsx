@@ -19,12 +19,14 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 function getCategoryLabel(category: VillaSettingCategory) {
   if (category === 'ROOM_TYPE') return 'Villa type'
+  if (category === 'BEDROOM_LAYOUT') return 'Bedroom layout'
   if (category === 'HOST') return 'Host'
-  return 'Booking source'
+  if (category === 'BOOKING_SOURCE') return 'Booking source'
+  return 'Support link'
 }
 
 export default function AdminVillaSettingsPage() {
-  const [settings, setSettings] = useState<VillaSettingsResponse>({ roomTypes: [], hosts: [], bookingSources: [] })
+  const [settings, setSettings] = useState<VillaSettingsResponse>({ roomTypes: [], bedroomLayouts: [], hosts: [], bookingSources: [], supportLinks: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -37,8 +39,10 @@ export default function AdminVillaSettingsPage() {
   const sections = useMemo(
     () => [
       { category: 'ROOM_TYPE' as const, title: 'Villa types', addLabel: 'Add villa type', items: settings.roomTypes },
+      { category: 'BEDROOM_LAYOUT' as const, title: 'Bedroom layouts', addLabel: 'Add bedroom layout', items: settings.bedroomLayouts },
       { category: 'HOST' as const, title: 'Hosts', addLabel: 'Add host', items: settings.hosts },
       { category: 'BOOKING_SOURCE' as const, title: 'Booking sources', addLabel: 'Add booking source', items: settings.bookingSources },
+      { category: 'SUPPORT_LINK' as const, title: 'Support links', addLabel: 'Add support link', items: settings.supportLinks },
     ],
     [settings],
   )
@@ -140,7 +144,7 @@ export default function AdminVillaSettingsPage() {
         <div className="section-head" style={{ marginTop: 14 }}>
           <div>
             <h2>Admin • Villa Settings</h2>
-            <div className="muted">Manage reusable villa types, hosts, and booking sources for admin forms.</div>
+            <div className="muted">Manage reusable villa types, hosts, booking sources, and support links for admin forms.</div>
           </div>
         </div>
 
@@ -156,8 +160,10 @@ export default function AdminVillaSettingsPage() {
                   onChange={(e) => setForm((current) => ({ ...current, category: e.target.value as VillaSettingCategory }))}
                 >
                   <option value="ROOM_TYPE">Villa type</option>
+                  <option value="BEDROOM_LAYOUT">Bedroom layout</option>
                   <option value="HOST">Host</option>
                   <option value="BOOKING_SOURCE">Booking source</option>
+                  <option value="SUPPORT_LINK">Support link</option>
                 </select>
               </label>
 
@@ -170,9 +176,13 @@ export default function AdminVillaSettingsPage() {
                   placeholder={
                     form.category === 'ROOM_TYPE'
                       ? 'Garden View-Villa'
+                      : form.category === 'BEDROOM_LAYOUT'
+                        ? '1 DBL + 3 TWN'
                       : form.category === 'HOST'
                         ? 'Premier Village Danang Resort'
-                        : 'Direct'
+                        : form.category === 'BOOKING_SOURCE'
+                          ? 'Direct'
+                          : 'https://zalo.me/849357572725'
                   }
                 />
               </label>

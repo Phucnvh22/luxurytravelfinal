@@ -27,6 +27,13 @@ export type QuickBookingSelection = {
   dates: string[]
 }
 
+export type BookingDateRange = {
+  from: string
+  to: string
+}
+
+export type DateRangePreset = 'custom' | 'day' | '7days' | '14days' | 'month'
+
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 const FALLBACK_TIER: VillaTierDefinition = {
   key: 'other',
@@ -122,6 +129,37 @@ function toDateKey(value: Date) {
   return `${year}-${month}-${day}`
 }
 
+function startOfDay(value: Date) {
+  const next = new Date(value)
+  next.setHours(0, 0, 0, 0)
+  return next
+}
+
+function startOfMonth(value: Date) {
+  const next = startOfDay(value)
+  next.setDate(1)
+  return next
+}
+
+function endOfMonth(value: Date) {
+  const next = startOfMonth(value)
+  next.setMonth(next.getMonth() + 1)
+  next.setDate(0)
+  return next
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function addMonths(value: Date, months: number) {
+  const next = startOfMonth(value)
+  next.setMonth(next.getMonth() + months)
+  return next
+}
+
 function sortDateKeys(values: string[]) {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b))
 }
@@ -139,6 +177,94 @@ function buildDateKeysBetween(startKey: string, endKey: string) {
   }
 
   return values
+}
+
+export function buildDateRangeFromPreset(preset: Exclude<DateRangePreset, 'custom'>, baseDate = new Date()): BookingDateRange {
+  const anchor = startOfDay(baseDate)
+
+  if (preset === 'month') {
+    return {
+      from: toDateKey(startOfMonth(anchor)),
+      to: toDateKey(endOfMonth(anchor)),
+    }
+  }
+
+  if (preset === 'day') {
+    const dateKey = toDateKey(anchor)
+    return { from: dateKey, to: dateKey }
+  }
+
+  const spanDays = preset === '7days' ? 6 : 13
+  return {
+    from: toDateKey(anchor),
+    to: toDateKey(addDays(anchor, spanDays)),
+  }
+}
+
+export function validateBookingDateRange(range: BookingDateRange) {
+  if (!range.from || !range.to) {
+    return null
+  }
+
+  const from = parseDateKey(range.from)
+  const to = parseDateKey(range.to)
+  if (!from || !to) {
+    return 'Khoảng ngày không hợp lệ.'
+  }
+  if (to.getTime() < from.getTime()) {
+    return 'Ngày kết thúc không được nhỏ hơn ngày bắt đầu.'
+  }
+  return null
+}
+
+export function shiftBookingDateRange(range: BookingDateRange, preset: DateRangePreset, direction: -1 | 1) {
+  const from = parseDateKey(range.from)
+  const to = parseDateKey(range.to)
+  if (!from || !to) {
+    return range
+  }
+
+  if (preset === 'month') {
+    const nextMonth = addMonths(from, direction)
+    return {
+      from: toDateKey(startOfMonth(nextMonth)),
+      to: toDateKey(endOfMonth(nextMonth)),
+    }
+  }
+
+  const inclusiveSpanDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / DAY_DURATION_MS) + 1)
+  const stepDays =
+    preset === 'day'
+      ? 1
+      : preset === '7days'
+        ? 7
+        : preset === '14days'
+          ? 14
+          : inclusiveSpanDays
+
+  const nextFrom = addDays(from, stepDays * direction)
+  const nextTo = addDays(to, stepDays * direction)
+  return {
+    from: toDateKey(nextFrom),
+    to: toDateKey(nextTo),
+  }
+}
+
+export function formatBookingDateRange(range: BookingDateRange, locale = 'vi-VN') {
+  const from = parseDateKey(range.from)
+  const to = parseDateKey(range.to)
+  if (!from || !to) {
+    return 'Chưa chọn khoảng ngày'
+  }
+
+  const formatter = new Intl.DateTimeFormat(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+  const fromText = formatter.format(from)
+  const toText = formatter.format(to)
+  return fromText === toText ? fromText : `${fromText} → ${toText}`
 }
 
 export function compareRoomsByLocation(a?: Room, b?: Room, fallbackA = '', fallbackB = '') {

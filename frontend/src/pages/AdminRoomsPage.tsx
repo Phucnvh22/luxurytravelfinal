@@ -43,19 +43,13 @@ function formatGuestCapacity(maxAdults?: number, maxChildren?: number) {
   return children > 0 ? `${adults} / ${children}` : `${adults}`
 }
 
-function buildDropdownOptions(managedOptions: VillaSettingOption[], roomValues: string[], currentValue: string) {
+function buildDropdownOptions(managedOptions: VillaSettingOption[], currentValue: string) {
   const normalized = new Map<string, string>()
 
   for (const option of managedOptions) {
     const value = option.label.trim()
     if (!value) continue
     normalized.set(value.toLocaleLowerCase('vi-VN'), value)
-  }
-
-  for (const value of roomValues) {
-    const trimmed = value.trim()
-    if (!trimmed) continue
-    normalized.set(trimmed.toLocaleLowerCase('vi-VN'), trimmed)
   }
 
   const currentTrimmed = currentValue.trim()
@@ -99,7 +93,13 @@ async function copyText(text: string) {
 export default function AdminRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [areas, setAreas] = useState<RoomArea[]>([])
-  const [villaSettings, setVillaSettings] = useState<VillaSettingsResponse>({ roomTypes: [], hosts: [], bookingSources: [] })
+  const [villaSettings, setVillaSettings] = useState<VillaSettingsResponse>({
+    roomTypes: [],
+    bedroomLayouts: [],
+    hosts: [],
+    bookingSources: [],
+    supportLinks: [],
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -131,12 +131,16 @@ export default function AdminRoomsPage() {
     })
   }, [rooms])
   const roomTypeOptions = useMemo(
-    () => buildDropdownOptions(villaSettings.roomTypes, rooms.map((room) => room.type), form.type),
-    [form.type, rooms, villaSettings.roomTypes],
+    () => buildDropdownOptions(villaSettings.roomTypes, form.type),
+    [form.type, villaSettings.roomTypes],
   )
   const hostOptions = useMemo(
-    () => buildDropdownOptions(villaSettings.hosts, rooms.map((room) => room.host), form.host),
-    [form.host, rooms, villaSettings.hosts],
+    () => buildDropdownOptions(villaSettings.hosts, form.host),
+    [form.host, villaSettings.hosts],
+  )
+  const bedroomLayoutOptions = useMemo(
+    () => buildDropdownOptions(villaSettings.bedroomLayouts, form.bedroomLayout ?? ''),
+    [form.bedroomLayout, villaSettings.bedroomLayouts],
   )
 
   async function load(opts?: { silent?: boolean }) {
@@ -180,10 +184,11 @@ export default function AdminRoomsPage() {
     setForm((current) => {
       const nextType = current.type || roomTypeOptions[0] || ''
       const nextHost = current.host || hostOptions[0] || ''
-      if (nextType === current.type && nextHost === current.host) return current
-      return { ...current, type: nextType, host: nextHost }
+      const nextBedroomLayout = current.bedroomLayout || bedroomLayoutOptions[0] || ''
+      if (nextType === current.type && nextHost === current.host && nextBedroomLayout === current.bedroomLayout) return current
+      return { ...current, type: nextType, host: nextHost, bedroomLayout: nextBedroomLayout }
     })
-  }, [hostOptions, modalMode, roomTypeOptions])
+  }, [bedroomLayoutOptions, hostOptions, modalMode, roomTypeOptions])
 
   useEffect(() => {
     const tick = () => {
@@ -214,6 +219,7 @@ export default function AdminRoomsPage() {
       areaId: areas[0]?.id ?? 0,
       host: hostOptions[0] ?? '',
       type: roomTypeOptions[0] ?? '',
+      bedroomLayout: bedroomLayoutOptions[0] ?? '',
     })
     setSaveError(null)
   }
@@ -824,25 +830,34 @@ export default function AdminRoomsPage() {
                   </label>
                 </div>
 
-                {roomTypeOptions.length === 0 || hostOptions.length === 0 ? (
+                {roomTypeOptions.length === 0 || hostOptions.length === 0 || bedroomLayoutOptions.length === 0 ? (
                   <div className="card detail-card" style={{ padding: 14 }}>
                     <div style={{ fontWeight: 800, marginBottom: 4 }}>Missing dropdown data</div>
                     <div className="muted">
-                      Update the villa types or host list in{' '}
+                      Update the villa types, bedroom layouts, or host list in{' '}
                       <Link to="/admin/villa-settings">Villa settings</Link> to use this form.
                     </div>
                   </div>
                 ) : null}
 
                 <div className="row">
-                  <label className="field" style={{ flex: 1, minWidth: 260 }}>
+                  <label className="field" style={{ flex: 1 }}>
                     <div className="field-label">Bedroom layout</div>
-                    <input
-                      className="input"
+                    <select
+                      className="select"
                       value={form.bedroomLayout}
                       onChange={(e) => setForm((current) => ({ ...current, bedroomLayout: e.target.value }))}
-                      placeholder="5BR | 2 Master + 2 DBL + 1 TWN"
-                    />
+                    >
+                      {bedroomLayoutOptions.length > 0 ? (
+                        bedroomLayoutOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No bedroom layouts available</option>
+                      )}
+                    </select>
                   </label>
                   <label className="field" style={{ width: 180 }}>
                     <div className="field-label">Active</div>

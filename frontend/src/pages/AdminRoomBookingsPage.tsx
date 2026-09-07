@@ -18,18 +18,25 @@ import type {
 } from '../types'
 import {
   buildGroupedScheduleRows,
+  buildDateRangeFromPreset,
+  formatBookingDateRange,
   buildQuickBookingDateRange,
   compareRoomsByLocation,
   getVillaTierDefinition,
   getBookedDateKeysForRoom,
+  shiftBookingDateRange,
   sortRoomCodesByVillaTier,
   toggleQuickBookingDate,
+  validateBookingDateRange,
   validateQuickBookingSelection,
   VILLA_TIER_DEFINITIONS,
+  type BookingDateRange,
+  type DateRangePreset,
   type QuickBookingSelection,
   type VillaTierKey,
 } from './AdminRoomBookingsPage.utils'
 import { calculateVillaServiceTotal, calculateVillaServiceVendorCostTotal } from './villa-service-utils'
+import { buildSupportQrUrl, detectSupportChannel } from '../constants/social'
 import './pages.css'
 import './admin-room-bookings.css'
 
@@ -77,6 +84,7 @@ type ConfirmationTemplate = {
   includedServices: string
   importantNotes: string
   guestSupport: string
+  supportLink: string
 }
 type VillaMonthCalendarCell = {
   date: Date
@@ -86,6 +94,11 @@ type VillaMonthCalendarCell = {
   activeBooking: ScheduleBooking | null
   checkInBookings: ScheduleBooking[]
   checkOutBookings: ScheduleBooking[]
+}
+
+type FilterSummaryOption = {
+  value: string
+  label: string
 }
 
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
@@ -217,12 +230,6 @@ function addDays(base: Date, days: number) {
   return value
 }
 
-function addMonths(base: Date, months: number) {
-  const value = startOfMonth(base)
-  value.setMonth(value.getMonth() + months)
-  return value
-}
-
 function startOfDay(base: Date) {
   const value = new Date(base)
   value.setHours(0, 0, 0, 0)
@@ -307,12 +314,54 @@ function formatMoney(value?: number, language: ConfirmationLanguage = 'vi') {
   }).format(value)
 }
 
-function buildDefaultConfirmationTemplate(): ConfirmationTemplate {
+function buildDefaultConfirmationTemplate(rawSupportUrl?: string | null): ConfirmationTemplate {
+  const supportChannel = detectSupportChannel(rawSupportUrl)
+  const supportMessage =
+    supportChannel.key === 'generic'
+      ? '24/7 support available via the shared support link.'
+      : `24/7 support via ${supportChannel.label}.`
+
   return {
     includedServices: 'Welcome fruit and drinks, internet, private pool, daily housekeeping, buggy 08:00 - 22:00.',
     importantNotes: 'Check-in after 15:00, check-out before 11:00, no smoking, quiet hours 22:00 - 06:00.',
-    guestSupport: '24/7 support via WhatsApp.',
+    guestSupport: supportMessage,
+    supportLink: rawSupportUrl?.trim() ?? '',
   }
+}
+
+function parseDateKey(value?: string) {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function buildDateKeys(from: Date, to: Date) {
+  const values: Date[] = []
+  for (let cursor = startOfDay(from); cursor <= to; cursor = addDays(cursor, 1)) {
+    values.push(cursor)
+  }
+  return values
+}
+
+function overlapsFilterRange(booking: RoomBookingResponse, from: Date, to: Date) {
+  const startAt = startOfDay(new Date(booking.checkInAt))
+  const endAt = startOfDay(new Date(booking.checkOutAt))
+  return startAt <= to && endAt >= from
+}
+
+function toggleFilterValue(currentValues: string[], value: string) {
+  return currentValues.includes(value)
+    ? currentValues.filter((item) => item !== value)
+    : [...currentValues, value]
+}
+
+function summarizeFilterSelection(options: FilterSummaryOption[], selectedValues: string[]) {
+  if (selectedValues.length === 0) return 'Tất cả'
+  const labels = options
+    .filter((option) => selectedValues.includes(option.value))
+    .map((option) => option.label)
+  if (labels.length <= 2) return labels.join(', ')
+  return `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`
 }
 
 function buildDefaultForm(monthStart: Date, roomCode = FALLBACK_ROOM_CODE, source = 'Direct'): RoomBookingRequest {
@@ -546,11 +595,9 @@ function getBookingBarLayout(booking: RoomBookingResponse, trackStartMs: number,
 }
 
 function getBookingBarStyle(layout: { left: number; width: number }): CSSProperties {
-  const insetPercent = layout.width * 0.025
-
   return {
-    left: `${layout.left + insetPercent}%`,
-    width: `${Math.max(layout.width * 0.95, 0.75)}%`,
+    left: `${layout.left}%`,
+    width: `${Math.max(layout.width, 0.75)}%`,
   }
 }
 
@@ -679,13 +726,18 @@ export default function AdminRoomBookingsPage() {
   const [areas, setAreas] = useState<RoomArea[]>([])
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
   const [bookingSources, setBookingSources] = useState<string[]>(['Direct'])
+  const [supportLinks, setSupportLinks] = useState<string[]>([])
   const [serviceCatalog, setServiceCatalog] = useState<VillaServiceCatalog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedAreaId, setSelectedAreaId] = useState('')
-  const [selectedVillaType, setSelectedVillaType] = useState<VillaTierKey | ''>('')
-  const [selectedHost, setSelectedHost] = useState('')
+  const [selectedVillaTypes, setSelectedVillaTypes] = useState<VillaTierKey[]>([])
+  const [selectedHosts, setSelectedHosts] = useState<string[]>([])
   const [selectedBedroomLayout, setSelectedBedroomLayout] = useState('')
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('month')
+  const [draftDateRange, setDraftDateRange] = useState<BookingDateRange>(() => buildDateRangeFromPreset('month', new Date()))
+  const [appliedDateRange, setAppliedDateRange] = useState<BookingDateRange>(() => buildDateRangeFromPreset('month', new Date()))
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null)
   const [activeStatuses, setActiveStatuses] = useState<VisibleRoomBookingStatus[]>(ALL_STATUSES)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null)
@@ -735,10 +787,16 @@ export default function AdminRoomBookingsPage() {
   const monthEnd = useMemo(() => endOfMonth(monthCursor), [monthCursor])
   const monthValue = monthCursor.getMonth()
   const yearValue = monthCursor.getFullYear()
-  const monthDays = useMemo(() => {
-    const totalDays = monthEnd.getDate()
-    return Array.from({ length: totalDays }, (_, index) => addDays(monthStart, index))
-  }, [monthEnd, monthStart])
+  const visibleDateRange = useMemo(() => {
+    const from = parseDateKey(appliedDateRange.from) ?? monthStart
+    const to = parseDateKey(appliedDateRange.to) ?? monthEnd
+    return { from, to }
+  }, [appliedDateRange.from, appliedDateRange.to, monthEnd, monthStart])
+  const monthDays = useMemo(
+    () => buildDateKeys(visibleDateRange.from, visibleDateRange.to),
+    [visibleDateRange],
+  )
+  const visibleRangeLabel = useMemo(() => formatBookingDateRange(appliedDateRange), [appliedDateRange])
   const monthOptions = useMemo(
     () =>
       Array.from({ length: 12 }, (_, monthIndex) => ({
@@ -760,6 +818,10 @@ export default function AdminRoomBookingsPage() {
       VILLA_TIER_DEFINITIONS.filter((tier) => roomsCatalog.some((room) => getVillaTierDefinition(room.code).key === tier.key)),
     [roomsCatalog],
   )
+  const villaTypeFilterOptions = useMemo<FilterSummaryOption[]>(
+    () => villaTypeOptions.map((option) => ({ value: option.key, label: option.label })),
+    [villaTypeOptions],
+  )
   const areaOptions = useMemo(
     () =>
       areas
@@ -776,6 +838,10 @@ export default function AdminRoomBookingsPage() {
       Array.from(new Set(roomsCatalog.map((room) => room.host?.trim()).filter((value): value is string => Boolean(value))))
         .sort((a, b) => a.localeCompare(b, 'vi')),
     [roomsCatalog],
+  )
+  const hostFilterOptions = useMemo<FilterSummaryOption[]>(
+    () => hostOptions.map((option) => ({ value: option, label: option })),
+    [hostOptions],
   )
   const bedroomLayoutOptions = useMemo(
     () =>
@@ -818,6 +884,10 @@ export default function AdminRoomBookingsPage() {
     if (normalized.length === 0) normalized.push('Direct')
     return normalized
   }, [bookingSources, form.source])
+  const primarySupportLink = useMemo(
+    () => supportLinks.map((value) => value.trim()).find(Boolean) ?? undefined,
+    [supportLinks],
+  )
   const bookingServiceOptions = useMemo(
     () =>
       serviceCatalog.filter(
@@ -880,8 +950,24 @@ export default function AdminRoomBookingsPage() {
     return true
   }
 
+  const applyDateRange = (nextRange: BookingDateRange, nextPreset?: DateRangePreset) => {
+    const validationError = validateBookingDateRange(nextRange)
+    setDraftDateRange(nextRange)
+    setDateRangePreset(nextPreset ?? dateRangePreset)
+    setDateRangeError(validationError)
+    if (validationError) return
+    setAppliedDateRange(nextRange)
+    const nextFrom = parseDateKey(nextRange.from)
+    if (nextFrom) {
+      setMonthCursor(startOfMonth(nextFrom))
+    }
+  }
+
   const handleGoToToday = () => {
     const today = new Date()
+    const presetForToday = dateRangePreset === 'custom' ? 'day' : dateRangePreset
+    const nextRange = buildDateRangeFromPreset(presetForToday, today)
+    applyDateRange(nextRange, presetForToday)
     const todayMonthStart = startOfMonth(today)
     const isCurrentMonth =
       monthCursor.getFullYear() === todayMonthStart.getFullYear() &&
@@ -911,7 +997,17 @@ export default function AdminRoomBookingsPage() {
   }, [loading, monthCursor, monthDays])
 
   const updateMonthCursor = (nextMonth: number, nextYear: number) => {
-    setMonthCursor(new Date(nextYear, nextMonth, 1))
+    const nextRange = buildDateRangeFromPreset('month', new Date(nextYear, nextMonth, 1))
+    applyDateRange(nextRange, 'month')
+  }
+
+  const handleDatePresetChange = (preset: Exclude<DateRangePreset, 'custom'>) => {
+    applyDateRange(buildDateRangeFromPreset(preset, new Date(draftDateRange.from || Date.now())), preset)
+  }
+
+  const handleRangeStep = (direction: -1 | 1) => {
+    const nextRange = shiftBookingDateRange(appliedDateRange, dateRangePreset, direction)
+    applyDateRange(nextRange, dateRangePreset)
   }
 
   useEffect(() => {
@@ -922,6 +1018,11 @@ export default function AdminRoomBookingsPage() {
     setConfirmationDetailsNotes('')
   }, [bookingModalMode, selectedBooking])
 
+  useEffect(() => {
+    if (bookingModalMode !== 'details' || !selectedBooking) return
+    setConfirmationTemplate(buildDefaultConfirmationTemplate(primarySupportLink))
+  }, [bookingModalMode, primarySupportLink, selectedBooking?.id])
+
   async function load(opts?: { silent?: boolean }) {
     if (loadingRef.current) return
     loadingRef.current = true
@@ -931,7 +1032,7 @@ export default function AdminRoomBookingsPage() {
     }
     try {
       const [bookingsData, roomsData, areasData, settingsData, servicesData] = await Promise.all([
-        apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(monthStart)}&to=${toIsoDate(monthEnd)}`),
+        apiFetch<RoomBookingResponse[]>(`/api/admin/room-bookings?from=${toIsoDate(visibleDateRange.from)}&to=${toIsoDate(visibleDateRange.to)}`),
         apiFetch<Room[]>('/api/admin/rooms'),
         apiFetch<RoomArea[]>('/api/admin/room-areas'),
         apiFetch<VillaSettingsResponse>('/api/admin/villa-settings'),
@@ -943,6 +1044,12 @@ export default function AdminRoomBookingsPage() {
       setServiceCatalog(servicesData)
       setBookingSources(
         settingsData.bookingSources
+          .map((item) => item.label.trim())
+          .filter(Boolean),
+      )
+      setSupportLinks(
+        settingsData.supportLinks
+          .filter((item) => item.active)
           .map((item) => item.label.trim())
           .filter(Boolean),
       )
@@ -962,8 +1069,8 @@ export default function AdminRoomBookingsPage() {
     setCalendarFeedback(null)
     try {
       const params = new URLSearchParams({
-        from: toIsoDate(monthStart),
-        to: toIsoDate(monthEnd),
+        from: toIsoDate(visibleDateRange.from),
+        to: toIsoDate(visibleDateRange.to),
       })
       const result = await apiFetch<AirbnbSyncRunResponse>(`/api/admin/integrations/airbnb-sync/sync-now?${params.toString()}`, {
         method: 'POST',
@@ -990,8 +1097,8 @@ export default function AdminRoomBookingsPage() {
     setCalendarFeedback(null)
     try {
       const params = new URLSearchParams({
-        from: toIsoDate(monthStart),
-        to: toIsoDate(monthEnd),
+        from: toIsoDate(visibleDateRange.from),
+        to: toIsoDate(visibleDateRange.to),
       })
       const result = await apiFetch<KayStaySyncRunResponse>(
         `/api/admin/integrations/kaystay-sync/sync-now?${params.toString()}`,
@@ -1019,8 +1126,8 @@ export default function AdminRoomBookingsPage() {
     setCalendarFeedback(null)
     try {
       const params = new URLSearchParams({
-        from: toIsoDate(monthStart),
-        to: toIsoDate(monthEnd),
+        from: toIsoDate(visibleDateRange.from),
+        to: toIsoDate(visibleDateRange.to),
       })
       const result = await apiFetch<SophiaSyncRunResponse>(
         `/api/admin/integrations/sophia-sync/sync-now?${params.toString()}`,
@@ -1045,7 +1152,7 @@ export default function AdminRoomBookingsPage() {
 
   useEffect(() => {
     void load()
-  }, [monthStart, monthEnd])
+  }, [visibleDateRange.from, visibleDateRange.to])
 
   useEffect(() => {
     const tick = () => {
@@ -1059,7 +1166,7 @@ export default function AdminRoomBookingsPage() {
       window.clearInterval(intervalId)
       window.removeEventListener('focus', tick)
     }
-  }, [actionLoading, editingId, monthEnd, monthStart])
+  }, [actionLoading, editingId, visibleDateRange.from, visibleDateRange.to])
 
   useEffect(() => {
     if (editingId) return
@@ -1139,14 +1246,14 @@ export default function AdminRoomBookingsPage() {
   }, [monthEnd, monthStart, villaCalendarBookings])
   const matchesRoomFilters = (room?: Room | null) => {
     if (!room) {
-      return !selectedAreaId && !selectedVillaType && !selectedHost && !selectedBedroomLayout
+      return !selectedAreaId && selectedVillaTypes.length === 0 && selectedHosts.length === 0 && !selectedBedroomLayout
     }
     const roomTierKey = getVillaTierDefinition(room.code).key
     const roomHost = room.host?.trim() ?? ''
     const roomBedroomLayout = room.bedroomLayout?.trim() ?? ''
     if (selectedAreaId && String(room.areaId) !== selectedAreaId) return false
-    if (selectedVillaType && roomTierKey !== selectedVillaType) return false
-    if (selectedHost && roomHost !== selectedHost) return false
+    if (selectedVillaTypes.length > 0 && !selectedVillaTypes.includes(roomTierKey)) return false
+    if (selectedHosts.length > 0 && !selectedHosts.includes(roomHost)) return false
     if (selectedBedroomLayout && roomBedroomLayout !== selectedBedroomLayout) return false
     return true
   }
@@ -1158,10 +1265,11 @@ export default function AdminRoomBookingsPage() {
 
       const matchesStatus = activeStatuses.includes(visibleStatus)
       if (!matchesStatus) return []
+      if (!overlapsFilterRange(booking, visibleDateRange.from, visibleDateRange.to)) return []
       if (!matchesRoomFilters(roomByCode[booking.roomCode])) return []
       return [{ ...booking, displayStatus: visibleStatus }]
     })
-  }, [activeStatuses, bookings, roomByCode, selectedAreaId, selectedBedroomLayout, selectedHost, selectedVillaType])
+  }, [activeStatuses, bookings, roomByCode, selectedAreaId, selectedBedroomLayout, selectedHosts, selectedVillaTypes, visibleDateRange])
 
   const rooms = useMemo(() => {
     const catalogCodes = roomsCatalog
@@ -1171,7 +1279,7 @@ export default function AdminRoomBookingsPage() {
     const uniqueRooms = Array.from(new Set([...catalogCodes, ...bookingCodes].filter(Boolean)))
 
     return sortRoomCodesByVillaTier(uniqueRooms, roomByCode)
-  }, [filteredBookings, roomByCode, roomsCatalog, selectedAreaId, selectedBedroomLayout, selectedHost, selectedVillaType])
+  }, [filteredBookings, roomByCode, roomsCatalog, selectedAreaId, selectedBedroomLayout, selectedHosts, selectedVillaTypes])
 
   const roomOptions = useMemo(() => {
     return Array.from(new Set([...roomsCatalog.map((room) => room.code), ...bookings.map((booking) => booking.roomCode)]))
@@ -1189,7 +1297,7 @@ export default function AdminRoomBookingsPage() {
     >
   }, [bookings, rooms])
 
-  const trackStartMs = monthStart.getTime()
+  const trackStartMs = visibleDateRange.from.getTime()
   const trackDurationMs = monthDays.length * DAY_DURATION_MS
   const scheduleGridStyle = useMemo(
     () =>
@@ -1201,7 +1309,7 @@ export default function AdminRoomBookingsPage() {
   )
   const today = new Date()
   const todayDateKey = toIsoDate(startOfDay(today))
-  const isTodayInsideMonth = today >= monthStart && today < addDays(monthEnd, 1)
+  const isTodayInsideMonth = today >= visibleDateRange.from && today < addDays(visibleDateRange.to, 1)
   const todayMarkerLeft = isTodayInsideMonth ? ((today.getTime() - trackStartMs) / trackDurationMs) * 100 : null
   const realtimeSummaryItems = useMemo(() => {
     const items = {
@@ -1214,10 +1322,8 @@ export default function AdminRoomBookingsPage() {
       tempLock: 0,
     }
 
-    bookings.forEach((booking) => {
-      const visibleStatus = normalizeDisplayStatus(booking.status)
-      if (!visibleStatus) return
-
+    filteredBookings.forEach((booking) => {
+      const visibleStatus = booking.displayStatus
       const checkInDateKey = toDateInputValue(booking.checkInAt)
       const checkOutDateKey = toDateInputValue(booking.checkOutAt)
       const remaining = calculateRemainingAmount(booking.totalAmount ?? booking.villaRate, booking.depositAmount, booking.remainingAmount) ?? 0
@@ -1269,7 +1375,7 @@ export default function AdminRoomBookingsPage() {
       { key: 'deposit-paid', label: 'Đã thu cọc', value: items.depositPaid, toneClass: 'deposit-paid' },
       { key: 'temp-lock', label: 'Tạm khóa', value: items.tempLock, toneClass: 'temp-lock' },
     ] as const
-  }, [bookings, todayDateKey])
+  }, [filteredBookings, todayDateKey])
 
   useEffect(() => {
     if (loading || rooms.length === 0 || !isTodayInsideMonth) return
@@ -1304,7 +1410,7 @@ export default function AdminRoomBookingsPage() {
   const resetForm = () => {
     setEditingId(null)
     setForm(buildDefaultForm(monthStart, roomsCatalog[0]?.code ?? FALLBACK_ROOM_CODE, bookingSources[0] ?? 'Direct'))
-    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationTemplate(buildDefaultConfirmationTemplate(primarySupportLink))
     setConfirmationDetailsNotes('')
     setIsConfirmationEditing(false)
     setServiceOrderForm(buildDefaultServiceOrderForm())
@@ -1317,7 +1423,7 @@ export default function AdminRoomBookingsPage() {
     setBookingModalMode(null)
     setSelectedBookingId(null)
     setShowConfirmInformation(false)
-    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationTemplate(buildDefaultConfirmationTemplate(primarySupportLink))
     setConfirmationDetailsNotes('')
     setIsConfirmationEditing(false)
     setServiceOrderForm(buildDefaultServiceOrderForm())
@@ -1546,7 +1652,7 @@ export default function AdminRoomBookingsPage() {
     setSelectedBookingId(booking.id)
     setBookingModalMode('details')
     setShowConfirmInformation(false)
-    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationTemplate(buildDefaultConfirmationTemplate(primarySupportLink))
     setConfirmationDetailsNotes(booking.notes ?? '')
     setIsConfirmationEditing(false)
     setFormError(null)
@@ -1569,7 +1675,7 @@ export default function AdminRoomBookingsPage() {
     setForm(mapBookingToForm(booking))
     setBookingModalMode('edit')
     setShowConfirmInformation(false)
-    setConfirmationTemplate(buildDefaultConfirmationTemplate())
+    setConfirmationTemplate(buildDefaultConfirmationTemplate(primarySupportLink))
     setConfirmationDetailsNotes('')
     setIsConfirmationEditing(false)
     setFormError(null)
@@ -1944,7 +2050,10 @@ export default function AdminRoomBookingsPage() {
   const confirmationRoom = roomByCode[confirmationSource.roomCode]
   const confirmationStatusLabel =
     CONFIRMATION_STATUS_LABELS[confirmationLanguage][normalizeEditableStatus(confirmationSource.status)]
-  const confirmationBookingId = selectedBooking?.id ? `#${selectedBooking.id}` : 'TBA'
+  const confirmationBookingId = selectedBooking?.bookingCode?.trim() || (selectedBooking?.id ? `#${selectedBooking.id}` : 'TBA')
+  const confirmationSupportLink = confirmationTemplate.supportLink?.trim() || primarySupportLink
+  const supportChannel = detectSupportChannel(confirmationSupportLink)
+  const confirmationSupportQrUrl = buildSupportQrUrl(confirmationSupportLink)
   const confirmationVillaType = confirmationRoom?.type?.trim() || 'TBA'
   const confirmationVillaRateValue = parseMoneyInput(confirmationSource.villaRate)
   const confirmationTotalAmountSource = parseMoneyInput(
@@ -1968,10 +2077,9 @@ export default function AdminRoomBookingsPage() {
         ? 'Deposit paid'
         : 'Pending update'
   const isConfirmationEditable = isConfirmationEditing
-  const defaultConfirmationTemplate = buildDefaultConfirmationTemplate()
-  const confirmationSupportText = isConfirmationEditable ? confirmationTemplate.guestSupport : defaultConfirmationTemplate.guestSupport
-  const confirmationIncludedText = isConfirmationEditable ? confirmationTemplate.includedServices : defaultConfirmationTemplate.includedServices
-  const confirmationImportantText = isConfirmationEditable ? confirmationTemplate.importantNotes : defaultConfirmationTemplate.importantNotes
+  const confirmationSupportText = confirmationTemplate.guestSupport
+  const confirmationIncludedText = confirmationTemplate.includedServices
+  const confirmationImportantText = confirmationTemplate.importantNotes
   const confirmationAdditionalNotes = bookingModalMode === 'details'
     ? confirmationDetailsNotes.trim()
     : (form.notes?.trim() || '')
@@ -2020,7 +2128,14 @@ export default function AdminRoomBookingsPage() {
             </Link>
           </div>
           <div className="row">
-            <button className="btn" type="button" onClick={() => setMonthCursor(startOfMonth(new Date()))}>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => {
+                const nextRange = buildDateRangeFromPreset('month', new Date())
+                applyDateRange(nextRange, 'month')
+              }}
+            >
               Current month
             </button>
             <button className="btn primary" type="button" onClick={openCreateBookingModal}>
@@ -2033,8 +2148,8 @@ export default function AdminRoomBookingsPage() {
           <div>
             <h2>Admin • Villa booking calendar</h2>
             <div className="muted">
-              Grouped by villa tier. Double click one available day to start a booking range, then double click a later day on the
-              same villa row to extend the stay. Double click the villa cell to open a monthly desktop calendar popup for that villa.
+              Chọn khoảng ngày theo thứ tự từ trái sang phải: chọn ngày bắt đầu, ngày kết thúc, bấm áp dụng hoặc dùng lọc nhanh.
+              Sau đó hệ thống tự tải lại dữ liệu trong khoảng đã chọn. Double click ô trống để tạo nhanh booking, double click tên villa để mở lịch tháng riêng.
             </div>
           </div>
           <div className="row room-bookings-sync-actions" style={{ gap: 10 }}>
@@ -2055,8 +2170,76 @@ export default function AdminRoomBookingsPage() {
 
         <div className="room-bookings-workspace">
           <div className="room-bookings-toolbar card detail-card">
+            <div className="room-bookings-inline-guide">
+              <strong>Hướng dẫn nhanh:</strong> Chọn `Từ ngày` và `Đến ngày`, sau đó bấm `Áp dụng`. Nếu ngày kết thúc nhỏ hơn ngày bắt đầu, hệ thống sẽ báo lỗi ngay.
+            </div>
             <div className="row room-bookings-toolbar-top">
               <div className="room-bookings-filter-group">
+                <label className="field room-bookings-filter-field">
+                  <div className="field-label">Từ ngày</div>
+                  <input
+                    className="input"
+                    type="date"
+                    aria-label="Từ ngày"
+                    value={draftDateRange.from}
+                    onChange={(e) => {
+                      const nextRange = { ...draftDateRange, from: e.target.value }
+                      setDraftDateRange(nextRange)
+                      setDateRangePreset('custom')
+                      setDateRangeError(validateBookingDateRange(nextRange))
+                    }}
+                  />
+                </label>
+
+                <label className="field room-bookings-filter-field">
+                  <div className="field-label">Đến ngày</div>
+                  <input
+                    className="input"
+                    type="date"
+                    aria-label="Đến ngày"
+                    value={draftDateRange.to}
+                    onChange={(e) => {
+                      const nextRange = { ...draftDateRange, to: e.target.value }
+                      setDraftDateRange(nextRange)
+                      setDateRangePreset('custom')
+                      setDateRangeError(validateBookingDateRange(nextRange))
+                    }}
+                  />
+                </label>
+
+                <div className="field room-bookings-filter-field room-bookings-range-apply-field">
+                  <div className="field-label">Lọc khoảng ngày</div>
+                  <button
+                    className="btn primary room-bookings-apply-btn"
+                    type="button"
+                    onClick={() => applyDateRange(draftDateRange, dateRangePreset)}
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+
+                <div className="field room-bookings-filter-field room-bookings-quick-filter-field">
+                  <div className="field-label">Lọc nhanh</div>
+                  <div className="room-bookings-quick-filter-buttons">
+                    {[
+                      { key: 'day' as const, label: '1 ngày' },
+                      { key: '7days' as const, label: '7 ngày' },
+                      { key: '14days' as const, label: '14 ngày' },
+                      { key: 'month' as const, label: 'Tháng này' },
+                    ].map((option) => (
+                      <button
+                        key={option.key}
+                        className={`btn ${dateRangePreset === option.key ? 'primary' : ''}`}
+                        type="button"
+                        onClick={() => handleDatePresetChange(option.key)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="room-bookings-filter-caption">{visibleRangeLabel}</div>
+                </div>
+
                 <label className="field room-bookings-filter-field">
                   <div className="field-label">Khu</div>
                   <select
@@ -2073,37 +2256,63 @@ export default function AdminRoomBookingsPage() {
                   </select>
                 </label>
 
-                <label className="field room-bookings-filter-field">
-                  <div className="field-label">Hạng villa</div>
-                  <select
-                    className="select"
-                    value={selectedVillaType}
-                    onChange={(e) => setSelectedVillaType(e.target.value as VillaTierKey | '')}
-                  >
-                    <option value="">Tất cả</option>
-                    {villaTypeOptions.map((option) => (
-                      <option key={option.key} value={option.key}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <details className="room-bookings-filter-field room-bookings-multi-filter">
+                  <summary className="room-bookings-multi-filter-summary">
+                    <span className="field-label">Hạng villa</span>
+                    <strong>{summarizeFilterSelection(villaTypeFilterOptions, selectedVillaTypes)}</strong>
+                  </summary>
+                  <div className="room-bookings-multi-filter-menu">
+                    <div className="room-bookings-multi-filter-actions">
+                      <button className="btn" type="button" onClick={() => setSelectedVillaTypes(villaTypeOptions.map((option) => option.key))}>
+                        Chọn tất cả
+                      </button>
+                      <button className="btn" type="button" onClick={() => setSelectedVillaTypes([])}>
+                        Bỏ chọn
+                      </button>
+                    </div>
+                    <div className="room-bookings-multi-filter-list">
+                      {villaTypeOptions.map((option) => (
+                        <label key={option.key} className="room-bookings-multi-filter-option">
+                          <input
+                            type="checkbox"
+                            checked={selectedVillaTypes.includes(option.key)}
+                            onChange={() => setSelectedVillaTypes((current) => toggleFilterValue(current, option.key) as VillaTierKey[])}
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </details>
 
-                <label className="field room-bookings-filter-field">
-                  <div className="field-label">Host</div>
-                  <select
-                    className="select"
-                    value={selectedHost}
-                    onChange={(e) => setSelectedHost(e.target.value)}
-                  >
-                    <option value="">Tất cả</option>
-                    {hostOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <details className="room-bookings-filter-field room-bookings-multi-filter">
+                  <summary className="room-bookings-multi-filter-summary">
+                    <span className="field-label">Host</span>
+                    <strong>{summarizeFilterSelection(hostFilterOptions, selectedHosts)}</strong>
+                  </summary>
+                  <div className="room-bookings-multi-filter-menu">
+                    <div className="room-bookings-multi-filter-actions">
+                      <button className="btn" type="button" onClick={() => setSelectedHosts([...hostOptions])}>
+                        Chọn tất cả
+                      </button>
+                      <button className="btn" type="button" onClick={() => setSelectedHosts([])}>
+                        Bỏ chọn
+                      </button>
+                    </div>
+                    <div className="room-bookings-multi-filter-list">
+                      {hostOptions.map((option) => (
+                        <label key={option} className="room-bookings-multi-filter-option">
+                          <input
+                            type="checkbox"
+                            checked={selectedHosts.includes(option)}
+                            onChange={() => setSelectedHosts((current) => toggleFilterValue(current, option))}
+                          />
+                          <span>{option}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </details>
 
                 <label className="field room-bookings-filter-field">
                   <div className="field-label">Kết cấu giường</div>
@@ -2127,47 +2336,56 @@ export default function AdminRoomBookingsPage() {
                   <button
                     className="btn room-bookings-nav-btn"
                     type="button"
-                    onClick={() => setMonthCursor((current) => addMonths(current, -1))}
+                    onClick={() => handleRangeStep(-1)}
                   >
                     ←
                   </button>
-                  <label className="field room-bookings-month-field room-bookings-nav-month-field">
-                    <div className="field-label">Tháng</div>
-                    <select
-                      className="select"
-                      value={monthValue}
-                      onChange={(e) => updateMonthCursor(Number(e.target.value), yearValue)}
-                    >
-                      {monthOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {dateRangePreset === 'month' ? (
+                    <label className="field room-bookings-month-field room-bookings-nav-month-field">
+                      <div className="field-label">Tháng</div>
+                      <select
+                        className="select"
+                        value={monthValue}
+                        onChange={(e) => updateMonthCursor(Number(e.target.value), yearValue)}
+                      >
+                        {monthOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div className="room-bookings-week-label">
+                      <div className="room-bookings-week-title">Khoảng hiển thị</div>
+                      <div className="room-bookings-week-range">{visibleRangeLabel}</div>
+                    </div>
+                  )}
                   <button
                     className="btn room-bookings-nav-btn"
                     type="button"
-                    onClick={() => setMonthCursor((current) => addMonths(current, 1))}
+                    onClick={() => handleRangeStep(1)}
                   >
                     →
                   </button>
                 </div>
                 <div className="room-bookings-picker-group">
-                  <label className="field room-bookings-month-field room-bookings-year-field">
-                    <div className="field-label">Năm</div>
-                    <select
-                      className="select"
-                      value={yearValue}
-                      onChange={(e) => updateMonthCursor(monthValue, Number(e.target.value))}
-                    >
-                      {yearOptions.map((year) => (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  {dateRangePreset === 'month' ? (
+                    <label className="field room-bookings-month-field room-bookings-year-field">
+                      <div className="field-label">Năm</div>
+                      <select
+                        className="select"
+                        value={yearValue}
+                        onChange={(e) => updateMonthCursor(monthValue, Number(e.target.value))}
+                      >
+                        {yearOptions.map((year) => (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
                   <button
                     className="btn room-bookings-today-btn"
                     type="button"
@@ -2178,6 +2396,12 @@ export default function AdminRoomBookingsPage() {
                 </div>
               </div>
             </div>
+
+            {dateRangeError ? (
+              <div className="card error room-bookings-date-range-error" role="alert">
+                {dateRangeError}
+              </div>
+            ) : null}
 
             <div className="room-bookings-status-row">
               {STATUS_FILTER_PILLS.map((status) => {
@@ -3311,8 +3535,32 @@ export default function AdminRoomBookingsPage() {
 
                     <div className="room-booking-confirm-side-card">
                       <div className="room-booking-confirm-side-title">
-                        Guest support via WhatsApp
+                        Guest support via {supportChannel.label}
                       </div>
+                      {isConfirmationEditable ? (
+                        <label className="field" style={{ marginBottom: 10 }}>
+                          <div className="field-label">Support link</div>
+                          <input
+                            className="input"
+                            type="url"
+                            value={confirmationTemplate.supportLink}
+                            onChange={(e) => {
+                              const nextSupportLink = e.target.value
+                              const nextDefault = buildDefaultConfirmationTemplate(nextSupportLink)
+                              setConfirmationTemplate((current) => ({
+                                ...current,
+                                supportLink: nextSupportLink,
+                                guestSupport:
+                                  current.guestSupport.trim() === '' ||
+                                  current.guestSupport === buildDefaultConfirmationTemplate(current.supportLink).guestSupport
+                                    ? nextDefault.guestSupport
+                                    : current.guestSupport,
+                              }))
+                            }}
+                            placeholder="https://zalo.me/... or https://open.kakao.com/..."
+                          />
+                        </label>
+                      ) : null}
                       {isConfirmationEditable ? (
                         <textarea
                           className="room-booking-confirm-side-textarea"
@@ -3327,6 +3575,22 @@ export default function AdminRoomBookingsPage() {
                       )}
                     </div>
 
+                    <div className="room-booking-confirm-side-card room-booking-confirm-side-card-qr">
+                      <div className="room-booking-confirm-side-title">
+                        {supportChannel.label} QR
+                      </div>
+                      <div className="room-booking-confirm-side-text">
+                        Scan to open the guest support link and share it in the booking confirmation.
+                      </div>
+                      <div className="room-booking-confirm-qr-wrap">
+                        <img
+                          className="room-booking-confirm-qr-image"
+                          src={confirmationSupportQrUrl}
+                          alt={`${supportChannel.label} QR`}
+                        />
+                      </div>
+                    </div>
+
                     {isConfirmationEditable ? (
                       <div className="room-booking-confirm-side-card">
                         <div className="room-booking-confirm-side-title">
@@ -3335,7 +3599,13 @@ export default function AdminRoomBookingsPage() {
                         <textarea
                           className="room-booking-confirm-side-textarea"
                           value={confirmationAdditionalNotes}
-                          onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))}
+                          onChange={(e) => {
+                            if (bookingModalMode === 'details') {
+                              setConfirmationDetailsNotes(e.target.value)
+                              return
+                            }
+                            setForm((current) => ({ ...current, notes: e.target.value }))
+                          }}
                           rows={2}
                           placeholder="Add extra notes for this booking confirmation"
                         />

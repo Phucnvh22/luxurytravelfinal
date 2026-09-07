@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import type { AdminRequestSummary } from '../types'
 import { buildAdminModules } from './adminModules'
@@ -172,6 +173,70 @@ export default function AdminSidebar({
   const contentModules = modules.filter((module) => module.group === 'content')
   const previewModule = modules.find((module) => module.group === 'preview')
   const effectiveCollapsed = mobileOpen ? false : collapsed
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') {
+      return { screens: true, booking: true, content: true }
+    }
+    try {
+      const raw = window.localStorage.getItem('adminSidebarExpandedGroups')
+      if (!raw) {
+        return { screens: true, booking: true, content: true }
+      }
+      return {
+        screens: true,
+        booking: true,
+        content: true,
+        ...JSON.parse(raw),
+      }
+    } catch {
+      return { screens: true, booking: true, content: true }
+    }
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem('adminSidebarExpandedGroups', JSON.stringify(expandedGroups))
+  }, [expandedGroups])
+
+  const toggleGroup = (key: 'screens' | 'booking' | 'content') => {
+    setExpandedGroups((current) => ({ ...current, [key]: !current[key] }))
+  }
+
+  const renderGroup = (
+    key: 'screens' | 'booking' | 'content',
+    title: string,
+    groupModules: typeof screenModules,
+    options?: { endOnAdmin?: boolean },
+  ) => (
+    <div className={`admin-global-sidebar-group ${expandedGroups[key] ? 'is-expanded' : 'is-collapsed'}`}>
+      {!effectiveCollapsed ? (
+        <button className="admin-global-sidebar-group-toggle" type="button" onClick={() => toggleGroup(key)}>
+          <span className="admin-global-sidebar-title">{title}</span>
+          <span className="admin-global-sidebar-group-meta">
+            <span className="admin-global-sidebar-group-count">{groupModules.length}</span>
+            <span className="admin-global-sidebar-group-chevron">{expandedGroups[key] ? '▾' : '▸'}</span>
+          </span>
+        </button>
+      ) : null}
+
+      {((effectiveCollapsed || expandedGroups[key]) ? groupModules : []).map((module) => (
+        <NavLink
+          key={module.to}
+          to={module.to}
+          end={options?.endOnAdmin ? module.to === '/admin' : false}
+          className={({ isActive }) => `admin-global-sidebar-link ${isActive ? 'active' : ''}`}
+          title={module.label}
+          onClick={onNavigate}
+        >
+          <span className="admin-global-sidebar-link-icon">
+            <SidebarIcon label={module.label} />
+          </span>
+          {!effectiveCollapsed ? <span className="admin-global-sidebar-link-label">{module.label}</span> : null}
+          {module.badge ? <span className="admin-global-sidebar-badge">{module.badge}</span> : null}
+        </NavLink>
+      ))}
+    </div>
+  )
 
   return (
     <aside className={`admin-global-sidebar ${effectiveCollapsed ? 'is-collapsed' : ''} ${mobileOpen ? 'is-mobile-open' : ''}`}>
@@ -196,62 +261,9 @@ export default function AdminSidebar({
           ) : null}
         </div>
 
-        <div className="admin-global-sidebar-group">
-          {!effectiveCollapsed ? <div className="admin-global-sidebar-title">Screens</div> : null}
-          {screenModules.map((module) => (
-            <NavLink
-              key={module.to}
-              to={module.to}
-              end={module.to === '/admin'}
-              className={({ isActive }) => `admin-global-sidebar-link ${isActive ? 'active' : ''}`}
-              title={module.label}
-              onClick={onNavigate}
-            >
-              <span className="admin-global-sidebar-link-icon">
-                <SidebarIcon label={module.label} />
-              </span>
-              {!effectiveCollapsed ? <span className="admin-global-sidebar-link-label">{module.label}</span> : null}
-              {module.badge ? <span className="admin-global-sidebar-badge">{module.badge}</span> : null}
-            </NavLink>
-          ))}
-        </div>
-
-        <div className="admin-global-sidebar-group">
-          {!effectiveCollapsed ? <div className="admin-global-sidebar-title">Booking</div> : null}
-          {bookingModules.map((module) => (
-            <NavLink
-              key={module.to}
-              to={module.to}
-              className={({ isActive }) => `admin-global-sidebar-link ${isActive ? 'active' : ''}`}
-              title={module.label}
-              onClick={onNavigate}
-            >
-              <span className="admin-global-sidebar-link-icon">
-                <SidebarIcon label={module.label} />
-              </span>
-              {!effectiveCollapsed ? <span className="admin-global-sidebar-link-label">{module.label}</span> : null}
-              {module.badge ? <span className="admin-global-sidebar-badge">{module.badge}</span> : null}
-            </NavLink>
-          ))}
-        </div>
-
-        <div className="admin-global-sidebar-group">
-          {!effectiveCollapsed ? <div className="admin-global-sidebar-title">Content</div> : null}
-          {contentModules.map((module) => (
-            <NavLink
-              key={module.to}
-              to={module.to}
-              className={({ isActive }) => `admin-global-sidebar-link ${isActive ? 'active' : ''}`}
-              title={module.label}
-              onClick={onNavigate}
-            >
-              <span className="admin-global-sidebar-link-icon">
-                <SidebarIcon label={module.label} />
-              </span>
-              {!effectiveCollapsed ? <span className="admin-global-sidebar-link-label">{module.label}</span> : null}
-            </NavLink>
-          ))}
-        </div>
+        {renderGroup('screens', 'Screens', screenModules, { endOnAdmin: true })}
+        {renderGroup('booking', 'Booking', bookingModules)}
+        {renderGroup('content', 'Content', contentModules)}
 
         {previewModule ? (
           <Link to={previewModule.to} className="admin-global-sidebar-preview-link" title={previewModule.label} onClick={onNavigate}>
