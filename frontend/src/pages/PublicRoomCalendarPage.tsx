@@ -17,9 +17,9 @@ const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
   TEMP_BLOCK: { label: 'Locked', toneClass: 'temp-block' },
-  AIRBNB_BLOCK: { label: 'AirBnbBlock', toneClass: 'airbnb-block' },
-  KAYSTAY_BLOCK: { label: 'KayStay', toneClass: 'kaystay-block' },
-  SOPHIA_BLOCK: { label: 'Sophia', toneClass: 'sophia-block' },
+  AIRBNB_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
+  KAYSTAY_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
+  SOPHIA_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
   CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
 }
@@ -249,7 +249,7 @@ export default function PublicRoomCalendarPage() {
     () =>
       ({
         ['--day-count' as string]: monthDays.length,
-        ['--day-column-width' as string]: '56px',
+        ['--day-column-width' as string]: '88px',
       }) as CSSProperties,
     [monthDays.length],
   )
@@ -343,13 +343,6 @@ export default function PublicRoomCalendarPage() {
                       <div className="room-schedule-room-cell">
                         <div className="room-schedule-room-cell-content">
                           <div>{room.name || room.code}</div>
-                          {room.airbnbUrl ? (
-                            <a href={room.airbnbUrl} target="_blank" rel="noreferrer" className="room-schedule-room-link">
-                              Airbnb link
-                            </a>
-                          ) : (
-                            <div className="room-schedule-room-link muted">Airbnb link pending</div>
-                          )}
                         </div>
                       </div>
                       <div className="room-schedule-track">

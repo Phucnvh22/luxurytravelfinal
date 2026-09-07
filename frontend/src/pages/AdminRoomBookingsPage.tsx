@@ -121,6 +121,7 @@ const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 const STANDARD_CHECK_IN_HOUR = 15
 const STANDARD_CHECK_OUT_HOUR = 11
 const MONTH_CALENDAR_WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const SCHEDULE_DAY_COLUMN_WIDTH = 88
 
 const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoomBookingStatus, string>> = {
   en: {
@@ -470,6 +471,12 @@ function getBookingSourceDisplay(
     return 'Reserved'
   }
   const value = source?.trim()
+  if (value) {
+    const normalizedSource = value.toLocaleLowerCase('en-US')
+    if (normalizedSource.includes('airbnb') || normalizedSource.includes('kaystay') || normalizedSource.includes('sophia')) {
+      return 'Reserved'
+    }
+  }
   return value || 'Direct'
 }
 
@@ -594,11 +601,35 @@ function getBookingBarLayout(booking: RoomBookingResponse, trackStartMs: number,
   }
 }
 
-function getBookingBarStyle(layout: { left: number; width: number }): CSSProperties {
+function getBookingBarHiddenLeftPx(
+  layout: { left: number; width: number },
+  scrollLeft: number,
+  trackWidth: number,
+) {
+  if (scrollLeft <= 0 || trackWidth <= 0) return 0
+
+  const barStart = (layout.left / 100) * trackWidth
+  const barWidth = (Math.max(layout.width, 0.75) / 100) * trackWidth
+  return Math.max(0, Math.min(barWidth, scrollLeft - barStart))
+}
+
+function getBookingBarStyle(
+  layout: { left: number; width: number },
+  hiddenLeftPx = 0,
+): CSSProperties {
   return {
     left: `${layout.left}%`,
     width: `${Math.max(layout.width, 0.75)}%`,
+    clipPath: hiddenLeftPx > 0 ? `inset(0 0 0 ${hiddenLeftPx}px)` : undefined,
   }
+}
+
+function isBookingBarClippedByStickyColumn(
+  layout: { left: number; width: number },
+  scrollLeft: number,
+  trackWidth: number,
+) {
+  return getBookingBarHiddenLeftPx(layout, scrollLeft, trackWidth) > 0
 }
 
 function getDateRangeLayout(checkInAt: string, checkOutAt: string, trackStartMs: number, trackDurationMs: number) {
@@ -773,6 +804,7 @@ export default function AdminRoomBookingsPage() {
   const [ooiInsightRoomCode, setOoiInsightRoomCode] = useState<string | null>(null)
   const [villaCalendarRoomCode, setVillaCalendarRoomCode] = useState<string | null>(null)
   const [touchDrag, setTouchDrag] = useState<TouchDragState | null>(null)
+  const [scheduleScrollLeft, setScheduleScrollLeft] = useState(0)
   const loadingRef = useRef(false)
   const scheduleScrollRef = useRef<HTMLDivElement | null>(null)
   const touchDragRef = useRef<TouchDragState | null>(null)
@@ -1299,11 +1331,12 @@ export default function AdminRoomBookingsPage() {
 
   const trackStartMs = visibleDateRange.from.getTime()
   const trackDurationMs = monthDays.length * DAY_DURATION_MS
+  const scheduleTrackWidth = monthDays.length * SCHEDULE_DAY_COLUMN_WIDTH
   const scheduleGridStyle = useMemo(
     () =>
       ({
         ['--day-count' as string]: monthDays.length,
-        ['--day-column-width' as string]: 'clamp(38px, 8vw, 48px)',
+        ['--day-column-width' as string]: `${SCHEDULE_DAY_COLUMN_WIDTH}px`,
       }) as CSSProperties,
     [monthDays.length],
   )
@@ -2453,7 +2486,11 @@ export default function AdminRoomBookingsPage() {
             ) : rooms.length === 0 ? (
               <div className="card detail-card muted">No villas match the current filters.</div>
             ) : (
-              <div ref={scheduleScrollRef} className="room-schedule-body room-schedule-scroll">
+              <div
+                ref={scheduleScrollRef}
+                className="room-schedule-body room-schedule-scroll"
+                onScroll={(event) => setScheduleScrollLeft(event.currentTarget.scrollLeft)}
+              >
                 <div className="room-schedule-table" style={scheduleGridStyle}>
                   <div className="room-schedule-header">
                     <div className="room-schedule-room-head" aria-label="Villa column" />
@@ -2525,7 +2562,6 @@ export default function AdminRoomBookingsPage() {
                         <div
                           className="room-schedule-room-cell room-schedule-room-cell-interactive"
                           onDoubleClick={(event) => handleVillaCellDoubleClick(roomCode, event)}
-                          title={`Double click to open ${roomCode} monthly calendar`}
                         >
                           <div className="room-schedule-room-cell-content">
                             <div>{roomCode}</div>
@@ -2636,6 +2672,12 @@ export default function AdminRoomBookingsPage() {
                             if (!layout) return null
                             const meta = STATUS_META[booking.displayStatus]
                             const canMoveBooking = canMoveVisibleBookingStatus(booking.displayStatus) && movingBookingId !== booking.id
+                            const hiddenLeftPx = getBookingBarHiddenLeftPx(layout, scheduleScrollLeft, scheduleTrackWidth)
+                            const hideBookingBarText = isBookingBarClippedByStickyColumn(
+                              layout,
+                              scheduleScrollLeft,
+                              scheduleTrackWidth,
+                            )
 
                             return (
                               <button
@@ -2644,7 +2686,7 @@ export default function AdminRoomBookingsPage() {
                                 className={`room-booking-bar ${meta.toneClass} ${selectedBookingId === booking.id ? 'selected' : ''} ${
                                   draggingBookingId === booking.id ? 'is-dragging' : ''
                                 } ${movingBookingId === booking.id ? 'is-moving' : ''} ${canMoveBooking ? 'is-movable' : 'is-static'}`}
-                                style={getBookingBarStyle(layout)}
+                                style={getBookingBarStyle(layout, hiddenLeftPx)}
                                 onClick={() => {
                                   if (ignoreNextClickBookingIdRef.current === booking.id) {
                                     ignoreNextClickBookingIdRef.current = null
@@ -2672,10 +2714,14 @@ export default function AdminRoomBookingsPage() {
                                       : 'Only Reserved, Temp lock and Check-in bookings can be moved'
                                 }
                               >
-                                <div className="room-booking-bar-title">{getBookingSourceDisplay(booking.source, booking.displayStatus)}</div>
-                                <div className="room-booking-bar-meta">
-                                  <span>{booking.guestName || '—'}</span>
-                                </div>
+                                {!hideBookingBarText ? (
+                                  <div className="room-booking-bar-title">{getBookingSourceDisplay(booking.source, booking.displayStatus)}</div>
+                                ) : null}
+                                {!hideBookingBarText && !isImportedPlatformVisibleStatus(booking.displayStatus) ? (
+                                  <div className="room-booking-bar-meta">
+                                    <span>{booking.guestName || '—'}</span>
+                                  </div>
+                                ) : null}
                               </button>
                             )
                           })}
