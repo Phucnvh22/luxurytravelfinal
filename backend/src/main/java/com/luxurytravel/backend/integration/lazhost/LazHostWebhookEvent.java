@@ -1,4 +1,4 @@
-package com.luxurytravel.backend.integration.ezcloud;
+package com.luxurytravel.backend.integration.lazhost;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -11,8 +11,8 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "ezcloud_webhook_events")
-public class EzCloudWebhookEvent {
+@Table(name = "lazhost_webhook_events")
+public class LazHostWebhookEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -21,16 +21,16 @@ public class EzCloudWebhookEvent {
     private String eventType;
 
     @Column(length = 100)
-    private String externalReservationId;
+    private String eventId;
 
-    @Column(length = 255)
-    private String channel;
+    @Column(length = 100)
+    private String externalBookingId;
 
     @Column(nullable = false, length = 4000)
     private String payload;
 
     @Column(length = 255)
-    private String receivedToken;
+    private String receivedSignature;
 
     @Column(nullable = false)
     private boolean processed = false;
@@ -65,20 +65,20 @@ public class EzCloudWebhookEvent {
         this.eventType = eventType;
     }
 
-    public String getExternalReservationId() {
-        return externalReservationId;
+    public String getEventId() {
+        return eventId;
     }
 
-    public void setExternalReservationId(String externalReservationId) {
-        this.externalReservationId = externalReservationId;
+    public void setEventId(String eventId) {
+        this.eventId = eventId;
     }
 
-    public String getChannel() {
-        return channel;
+    public String getExternalBookingId() {
+        return externalBookingId;
     }
 
-    public void setChannel(String channel) {
-        this.channel = channel;
+    public void setExternalBookingId(String externalBookingId) {
+        this.externalBookingId = externalBookingId;
     }
 
     public String getPayload() {
@@ -89,12 +89,12 @@ public class EzCloudWebhookEvent {
         this.payload = payload;
     }
 
-    public String getReceivedToken() {
-        return receivedToken;
+    public String getReceivedSignature() {
+        return receivedSignature;
     }
 
-    public void setReceivedToken(String receivedToken) {
-        this.receivedToken = receivedToken;
+    public void setReceivedSignature(String receivedSignature) {
+        this.receivedSignature = receivedSignature;
     }
 
     public boolean isProcessed() {

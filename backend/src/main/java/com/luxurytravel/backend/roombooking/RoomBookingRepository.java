@@ -57,4 +57,19 @@ public interface RoomBookingRepository extends JpaRepository<RoomBooking, Long> 
             @Param("checkOutAt") LocalDateTime checkOutAt,
             @Param("excludeId") Long excludeId
     );
+
+    @Query(value = """
+            select lower(r.type) as room_type, count(distinct rb.room_code) as booked_units
+            from rooms r
+            join room_bookings rb on lower(rb.room_code) = lower(r.code)
+            where r.active = 1
+              and rb.status <> 'CANCELLED'
+              and rb.check_in_at < :toAt
+              and rb.check_out_at > :fromAt
+            group by lower(r.type)
+            """, nativeQuery = true)
+    List<Object[]> countBookedUnitsByRoomType(
+            @Param("fromAt") LocalDateTime fromAt,
+            @Param("toAt") LocalDateTime toAt
+    );
 }

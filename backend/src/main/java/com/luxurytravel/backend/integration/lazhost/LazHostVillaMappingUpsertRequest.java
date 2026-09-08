@@ -1,16 +1,16 @@
-package com.luxurytravel.backend.integration.ezcloud;
+package com.luxurytravel.backend.integration.lazhost;
 
 import jakarta.validation.constraints.Size;
 
-public class EzCloudRoomMappingUpsertRequest {
+public class LazHostVillaMappingUpsertRequest {
     @Size(max = 50)
     private String roomCode;
 
     @Size(max = 100)
-    private String ezCloudRoomCode;
+    private String lazHostRoomCode;
 
     @Size(max = 100)
-    private String ezCloudRatePlanCode;
+    private String lazHostRatePlanCode;
 
     private Boolean active;
 
@@ -25,20 +25,20 @@ public class EzCloudRoomMappingUpsertRequest {
         this.roomCode = roomCode;
     }
 
-    public String getEzCloudRoomCode() {
-        return ezCloudRoomCode;
+    public String getLazHostRoomCode() {
+        return lazHostRoomCode;
     }
 
-    public void setEzCloudRoomCode(String ezCloudRoomCode) {
-        this.ezCloudRoomCode = ezCloudRoomCode;
+    public void setLazHostRoomCode(String lazHostRoomCode) {
+        this.lazHostRoomCode = lazHostRoomCode;
     }
 
-    public String getEzCloudRatePlanCode() {
-        return ezCloudRatePlanCode;
+    public String getLazHostRatePlanCode() {
+        return lazHostRatePlanCode;
     }
 
-    public void setEzCloudRatePlanCode(String ezCloudRatePlanCode) {
-        this.ezCloudRatePlanCode = ezCloudRatePlanCode;
+    public void setLazHostRatePlanCode(String lazHostRatePlanCode) {
+        this.lazHostRatePlanCode = lazHostRatePlanCode;
     }
 
     public Boolean getActive() {

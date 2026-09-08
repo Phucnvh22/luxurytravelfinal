@@ -1,4 +1,4 @@
-package com.luxurytravel.backend.integration.ezcloud;
+package com.luxurytravel.backend.integration.lazhost;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,20 +12,20 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "ezcloud_room_mappings")
-public class EzCloudRoomMapping {
+@Table(name = "lazhost_villa_type_mappings")
+public class LazHostVillaTypeMapping {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String roomCode;
+    @Column(nullable = false, unique = true, length = 255)
+    private String villaTypeCode;
 
     @Column(nullable = false, unique = true, length = 100)
-    private String ezCloudRoomCode;
+    private String lazHostRoomCode;
 
     @Column(length = 100)
-    private String ezCloudRatePlanCode;
+    private String lazHostRatePlanCode;
 
     @Column(nullable = false)
     private boolean active = true;
@@ -59,28 +59,28 @@ public class EzCloudRoomMapping {
         this.id = id;
     }
 
-    public String getRoomCode() {
-        return roomCode;
+    public String getVillaTypeCode() {
+        return villaTypeCode;
     }
 
-    public void setRoomCode(String roomCode) {
-        this.roomCode = roomCode;
+    public void setVillaTypeCode(String villaTypeCode) {
+        this.villaTypeCode = villaTypeCode;
     }
 
-    public String getEzCloudRoomCode() {
-        return ezCloudRoomCode;
+    public String getLazHostRoomCode() {
+        return lazHostRoomCode;
     }
 
-    public void setEzCloudRoomCode(String ezCloudRoomCode) {
-        this.ezCloudRoomCode = ezCloudRoomCode;
+    public void setLazHostRoomCode(String lazHostRoomCode) {
+        this.lazHostRoomCode = lazHostRoomCode;
     }
 
-    public String getEzCloudRatePlanCode() {
-        return ezCloudRatePlanCode;
+    public String getLazHostRatePlanCode() {
+        return lazHostRatePlanCode;
     }
 
-    public void setEzCloudRatePlanCode(String ezCloudRatePlanCode) {
-        this.ezCloudRatePlanCode = ezCloudRatePlanCode;
+    public void setLazHostRatePlanCode(String lazHostRatePlanCode) {
+        this.lazHostRatePlanCode = lazHostRatePlanCode;
     }
 
     public boolean isActive() {

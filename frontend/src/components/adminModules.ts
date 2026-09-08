@@ -63,6 +63,13 @@ export function buildAdminModules(requestSummary: AdminRequestSummary | null): A
       tone: 'violet',
     },
     {
+      label: 'OTA villa types',
+      description: 'Map villa types and manage OTA pricing',
+      to: '/admin/ota-villa-types',
+      group: 'screens',
+      tone: 'cyan',
+    },
+    {
       label: 'Villa services',
       description: 'Manage operational services and service orders',
       to: '/admin/villa-services',

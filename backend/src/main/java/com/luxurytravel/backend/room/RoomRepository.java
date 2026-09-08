@@ -1,6 +1,7 @@
 package com.luxurytravel.backend.room;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,4 +29,14 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     List<Room> findAllByBedroomLayoutIgnoreCase(String bedroomLayout);
 
     List<Room> findAllByHostIgnoreCase(String host);
+
+    long countByTypeIgnoreCaseAndActiveTrue(String type);
+
+    @Query("""
+            select lower(r.type), count(r)
+            from Room r
+            where r.active = true
+            group by lower(r.type)
+            """)
+    List<Object[]> countActiveUnitsByRoomType();
 }

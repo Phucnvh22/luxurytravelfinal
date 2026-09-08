@@ -158,6 +158,25 @@ export type VillaSettingsResponse = {
   supportLinks: VillaSettingOption[]
 }
 
+export type LazHostVillaTypeDashboardItem = {
+  villaTypeCode: string
+  totalUnits: number
+  bookedUnits: number
+  availableUnits: number
+  mappingActive: boolean
+  lazHostRoomCode: string
+  lazHostRatePlanCode: string
+  pmsPrice: number | null
+  otaPrice: number | null
+  currency: string
+}
+
+export type LazHostVillaTypeDashboardResponse = {
+  from: string
+  to: string
+  items: LazHostVillaTypeDashboardItem[]
+}
+
 export type Room = {
   id: number
   code: string

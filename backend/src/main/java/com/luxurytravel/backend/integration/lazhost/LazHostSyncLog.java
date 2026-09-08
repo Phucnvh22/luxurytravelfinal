@@ -1,4 +1,4 @@
-package com.luxurytravel.backend.integration.ezcloud;
+package com.luxurytravel.backend.integration.lazhost;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,19 +13,19 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 @Entity
-@Table(name = "ezcloud_sync_logs")
-public class EzCloudSyncLog {
+@Table(name = "lazhost_sync_logs")
+public class LazHostSyncLog {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EzCloudSyncDirection direction;
+    private LazHostSyncDirection direction;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private EzCloudSyncStatus status = EzCloudSyncStatus.PENDING;
+    private LazHostSyncStatus status = LazHostSyncStatus.PENDING;
 
     @Column(nullable = false, length = 100)
     private String action;
@@ -34,7 +34,16 @@ public class EzCloudSyncLog {
     private Long bookingId;
 
     @Column(length = 100)
-    private String externalReservationId;
+    private String externalBookingId;
+
+    @Column(length = 100)
+    private String holdId;
+
+    @Column(length = 100)
+    private String idempotencyKey;
+
+    @Column(length = 100)
+    private String requestId;
 
     @Column(nullable = false, length = 4000)
     private String payload = "";
@@ -61,19 +70,19 @@ public class EzCloudSyncLog {
         this.id = id;
     }
 
-    public EzCloudSyncDirection getDirection() {
+    public LazHostSyncDirection getDirection() {
         return direction;
     }
 
-    public void setDirection(EzCloudSyncDirection direction) {
+    public void setDirection(LazHostSyncDirection direction) {
         this.direction = direction;
     }
 
-    public EzCloudSyncStatus getStatus() {
+    public LazHostSyncStatus getStatus() {
         return status;
     }
 
-    public void setStatus(EzCloudSyncStatus status) {
+    public void setStatus(LazHostSyncStatus status) {
         this.status = status;
     }
 
@@ -93,12 +102,36 @@ public class EzCloudSyncLog {
         this.bookingId = bookingId;
     }
 
-    public String getExternalReservationId() {
-        return externalReservationId;
+    public String getExternalBookingId() {
+        return externalBookingId;
     }
 
-    public void setExternalReservationId(String externalReservationId) {
-        this.externalReservationId = externalReservationId;
+    public void setExternalBookingId(String externalBookingId) {
+        this.externalBookingId = externalBookingId;
+    }
+
+    public String getHoldId() {
+        return holdId;
+    }
+
+    public void setHoldId(String holdId) {
+        this.holdId = holdId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(String requestId) {
+        this.requestId = requestId;
     }
 
     public String getPayload() {

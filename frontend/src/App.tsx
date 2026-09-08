@@ -13,6 +13,7 @@ import AdminRoomAreasPage from './pages/AdminRoomAreasPage'
 import AdminVillaSettingsPage from './pages/AdminVillaSettingsPage'
 import AdminVillaServicesPage from './pages/AdminVillaServicesPage'
 import AdminRoomsPage from './pages/AdminRoomsPage'
+import AdminOtaVillaTypesPage from './pages/AdminOtaVillaTypesPage'
 import AdminServiceRequestsPage from './pages/AdminServiceRequestsPage'
 import AdminServicesPage from './pages/AdminServicesPage'
 import AdminSellersPage from './pages/AdminSellersPage'
@@ -210,6 +211,11 @@ export default function App() {
           <Route path="/admin/villa-services" element={
             <ProtectedRoute requiredRole="ADMIN">
               <AdminVillaServicesPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/ota-villa-types" element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminOtaVillaTypesPage />
             </ProtectedRoute>
           } />
           <Route path="/admin/experiences" element={

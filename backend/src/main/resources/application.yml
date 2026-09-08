@@ -29,6 +29,10 @@ springdoc:
   swagger-ui:
     path: /swagger-ui
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [requestId=%X{requestId}] - %msg%n"
+
 application:
   cors:
     allowed-origins: ${APPLICATION_CORS_ALLOWED_ORIGINS:http://localhost:5174}
@@ -111,14 +115,11 @@ application:
       base-url: "${APPLICATION_INTEGRATIONS_SOPHIA_SYNC_BASE_URL:https://app.sophiapms.com}"
       zone-id: "${APPLICATION_INTEGRATIONS_SOPHIA_SYNC_ZONE_ID:Asia/Ho_Chi_Minh}"
       user-agent: "${APPLICATION_INTEGRATIONS_SOPHIA_SYNC_USER_AGENT:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36}"
-    ezcloud:
-      enabled: ${APPLICATION_INTEGRATIONS_EZCLOUD_ENABLED:false}
-      base-url: ${APPLICATION_INTEGRATIONS_EZCLOUD_BASE_URL:}
-      property-code: ${APPLICATION_INTEGRATIONS_EZCLOUD_PROPERTY_CODE:}
-      api-token: ${APPLICATION_INTEGRATIONS_EZCLOUD_API_TOKEN:}
-      auth-header-name: ${APPLICATION_INTEGRATIONS_EZCLOUD_AUTH_HEADER_NAME:X-API-Key}
-      webhook-token: ${APPLICATION_INTEGRATIONS_EZCLOUD_WEBHOOK_TOKEN:}
-      create-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_CREATE_RESERVATION_PATH:/api/v1/reservations}
-      update-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_UPDATE_RESERVATION_PATH:/api/v1/reservations/{reservationId}}
-      cancel-reservation-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_CANCEL_RESERVATION_PATH:/api/v1/reservations/{reservationId}/cancel}
-      pull-reservations-path: ${APPLICATION_INTEGRATIONS_EZCLOUD_PULL_RESERVATIONS_PATH:/api/v1/reservations}
+    lazhost:
+      enabled: ${APPLICATION_INTEGRATIONS_LAZHOST_ENABLED:false}
+      api-base-url: ${APPLICATION_INTEGRATIONS_LAZHOST_API_BASE_URL:https://b2b.lazhost.io.vn/api/v1}
+      oauth-token-url: ${APPLICATION_INTEGRATIONS_LAZHOST_OAUTH_TOKEN_URL:https://b2b.lazhost.io.vn/api/oauth/token}
+      client-id: ${APPLICATION_INTEGRATIONS_LAZHOST_CLIENT_ID:}
+      client-secret: ${APPLICATION_INTEGRATIONS_LAZHOST_CLIENT_SECRET:}
+      default-guest-email: ${APPLICATION_INTEGRATIONS_LAZHOST_DEFAULT_GUEST_EMAIL:}
+      webhook-signing-secret: ${APPLICATION_INTEGRATIONS_LAZHOST_WEBHOOK_SIGNING_SECRET:}
