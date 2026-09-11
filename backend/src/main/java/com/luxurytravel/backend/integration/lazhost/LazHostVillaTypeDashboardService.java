@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -234,7 +235,14 @@ public class LazHostVillaTypeDashboardService {
     }
 
     private String normalizeKey(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (value == null) return "";
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFKC);
+        normalized = normalized.replace('\u00A0', ' ');
+        normalized = normalized.trim().toLowerCase(Locale.ROOT);
+        normalized = normalized.replaceAll("[\\u2010\\u2011\\u2012\\u2013\\u2014\\u2015\\u2212]", "-");
+        normalized = normalized.replaceAll("[\\p{Z}\\s]+", " ");
+        normalized = normalized.replaceAll("\\s*-\\s*", "-");
+        return normalized;
     }
 
     private String safe(String value) {
