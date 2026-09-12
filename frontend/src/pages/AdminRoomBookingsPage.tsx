@@ -1143,10 +1143,11 @@ export default function AdminRoomBookingsPage() {
         method: 'POST',
       })
       await load({ silent: true })
+      const syncDetails = result.logs && result.logs.length > 0 ? `\n\n${result.logs.join('\n')}` : ''
       setCalendarFeedback({
         tone: result.success ? 'success' : 'error',
         title: result.success ? 'Airbnb sync completed' : 'Airbnb sync reported issues',
-        message: result.message,
+        message: `${result.message}${syncDetails}`,
       })
     } catch (e: unknown) {
       setCalendarFeedback({
@@ -1349,7 +1350,12 @@ export default function AdminRoomBookingsPage() {
   const today = new Date()
   const todayDateKey = toIsoDate(startOfDay(today))
   const isTodayInsideMonth = today >= visibleDateRange.from && today < addDays(visibleDateRange.to, 1)
-  const todayMarkerLeft = isTodayInsideMonth ? ((today.getTime() - trackStartMs) / trackDurationMs) * 100 : null
+  const todayMarkerLeft = useMemo(() => {
+    if (!isTodayInsideMonth) return null
+    const todayIndex = monthDays.findIndex((day) => toIsoDate(day) === todayDateKey)
+    if (todayIndex < 0) return null
+    return ((todayIndex + 0.5) / Math.max(1, monthDays.length)) * 100
+  }, [isTodayInsideMonth, monthDays, todayDateKey])
   const realtimeSummaryItems = useMemo(() => {
     const items = {
       inHouse: 0,
@@ -2528,11 +2534,11 @@ export default function AdminRoomBookingsPage() {
 
                     if (row.type === 'villa-type') {
                       return (
-                        <div key={`type-${row.typeKey}`} className="room-schedule-host-row">
-                          <div className="room-schedule-host-cell">
+                        <div key={`type-${row.typeKey}`} className={`room-schedule-host-row room-schedule-host-row-${row.toneClass}`}>
+                          <div className={`room-schedule-host-cell room-schedule-host-cell-${row.toneClass}`}>
                             <strong>{row.label}</strong>
                           </div>
-                          <div className="room-schedule-host-track" />
+                          <div className={`room-schedule-host-track room-schedule-host-track-${row.toneClass}`} />
                         </div>
                       )
                     }

@@ -73,12 +73,12 @@ describe('AdminRoomBookingsPage utils', () => {
 
     expect(buildGroupedScheduleRows(['V107', 'V208', 'V331'], roomByCode)).toEqual([
       { type: 'area', areaKey: 'OCEAN', label: 'Ocean' },
-      { type: 'villa-type', typeKey: 'garden', label: 'Garden', count: 1 },
+      { type: 'villa-type', typeKey: 'garden', label: 'Garden', count: 1, toneClass: 'villa-type-other' },
       { type: 'villa', roomCode: 'V331', typeKey: 'garden' },
       { type: 'area', areaKey: 'PREMIER', label: 'Premier' },
-      { type: 'villa-type', typeKey: 'luxury', label: 'Luxury', count: 1 },
+      { type: 'villa-type', typeKey: 'luxury', label: 'Luxury', count: 1, toneClass: 'villa-type-other' },
       { type: 'villa', roomCode: 'V107', typeKey: 'luxury' },
-      { type: 'villa-type', typeKey: 'standard', label: 'Standard', count: 1 },
+      { type: 'villa-type', typeKey: 'standard', label: 'Standard', count: 1, toneClass: 'villa-type-other' },
       { type: 'villa', roomCode: 'V208', typeKey: 'standard' },
     ])
   })

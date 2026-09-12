@@ -414,11 +414,59 @@ public class AirbnbCalendarSyncService {
             return List.of(room.get());
         }
 
-        return roomRepository.findAllByOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc().stream()
-                .filter(room -> room.isActive())
-                .filter(room -> room.getAirbnbUrl() != null && !room.getAirbnbUrl().isBlank())
-                .filter(this::isRoomAllowed)
+        Set<String> allowedCodes = properties.getRoomCodes().stream()
+                .filter(Objects::nonNull)
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toSet());
+
+        List<Room> allRooms = roomRepository.findAllByOrderByArea_SortOrderAscArea_NameAscLocationAscFloorNumberAscCodeAsc();
+        List<Room> activeRooms = allRooms.stream()
+                .filter(Room::isActive)
                 .toList();
+        List<Room> activeWithAirbnbUrl = activeRooms.stream()
+                .filter(room -> room.getAirbnbUrl() != null && !room.getAirbnbUrl().isBlank())
+                .toList();
+
+        List<Room> matched = activeWithAirbnbUrl.stream()
+                .filter(room -> allowedCodes.isEmpty() || allowedCodes.contains(room.getCode().trim().toUpperCase(Locale.ROOT)))
+                .toList();
+
+        if (matched.isEmpty()) {
+            logs.add("Airbnb sync room selection: total=" + allRooms.size()
+                    + ", active=" + activeRooms.size()
+                    + ", activeWithAirbnbUrl=" + activeWithAirbnbUrl.size()
+                    + ", configuredRoomCodes=" + allowedCodes.size()
+                    + ", matched=" + matched.size());
+            if (!allowedCodes.isEmpty()) {
+                logs.add("Configured roomCodes filter: " + String.join(", ", allowedCodes.stream().sorted().toList()));
+            }
+            List<String> missingUrls = activeRooms.stream()
+                    .filter(room -> room.getAirbnbUrl() == null || room.getAirbnbUrl().isBlank())
+                    .map(Room::getCode)
+                    .filter(Objects::nonNull)
+                    .map(code -> code.trim().toUpperCase(Locale.ROOT))
+                    .filter(code -> !code.isBlank())
+                    .sorted()
+                    .limit(25)
+                    .toList();
+            if (!missingUrls.isEmpty()) {
+                logs.add("Active villas missing Airbnb URL (first " + missingUrls.size() + "): " + String.join(", ", missingUrls));
+            }
+            List<String> activeWithUrls = activeWithAirbnbUrl.stream()
+                    .map(Room::getCode)
+                    .filter(Objects::nonNull)
+                    .map(code -> code.trim().toUpperCase(Locale.ROOT))
+                    .filter(code -> !code.isBlank())
+                    .sorted()
+                    .limit(25)
+                    .toList();
+            if (!activeWithUrls.isEmpty()) {
+                logs.add("Active villas with Airbnb URL (first " + activeWithUrls.size() + "): " + String.join(", ", activeWithUrls));
+            }
+        }
+
+        return matched;
     }
 
     private void appendLog(List<String> logs, String line) {

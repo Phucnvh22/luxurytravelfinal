@@ -2,7 +2,7 @@ import type { Room, RoomBookingResponse } from '../types'
 
 export type GroupedScheduleRow =
   | { type: 'area'; areaKey: string; label: string }
-  | { type: 'villa-type'; typeKey: string; label: string; count: number }
+  | { type: 'villa-type'; typeKey: string; label: string; count: number; toneClass: string }
   | { type: 'villa'; roomCode: string; typeKey: string }
 
 export type QuickBookingSelection = {
@@ -42,6 +42,7 @@ export function normalizeVillaTypeKey(roomType?: string) {
 }
 
 const VILLA_TYPE_DISPLAY_ORDER = [
+  'Garden View_Standard',
   'Garden View_Superior',
   'Garden View_Deluxe',
   'Beach Access_Standard',
@@ -57,6 +58,12 @@ export function getVillaTypeSortIndex(roomType?: string) {
   const key = normalizeVillaTypeKey(roomType)
   const index = VILLA_TYPE_ORDER_INDEX.get(key)
   return index === undefined ? Number.MAX_SAFE_INTEGER : index
+}
+
+export function getVillaTypeToneClass(roomType?: string) {
+  const index = getVillaTypeSortIndex(roomType)
+  if (index === Number.MAX_SAFE_INTEGER) return 'villa-type-other'
+  return `villa-type-${index}`
 }
 
 function normalizeAreaName(areaName?: string) {
@@ -290,6 +297,7 @@ export function buildGroupedScheduleRows(roomCodes: string[], roomByCode: Record
         typeKey,
         label: typeLabel,
         count: typeCounts[typeKey] ?? 0,
+        toneClass: getVillaTypeToneClass(room?.type),
       })
     }
     groups.push({ type: 'villa', roomCode, typeKey })
