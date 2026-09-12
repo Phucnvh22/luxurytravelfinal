@@ -15,7 +15,7 @@ export type BookingDateRange = {
   to: string
 }
 
-export type DateRangePreset = 'custom' | 'day' | '7days' | '14days' | 'month'
+export type DateRangePreset = 'custom' | '7days' | '14days' | '30days' | 'month'
 
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 
@@ -27,6 +27,7 @@ export function normalizeVillaTypeLabel(roomType?: string) {
   const trimmed = roomType?.trim() ?? ''
   if (!trimmed) return 'Unassigned type'
   return trimmed
+    .replace(/_/g, '-')
     .replace(/[‐‑‒–—−]/g, '-')
     .replace(/\s*-\s*/g, '-')
     .replace(/\s+/g, ' ')
@@ -38,6 +39,24 @@ export function normalizeVillaTypeKey(roomType?: string) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLocaleLowerCase('vi-VN')
+}
+
+const VILLA_TYPE_DISPLAY_ORDER = [
+  'Garden View_Superior',
+  'Garden View_Deluxe',
+  'Beach Access_Standard',
+  'Beach Access_Superior',
+  'Beach Access_Deluxe',
+  'Beach Front_Deluxe',
+]
+const VILLA_TYPE_ORDER_INDEX = new Map<string, number>(
+  VILLA_TYPE_DISPLAY_ORDER.map((label, index) => [normalizeVillaTypeKey(label), index] as const),
+)
+
+export function getVillaTypeSortIndex(roomType?: string) {
+  const key = normalizeVillaTypeKey(roomType)
+  const index = VILLA_TYPE_ORDER_INDEX.get(key)
+  return index === undefined ? Number.MAX_SAFE_INTEGER : index
 }
 
 function normalizeAreaName(areaName?: string) {
@@ -120,12 +139,11 @@ export function buildDateRangeFromPreset(preset: Exclude<DateRangePreset, 'custo
     }
   }
 
-  if (preset === 'day') {
-    const dateKey = toDateKey(anchor)
-    return { from: dateKey, to: dateKey }
-  }
-
-  const spanDays = preset === '7days' ? 6 : 13
+  const spanDays = preset === '7days'
+    ? 6
+    : preset === '14days'
+      ? 13
+      : 29
   return {
     from: toDateKey(anchor),
     to: toDateKey(addDays(anchor, spanDays)),
@@ -165,12 +183,12 @@ export function shiftBookingDateRange(range: BookingDateRange, preset: DateRange
 
   const inclusiveSpanDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / DAY_DURATION_MS) + 1)
   const stepDays =
-    preset === 'day'
-      ? 1
-      : preset === '7days'
-        ? 7
-        : preset === '14days'
-          ? 14
+    preset === '7days'
+      ? 7
+      : preset === '14days'
+        ? 14
+        : preset === '30days'
+          ? 30
           : inclusiveSpanDays
 
   const nextFrom = addDays(from, stepDays * direction)
@@ -220,6 +238,7 @@ export function compareRoomsByVillaType(a?: Room, b?: Room, fallbackA = '', fall
   if (a && b) {
     return (
       normalizeAreaName(a.areaName).localeCompare(normalizeAreaName(b.areaName), 'vi-VN', { sensitivity: 'base' }) ||
+      getVillaTypeSortIndex(a.type) - getVillaTypeSortIndex(b.type) ||
       normalizeVillaTypeLabel(a.type).localeCompare(normalizeVillaTypeLabel(b.type), 'vi-VN', { sensitivity: 'base' }) ||
       normalizeLocation(a.location).localeCompare(normalizeLocation(b.location), 'vi-VN', { sensitivity: 'base' }) ||
       a.floorNumber - b.floorNumber ||

@@ -22,6 +22,7 @@ import {
   buildQuickBookingDateRange,
   compareRoomsByLocation,
   getBookedDateKeysForRoom,
+  getVillaTypeSortIndex,
   normalizeVillaTypeKey,
   normalizeVillaTypeLabel,
   shiftBookingDateRange,
@@ -863,7 +864,7 @@ export default function AdminRoomBookingsPage() {
 
     return Array.from(byKey.entries())
       .map(([key, label]) => ({ key, label }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'vi', { sensitivity: 'base' }))
+      .sort((a, b) => getVillaTypeSortIndex(a.label) - getVillaTypeSortIndex(b.label) || a.label.localeCompare(b.label, 'vi', { sensitivity: 'base' }))
   }, [managedRoomTypes, roomsCatalog])
   const villaTypeFilterOptions = useMemo<FilterSummaryOption[]>(
     () => villaTypeOptions.map((option) => ({ value: option.key, label: option.label })),
@@ -990,10 +991,21 @@ export default function AdminRoomBookingsPage() {
   const scrollToToday = () => {
     const container = scheduleScrollRef.current
     if (!container) return false
+    const dayHead = container.querySelector('.room-schedule-day-head') as HTMLElement | null
+    if (!dayHead) return false
+
+    const anchorKey = toIsoDate(addDays(startOfDay(new Date()), -1))
     const todayKey = toIsoDate(startOfDay(new Date()))
-    const target = container.querySelector<HTMLElement>(`.room-schedule-day-head[data-day-key="${todayKey}"]`)
-    if (!target) return false
-    target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    const anchorIndex = monthDaysRef.current.findIndex((day) => toIsoDate(day) === anchorKey)
+    const fallbackIndex = monthDaysRef.current.findIndex((day) => toIsoDate(day) === todayKey)
+    const targetIndex = anchorIndex >= 0 ? anchorIndex : fallbackIndex
+    if (targetIndex < 0) return false
+
+    const dayColumnWidth = dayHead.getBoundingClientRect().width
+    container.scrollTo({
+      left: Math.max(targetIndex * dayColumnWidth, 0),
+      behavior: 'smooth',
+    })
     return true
   }
 
@@ -1012,8 +1024,9 @@ export default function AdminRoomBookingsPage() {
 
   const handleGoToToday = () => {
     const today = new Date()
-    const presetForToday = dateRangePreset === 'custom' ? 'day' : dateRangePreset
-    const nextRange = buildDateRangeFromPreset(presetForToday, today)
+    const anchor = addDays(today, -1)
+    const presetForToday = dateRangePreset === 'custom' ? 'month' : dateRangePreset
+    const nextRange = buildDateRangeFromPreset(presetForToday, presetForToday === 'month' ? today : anchor)
     applyDateRange(nextRange, presetForToday)
     const todayMonthStart = startOfMonth(today)
     const isCurrentMonth =
@@ -1049,7 +1062,9 @@ export default function AdminRoomBookingsPage() {
   }
 
   const handleDatePresetChange = (preset: Exclude<DateRangePreset, 'custom'>) => {
-    applyDateRange(buildDateRangeFromPreset(preset, new Date(draftDateRange.from || Date.now())), preset)
+    const today = new Date()
+    const anchor = addDays(today, -1)
+    applyDateRange(buildDateRangeFromPreset(preset, preset === 'month' ? today : anchor), preset)
   }
 
   const handleRangeStep = (direction: -1 | 1) => {
@@ -1412,18 +1427,17 @@ export default function AdminRoomBookingsPage() {
       const dayHead = scrollElement.querySelector('.room-schedule-day-head') as HTMLElement | null
       if (!roomHead || !dayHead) return
 
-      const todayIndex = monthDays.findIndex((day) => toIsoDate(day) === todayDateKey)
-      if (todayIndex < 0) return
+      const anchorDateKey = toIsoDate(addDays(startOfDay(new Date()), -1))
+      const todayKey = toIsoDate(startOfDay(new Date()))
+      const anchorIndex = monthDays.findIndex((day) => toIsoDate(day) === anchorDateKey)
+      const fallbackIndex = monthDays.findIndex((day) => toIsoDate(day) === todayKey)
+      const targetIndex = anchorIndex >= 0 ? anchorIndex : fallbackIndex
+      if (targetIndex < 0) return
 
-      const roomColumnWidth = roomHead.getBoundingClientRect().width
       const dayColumnWidth = dayHead.getBoundingClientRect().width
-      const targetScrollLeft = Math.max(
-        roomColumnWidth + todayIndex * dayColumnWidth - (scrollElement.clientWidth - dayColumnWidth) / 2,
-        0,
-      )
 
       scrollElement.scrollTo({
-        left: targetScrollLeft,
+        left: Math.max(targetIndex * dayColumnWidth, 0),
         behavior: 'smooth',
       })
     })
@@ -2243,9 +2257,9 @@ export default function AdminRoomBookingsPage() {
                   <div className="field-label">Lọc nhanh</div>
                   <div className="room-bookings-quick-filter-buttons">
                     {[
-                      { key: 'day' as const, label: '1 ngày' },
                       { key: '7days' as const, label: '7 ngày' },
                       { key: '14days' as const, label: '14 ngày' },
+                      { key: '30days' as const, label: '30 ngày' },
                       { key: 'month' as const, label: 'Tháng này' },
                     ].map((option) => (
                       <button
