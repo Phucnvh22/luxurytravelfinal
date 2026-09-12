@@ -1,26 +1,9 @@
 import type { Room, RoomBookingResponse } from '../types'
 
-export type VillaTierKey =
-  | 'garden-view-villa'
-  | 'garden-view-deluxe-villa'
-  | 'beach-access-villa'
-  | 'beach-access-deluxe-villa'
-  | 'beach-front-luxury-villa'
-  | 'other'
-
-export type VillaTierDefinition = {
-  key: VillaTierKey
-  label: string
-  shortLabel: string
-  emoji: string
-  toneClass: string
-  roomCodes: string[]
-}
-
 export type GroupedScheduleRow =
   | { type: 'area'; areaKey: string; label: string }
-  | { type: 'villa-tier'; tierKey: VillaTierKey; label: string; count: number; toneClass: string; emoji: string }
-  | { type: 'villa'; roomCode: string; tierKey: VillaTierKey }
+  | { type: 'villa-type'; typeKey: string; label: string; count: number }
+  | { type: 'villa'; roomCode: string; typeKey: string }
 
 export type QuickBookingSelection = {
   roomCode: string
@@ -35,74 +18,26 @@ export type BookingDateRange = {
 export type DateRangePreset = 'custom' | 'day' | '7days' | '14days' | 'month'
 
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
-const FALLBACK_TIER: VillaTierDefinition = {
-  key: 'other',
-  label: 'Khac',
-  shortLabel: 'Khac',
-  emoji: '•',
-  toneClass: 'other',
-  roomCodes: [],
-}
-
-export const VILLA_TIER_DEFINITIONS: VillaTierDefinition[] = [
-  {
-    key: 'garden-view-villa',
-    label: 'Garden View-Villa',
-    shortLabel: 'Garden View',
-    emoji: '🟢',
-    toneClass: 'garden-view-villa',
-    roomCodes: ['V327', 'V331', 'V332', 'V333', 'V336', 'V338', 'V340'],
-  },
-  {
-    key: 'garden-view-deluxe-villa',
-    label: 'Garden View-Deluxe Villa',
-    shortLabel: 'Garden Deluxe',
-    emoji: '🔷',
-    toneClass: 'garden-view-deluxe-villa',
-    roomCodes: ['V303', 'V308', 'V309', 'V312', 'V317', 'V318', 'V319', 'V321', 'V323', 'V324', 'V346', 'V355', 'V360', 'V365', 'V366'],
-  },
-  {
-    key: 'beach-access-villa',
-    label: 'Beach Access-Villa',
-    shortLabel: 'Beach Access',
-    emoji: '📙',
-    toneClass: 'beach-access-villa',
-    roomCodes: ['V208', 'V217', 'V225', 'V361'],
-  },
-  {
-    key: 'beach-access-deluxe-villa',
-    label: 'Beach Access-Deluxe Villa',
-    shortLabel: 'Beach Deluxe',
-    emoji: '🔮',
-    toneClass: 'beach-access-deluxe-villa',
-    roomCodes: ['V203', 'V209', 'V210', 'V227'],
-  },
-  {
-    key: 'beach-front-luxury-villa',
-    label: 'Beach Front-Luxury Villa',
-    shortLabel: 'Beach Front',
-    emoji: '🟡',
-    toneClass: 'beach-front-luxury-villa',
-    roomCodes: ['V107'],
-  },
-]
-
-const TIER_BY_ROOM_CODE = VILLA_TIER_DEFINITIONS.reduce<Record<string, VillaTierDefinition>>((acc, tier) => {
-  tier.roomCodes.forEach((roomCode) => {
-    acc[roomCode] = tier
-  })
-  return acc
-}, {})
-
-const ROOM_ORDER_BY_CODE = VILLA_TIER_DEFINITIONS.reduce<Record<string, number>>((acc, tier) => {
-  tier.roomCodes.forEach((roomCode, index) => {
-    acc[roomCode] = index
-  })
-  return acc
-}, {})
 
 function normalizeLocation(location?: string) {
   return location?.trim() || 'Unassigned location'
+}
+
+export function normalizeVillaTypeLabel(roomType?: string) {
+  const trimmed = roomType?.trim() ?? ''
+  if (!trimmed) return 'Unassigned type'
+  return trimmed
+    .replace(/[‐‑‒–—−]/g, '-')
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function normalizeVillaTypeKey(roomType?: string) {
+  return normalizeVillaTypeLabel(roomType)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('vi-VN')
 }
 
 function normalizeAreaName(areaName?: string) {
@@ -111,10 +46,6 @@ function normalizeAreaName(areaName?: string) {
 
 function normalizeAreaKey(room?: Room) {
   return room?.areaCode?.trim() || normalizeAreaName(room?.areaName).toUpperCase()
-}
-
-function normalizeRoomCode(roomCode?: string) {
-  return roomCode?.trim().toUpperCase() || ''
 }
 
 function parseDateKey(dateKey: string) {
@@ -285,61 +216,45 @@ export function sortRoomCodesByLocation(roomCodes: string[], roomByCode: Record<
   return [...roomCodes].sort((a, b) => compareRoomsByLocation(roomByCode[a], roomByCode[b], a, b))
 }
 
-export function getVillaTierDefinition(roomCode?: string): VillaTierDefinition {
-  return TIER_BY_ROOM_CODE[normalizeRoomCode(roomCode)] ?? FALLBACK_TIER
+export function compareRoomsByVillaType(a?: Room, b?: Room, fallbackA = '', fallbackB = '') {
+  if (a && b) {
+    return (
+      normalizeAreaName(a.areaName).localeCompare(normalizeAreaName(b.areaName), 'vi-VN', { sensitivity: 'base' }) ||
+      normalizeVillaTypeLabel(a.type).localeCompare(normalizeVillaTypeLabel(b.type), 'vi-VN', { sensitivity: 'base' }) ||
+      normalizeLocation(a.location).localeCompare(normalizeLocation(b.location), 'vi-VN', { sensitivity: 'base' }) ||
+      a.floorNumber - b.floorNumber ||
+      a.code.localeCompare(b.code, 'vi-VN', { numeric: true })
+    )
+  }
+  if (a && fallbackA) return -1
+  if (b && fallbackB) return 1
+  return fallbackA.localeCompare(fallbackB, 'vi-VN', { numeric: true })
 }
 
-export function sortRoomCodesByVillaTier(roomCodes: string[], roomByCode: Record<string, Room | undefined>) {
+export function sortRoomCodesByVillaType(roomCodes: string[], roomByCode: Record<string, Room | undefined>) {
   return [...roomCodes].sort((a, b) => {
-    const tierA = getVillaTierDefinition(a)
-    const tierB = getVillaTierDefinition(b)
-    const tierIndexA = VILLA_TIER_DEFINITIONS.findIndex((tier) => tier.key === tierA.key)
-    const tierIndexB = VILLA_TIER_DEFINITIONS.findIndex((tier) => tier.key === tierB.key)
-
-    if (tierIndexA !== tierIndexB) {
-      const safeIndexA = tierIndexA === -1 ? Number.MAX_SAFE_INTEGER : tierIndexA
-      const safeIndexB = tierIndexB === -1 ? Number.MAX_SAFE_INTEGER : tierIndexB
-      return safeIndexA - safeIndexB
-    }
-
-    const codeA = normalizeRoomCode(a)
-    const codeB = normalizeRoomCode(b)
-    const orderA = ROOM_ORDER_BY_CODE[codeA]
-    const orderB = ROOM_ORDER_BY_CODE[codeB]
-    if (orderA !== undefined || orderB !== undefined) {
-      if (orderA === undefined) return 1
-      if (orderB === undefined) return -1
-      if (orderA !== orderB) return orderA - orderB
-    }
-
-    return compareRoomsByLocation(roomByCode[a], roomByCode[b], a, b)
+    return compareRoomsByVillaType(roomByCode[a], roomByCode[b], a, b)
   })
 }
 
 export function buildGroupedScheduleRows(roomCodes: string[], roomByCode: Record<string, Room | undefined>) {
-  const orderedRoomCodes = sortRoomCodesByVillaTier(roomCodes, roomByCode)
+  const orderedRoomCodes = sortRoomCodesByVillaType(roomCodes, roomByCode)
   const groups: GroupedScheduleRow[] = []
-  const tierCounts = orderedRoomCodes.reduce<Record<VillaTierKey, number>>((acc, roomCode) => {
-    const tier = getVillaTierDefinition(roomCode)
-    acc[tier.key] = (acc[tier.key] ?? 0) + 1
+  const typeCounts = orderedRoomCodes.reduce<Record<string, number>>((acc, roomCode) => {
+    const room = roomByCode[roomCode]
+    const typeKey = normalizeVillaTypeKey(room?.type)
+    acc[typeKey] = (acc[typeKey] ?? 0) + 1
     return acc
-  }, {
-    'garden-view-villa': 0,
-    'garden-view-deluxe-villa': 0,
-    'beach-access-villa': 0,
-    'beach-access-deluxe-villa': 0,
-    'beach-front-luxury-villa': 0,
-    other: 0,
-  })
+  }, {})
 
   let currentAreaKey = ''
-  let currentTierKey = '' as VillaTierKey | ''
+  let currentTypeKey = ''
   orderedRoomCodes.forEach((roomCode) => {
     const room = roomByCode[roomCode]
     const areaKey = normalizeAreaKey(room)
     if (areaKey !== currentAreaKey) {
       currentAreaKey = areaKey
-      currentTierKey = '' as VillaTierKey | ''
+      currentTypeKey = ''
       groups.push({
         type: 'area',
         areaKey,
@@ -347,19 +262,18 @@ export function buildGroupedScheduleRows(roomCodes: string[], roomByCode: Record
       })
     }
 
-    const tier = getVillaTierDefinition(roomCode)
-    if (tier.key !== currentTierKey) {
-      currentTierKey = tier.key
+    const typeLabel = normalizeVillaTypeLabel(room?.type)
+    const typeKey = normalizeVillaTypeKey(room?.type)
+    if (typeKey !== currentTypeKey) {
+      currentTypeKey = typeKey
       groups.push({
-        type: 'villa-tier',
-        tierKey: tier.key,
-        label: tier.label,
-        count: tierCounts[tier.key] ?? 0,
-        toneClass: tier.toneClass,
-        emoji: tier.emoji,
+        type: 'villa-type',
+        typeKey,
+        label: typeLabel,
+        count: typeCounts[typeKey] ?? 0,
       })
     }
-    groups.push({ type: 'villa', roomCode, tierKey: tier.key })
+    groups.push({ type: 'villa', roomCode, typeKey })
   })
 
   return groups

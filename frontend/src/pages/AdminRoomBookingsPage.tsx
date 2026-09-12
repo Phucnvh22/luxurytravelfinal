@@ -13,7 +13,6 @@ import type {
   VillaServiceCatalog,
   VillaServiceOrder,
   VillaServiceOrderUpsertRequest,
-  SophiaSyncRunResponse,
   VillaSettingsResponse,
 } from '../types'
 import {
@@ -22,18 +21,17 @@ import {
   formatBookingDateRange,
   buildQuickBookingDateRange,
   compareRoomsByLocation,
-  getVillaTierDefinition,
   getBookedDateKeysForRoom,
+  normalizeVillaTypeKey,
+  normalizeVillaTypeLabel,
   shiftBookingDateRange,
-  sortRoomCodesByVillaTier,
+  sortRoomCodesByVillaType,
   toggleQuickBookingDate,
   validateBookingDateRange,
   validateQuickBookingSelection,
-  VILLA_TIER_DEFINITIONS,
   type BookingDateRange,
   type DateRangePreset,
   type QuickBookingSelection,
-  type VillaTierKey,
 } from './AdminRoomBookingsPage.utils'
 import { calculateVillaServiceTotal, calculateVillaServiceVendorCostTotal } from './villa-service-utils'
 import { buildSupportQrUrl, detectSupportChannel } from '../constants/social'
@@ -756,13 +754,14 @@ export default function AdminRoomBookingsPage() {
   const [roomsCatalog, setRoomsCatalog] = useState<Room[]>([])
   const [areas, setAreas] = useState<RoomArea[]>([])
   const [bookings, setBookings] = useState<RoomBookingResponse[]>([])
+  const [managedRoomTypes, setManagedRoomTypes] = useState<string[]>([])
   const [bookingSources, setBookingSources] = useState<string[]>(['Direct'])
   const [supportLinks, setSupportLinks] = useState<string[]>([])
   const [serviceCatalog, setServiceCatalog] = useState<VillaServiceCatalog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedAreaId, setSelectedAreaId] = useState('')
-  const [selectedVillaTypes, setSelectedVillaTypes] = useState<VillaTierKey[]>([])
+  const [selectedVillaTypes, setSelectedVillaTypes] = useState<string[]>([])
   const [selectedHosts, setSelectedHosts] = useState<string[]>([])
   const [selectedBedroomLayout, setSelectedBedroomLayout] = useState('')
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('month')
@@ -794,7 +793,6 @@ export default function AdminRoomBookingsPage() {
   const [serviceOrderError, setServiceOrderError] = useState<string | null>(null)
   const [syncingAirbnb, setSyncingAirbnb] = useState(false)
   const [syncingKaystay, setSyncingKaystay] = useState(false)
-  const [syncingSophia, setSyncingSophia] = useState(false)
   const [draggingBookingId, setDraggingBookingId] = useState<number | null>(null)
   const [dropTargetRoomCode, setDropTargetRoomCode] = useState<string | null>(null)
   const [dropTargetDateKey, setDropTargetDateKey] = useState<string | null>(null)
@@ -845,11 +843,28 @@ export default function AdminRoomBookingsPage() {
     const entries = roomsCatalog.map((room) => [room.code, room] as const)
     return Object.fromEntries(entries) as Record<string, Room>
   }, [roomsCatalog])
-  const villaTypeOptions = useMemo(
-    () =>
-      VILLA_TIER_DEFINITIONS.filter((tier) => roomsCatalog.some((room) => getVillaTierDefinition(room.code).key === tier.key)),
-    [roomsCatalog],
-  )
+  const villaTypeOptions = useMemo(() => {
+    const byKey = new Map<string, string>()
+
+    managedRoomTypes
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .forEach((value) => {
+        byKey.set(normalizeVillaTypeKey(value), normalizeVillaTypeLabel(value))
+      })
+
+    roomsCatalog.forEach((room) => {
+      const label = normalizeVillaTypeLabel(room.type)
+      const key = normalizeVillaTypeKey(room.type)
+      if (!byKey.has(key)) {
+        byKey.set(key, label)
+      }
+    })
+
+    return Array.from(byKey.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'vi', { sensitivity: 'base' }))
+  }, [managedRoomTypes, roomsCatalog])
   const villaTypeFilterOptions = useMemo<FilterSummaryOption[]>(
     () => villaTypeOptions.map((option) => ({ value: option.key, label: option.label })),
     [villaTypeOptions],
@@ -1074,6 +1089,11 @@ export default function AdminRoomBookingsPage() {
       setRoomsCatalog(roomsData)
       setAreas(areasData)
       setServiceCatalog(servicesData)
+      setManagedRoomTypes(
+        settingsData.roomTypes
+          .map((item) => item.label.trim())
+          .filter(Boolean),
+      )
       setBookingSources(
         settingsData.bookingSources
           .map((item) => item.label.trim())
@@ -1150,35 +1170,6 @@ export default function AdminRoomBookingsPage() {
       })
     } finally {
       setSyncingKaystay(false)
-    }
-  }
-
-  const handleSophiaSync = async () => {
-    setSyncingSophia(true)
-    setCalendarFeedback(null)
-    try {
-      const params = new URLSearchParams({
-        from: toIsoDate(visibleDateRange.from),
-        to: toIsoDate(visibleDateRange.to),
-      })
-      const result = await apiFetch<SophiaSyncRunResponse>(
-        `/api/admin/integrations/sophia-sync/sync-now?${params.toString()}`,
-        { method: 'POST' },
-      )
-      await load({ silent: true })
-      setCalendarFeedback({
-        tone: result.success ? 'success' : 'error',
-        title: result.success ? 'Sophia sync completed' : 'Sophia sync reported issues',
-        message: result.message,
-      })
-    } catch (e: unknown) {
-      setCalendarFeedback({
-        tone: 'error',
-        title: 'Sophia sync failed',
-        message: getErrorMessage(e, 'Could not run Sophia sync'),
-      })
-    } finally {
-      setSyncingSophia(false)
     }
   }
 
@@ -1280,11 +1271,11 @@ export default function AdminRoomBookingsPage() {
     if (!room) {
       return !selectedAreaId && selectedVillaTypes.length === 0 && selectedHosts.length === 0 && !selectedBedroomLayout
     }
-    const roomTierKey = getVillaTierDefinition(room.code).key
+    const roomTypeKey = normalizeVillaTypeKey(room.type)
     const roomHost = room.host?.trim() ?? ''
     const roomBedroomLayout = room.bedroomLayout?.trim() ?? ''
     if (selectedAreaId && String(room.areaId) !== selectedAreaId) return false
-    if (selectedVillaTypes.length > 0 && !selectedVillaTypes.includes(roomTierKey)) return false
+    if (selectedVillaTypes.length > 0 && !selectedVillaTypes.includes(roomTypeKey)) return false
     if (selectedHosts.length > 0 && !selectedHosts.includes(roomHost)) return false
     if (selectedBedroomLayout && roomBedroomLayout !== selectedBedroomLayout) return false
     return true
@@ -1310,7 +1301,7 @@ export default function AdminRoomBookingsPage() {
     const bookingCodes = filteredBookings.map((booking) => booking.roomCode)
     const uniqueRooms = Array.from(new Set([...catalogCodes, ...bookingCodes].filter(Boolean)))
 
-    return sortRoomCodesByVillaTier(uniqueRooms, roomByCode)
+    return sortRoomCodesByVillaType(uniqueRooms, roomByCode)
   }, [filteredBookings, roomByCode, roomsCatalog, selectedAreaId, selectedBedroomLayout, selectedHosts, selectedVillaTypes])
 
   const roomOptions = useMemo(() => {
@@ -2192,10 +2183,7 @@ export default function AdminRoomBookingsPage() {
             <button className="btn" type="button" onClick={() => void handleKayStaySync()} disabled={syncingKaystay}>
               {syncingKaystay ? 'Syncing KayStay...' : 'Sync KayStay'}
             </button>
-            <button className="btn" type="button" onClick={() => void handleSophiaSync()} disabled={syncingSophia}>
-              {syncingSophia ? 'Syncing Sophia...' : 'Sync Sophia'}
-            </button>
-            <button className="btn" type="button" onClick={() => void load()} disabled={loading || syncingAirbnb || syncingKaystay || syncingSophia}>
+            <button className="btn" type="button" onClick={() => void load()} disabled={loading || syncingAirbnb || syncingKaystay}>
               Reload
             </button>
           </div>
@@ -2309,7 +2297,7 @@ export default function AdminRoomBookingsPage() {
                           <input
                             type="checkbox"
                             checked={selectedVillaTypes.includes(option.key)}
-                            onChange={() => setSelectedVillaTypes((current) => toggleFilterValue(current, option.key) as VillaTierKey[])}
+                            onChange={() => setSelectedVillaTypes((current) => toggleFilterValue(current, option.key))}
                           />
                           <span>{option.label}</span>
                         </label>
@@ -2524,14 +2512,13 @@ export default function AdminRoomBookingsPage() {
                       )
                     }
 
-                    if (row.type === 'villa-tier') {
+                    if (row.type === 'villa-type') {
                       return (
-                        <div key={`tier-${row.tierKey}`} className={`room-schedule-host-row room-schedule-host-row-${row.toneClass}`}>
-                          <div className={`room-schedule-host-cell room-schedule-host-cell-${row.toneClass}`}>
-                            <span className="room-schedule-host-emoji" aria-hidden="true">{row.emoji}</span>
+                        <div key={`type-${row.typeKey}`} className="room-schedule-host-row">
+                          <div className="room-schedule-host-cell">
                             <strong>{row.label}</strong>
                           </div>
-                          <div className={`room-schedule-host-track room-schedule-host-track-${row.toneClass}`} />
+                          <div className="room-schedule-host-track" />
                         </div>
                       )
                     }

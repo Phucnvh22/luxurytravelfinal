@@ -341,12 +341,6 @@ export type KayStaySyncRunResponse = {
   logs: string[]
 }
 
-export type SophiaSyncRunResponse = {
-  success: boolean
-  message: string
-  logs: string[]
-}
-
 export type VillaServiceCatalog = {
   id: number
   name: string
