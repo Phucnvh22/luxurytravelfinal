@@ -26,34 +26,45 @@ public class ZaloBotWebhookService {
 
         try {
             JsonNode root = objectMapper.readTree(payload == null ? "{}" : payload);
-            JsonNode chat = root.path("message").path("chat");
+            JsonNode result = root.path("result");
+            JsonNode messageNode = result.path("message");
+            if (messageNode.isMissingNode() || messageNode.isNull() || messageNode.isEmpty()) {
+                messageNode = root.path("message");
+            }
+
+            JsonNode chat = messageNode.path("chat");
             if (chat.isMissingNode() || chat.isNull() || chat.isEmpty()) {
                 chat = root.path("chat");
             }
 
             String chatId = text(chat, "id");
-            String chatType = text(chat, "type");
+            String chatType = firstNonBlank(text(chat, "chat_type"), text(chat, "type"));
             String chatTitle = text(chat, "title");
+            String eventName = firstNonBlank(text(result, "event_name"), text(root, "event_name"));
             String senderName = firstNonBlank(
-                    text(root.path("message").path("from"), "name"),
+                    text(messageNode.path("from"), "display_name"),
+                    text(messageNode.path("from"), "name"),
+                    text(root.path("from"), "display_name"),
                     text(root.path("from"), "name")
             );
-            String text = firstNonBlank(
-                    text(root.path("message"), "text"),
+            String messageText = firstNonBlank(
+                    text(messageNode, "text"),
+                    text(messageNode, "caption"),
                     text(root, "text")
             );
 
             if (!chatId.isBlank()) {
                 log.info(
-                        "Received Zalo webhook: chatId={}, chatType={}, chatTitle={}, sender={}, text={}",
+                        "Received Zalo webhook: eventName={}, chatId={}, chatType={}, chatTitle={}, sender={}, text={}",
+                        eventName,
                         chatId,
                         chatType,
                         chatTitle,
                         senderName,
-                        text
+                        messageText
                 );
             } else {
-                log.info("Received Zalo webhook without chat.id");
+                log.info("Received Zalo webhook without chat.id: eventName={}, payload={}", eventName, root.toString());
             }
 
             String message = chatId.isBlank()
