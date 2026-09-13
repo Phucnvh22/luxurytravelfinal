@@ -58,6 +58,9 @@ public class RoomUpsertRequest {
     @Size(max = 255)
     private String doorPassword;
 
+    @Size(max = 255)
+    private String zaloGroupChatId;
+
     @Size(max = 1000)
     private String notes;
 
@@ -179,6 +182,14 @@ public class RoomUpsertRequest {
 
     public void setDoorPassword(String doorPassword) {
         this.doorPassword = doorPassword;
+    }
+
+    public String getZaloGroupChatId() {
+        return zaloGroupChatId;
+    }
+
+    public void setZaloGroupChatId(String zaloGroupChatId) {
+        this.zaloGroupChatId = zaloGroupChatId;
     }
 
     public String getNotes() {

@@ -196,6 +196,7 @@ export type Room = {
   wifiName: string
   wifiPassword: string
   doorPassword: string
+  zaloGroupChatId?: string
   notes: string
   operationalStatus?: 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING' | 'OOI' | null
   statusUpdatedAt?: string
@@ -240,6 +241,7 @@ export type RoomUpsertRequest = {
   wifiName?: string
   wifiPassword?: string
   doorPassword?: string
+  zaloGroupChatId?: string
   notes?: string
 }
 

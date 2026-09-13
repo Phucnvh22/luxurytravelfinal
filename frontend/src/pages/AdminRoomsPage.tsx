@@ -26,6 +26,7 @@ const INITIAL_FORM: RoomUpsertRequest = {
   wifiName: '',
   wifiPassword: '',
   doorPassword: '',
+  zaloGroupChatId: '',
   notes: '',
 }
 
@@ -271,6 +272,7 @@ export default function AdminRoomsPage() {
       wifiName: room.wifiName,
       wifiPassword: room.wifiPassword,
       doorPassword: room.doorPassword,
+      zaloGroupChatId: room.zaloGroupChatId || '',
       notes: room.notes,
     })
     setSaveError(null)
@@ -296,6 +298,7 @@ export default function AdminRoomsPage() {
         wifiName: form.wifiName?.trim() || '',
         wifiPassword: form.wifiPassword?.trim() || '',
         doorPassword: form.doorPassword?.trim() || '',
+        zaloGroupChatId: form.zaloGroupChatId?.trim() || '',
         notes: form.notes?.trim() || '',
       }
 
@@ -901,6 +904,19 @@ export default function AdminRoomsPage() {
                     />
                   </label>
                 </div>
+
+                <label className="field">
+                  <div className="field-label">Zalo group chat ID</div>
+                  <input
+                    className="input"
+                    value={form.zaloGroupChatId || ''}
+                    onChange={(e) => setForm((current) => ({ ...current, zaloGroupChatId: e.target.value }))}
+                    placeholder="chat.id cua group quan ly villa"
+                  />
+                  <div className="muted" style={{ marginTop: 6 }}>
+                    Bot se gui tin nhan vao group nay khi cleaner bam Done cleaning. Gia tri nay la `chat.id`, khong phai link moi group.
+                  </div>
+                </label>
 
                 <label className="field">
                   <div className="field-label">Operational notes</div>

@@ -98,6 +98,11 @@ application:
       base-url: "${APPLICATION_INTEGRATIONS_KAYSTAY_SYNC_BASE_URL:https://www.smartorder.ai}"
       zone-id: "${APPLICATION_INTEGRATIONS_KAYSTAY_SYNC_ZONE_ID:Asia/Ho_Chi_Minh}"
       user-agent: "${APPLICATION_INTEGRATIONS_KAYSTAY_SYNC_USER_AGENT:Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36}"
+    zalo-bot:
+      enabled: ${APPLICATION_INTEGRATIONS_ZALO_BOT_ENABLED:true}
+      api-base-url: ${APPLICATION_INTEGRATIONS_ZALO_BOT_API_BASE_URL:https://bot-api.zaloplatforms.com}
+      token: ${APPLICATION_INTEGRATIONS_ZALO_BOT_TOKEN:OuUsuF-Kou4-GxyB1h}
+      webhook-secret-token: ${APPLICATION_INTEGRATIONS_ZALO_BOT_WEBHOOK_SECRET_TOKEN:luxurytravel-zalo-2026}
     lazhost:
       enabled: ${APPLICATION_INTEGRATIONS_LAZHOST_ENABLED:false}
       api-base-url: ${APPLICATION_INTEGRATIONS_LAZHOST_API_BASE_URL:https://b2b.lazhost.io.vn/api/v1}

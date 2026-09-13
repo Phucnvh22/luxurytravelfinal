@@ -1,5 +1,6 @@
 package com.luxurytravel.backend.room;
 
+import com.luxurytravel.backend.integration.zalobot.ZaloBotService;
 import com.luxurytravel.backend.roomarea.RoomArea;
 import com.luxurytravel.backend.roomarea.RoomAreaRepository;
 import com.luxurytravel.backend.roomlog.RoomWorkLogAction;
@@ -13,30 +14,37 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
 
 @Service
 public class RoomService {
+    private static final Logger log = LoggerFactory.getLogger(RoomService.class);
+
     private final RoomRepository roomRepository;
     private final RoomBookingRepository roomBookingRepository;
     private final RoomWorkLogService roomWorkLogService;
     private final UserRepository userRepository;
     private final RoomAreaRepository roomAreaRepository;
+    private final ZaloBotService zaloBotService;
 
     public RoomService(
             RoomRepository roomRepository,
             RoomBookingRepository roomBookingRepository,
             RoomWorkLogService roomWorkLogService,
             UserRepository userRepository,
-            RoomAreaRepository roomAreaRepository
+            RoomAreaRepository roomAreaRepository,
+            ZaloBotService zaloBotService
     ) {
         this.roomRepository = roomRepository;
         this.roomBookingRepository = roomBookingRepository;
         this.roomWorkLogService = roomWorkLogService;
         this.userRepository = userRepository;
         this.roomAreaRepository = roomAreaRepository;
+        this.zaloBotService = zaloBotService;
     }
 
     @Transactional
@@ -120,6 +128,7 @@ public class RoomService {
         room.setWifiName(request.getWifiName() == null ? "" : request.getWifiName().trim());
         room.setWifiPassword(request.getWifiPassword() == null ? "" : request.getWifiPassword().trim());
         room.setDoorPassword(request.getDoorPassword() == null ? "" : request.getDoorPassword().trim());
+        room.setZaloGroupChatId(request.getZaloGroupChatId() == null ? "" : request.getZaloGroupChatId().trim());
         room.setNotes(request.getNotes() == null ? "" : request.getNotes().trim());
         ensureOperationalState(room);
     }
@@ -149,6 +158,11 @@ public class RoomService {
         room.setCleanedByName(cleaner == null ? null : cleaner.getFullName());
         Room saved = roomRepository.save(room);
         roomWorkLogService.log(saved, RoomWorkLogAction.CLEANING_COMPLETED, cleaner, "");
+        try {
+            zaloBotService.sendCleaningCompletedMessage(saved, cleaner);
+        } catch (Exception ex) {
+            log.warn("Could not send Zalo cleaning notification for villa {}: {}", saved.getCode(), ex.getMessage());
+        }
         return saved;
     }
 
