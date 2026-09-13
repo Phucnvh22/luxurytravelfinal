@@ -95,7 +95,7 @@ public class ZaloBotService {
             }
             log.info("Zalo message sent successfully: chatId={}, messageId={}", normalizedChatId, root.path("result").path("message_id").asText(""));
         } catch (Exception ex) {
-            throw new IllegalStateException("Failed to send Zalo Bot message", ex);
+            throw new IllegalStateException("Failed to send Zalo Bot message: " + ex.getMessage(), ex);
         }
     }
 
