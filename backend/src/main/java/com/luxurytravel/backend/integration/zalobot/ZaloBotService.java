@@ -40,16 +40,17 @@ public class ZaloBotService {
             return;
         }
         if (!properties.isReadyToSend()) {
-            log.debug("Skip Zalo notification because bot integration is not configured");
+            log.warn("Skip Zalo notification because bot integration is not configured");
             return;
         }
 
         String chatId = room.getZaloGroupChatId() == null ? "" : room.getZaloGroupChatId().trim();
         if (chatId.isBlank()) {
-            log.debug("Skip Zalo notification for villa {} because no chat_id is configured", room.getCode());
+            log.warn("Skip Zalo notification for villa {} because no chat_id is configured", room.getCode());
             return;
         }
 
+        log.info("Sending Zalo cleaning notification for villa {} to chatId={}", room.getCode(), chatId);
         sendMessage(chatId, buildCleaningCompletedText(room, cleaner));
     }
 
@@ -85,13 +86,14 @@ public class ZaloBotService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("Zalo sendMessage returned HTTP " + response.statusCode());
+                throw new IllegalStateException("Zalo sendMessage returned HTTP " + response.statusCode() + " body=" + response.body());
             }
 
             JsonNode root = objectMapper.readTree(response.body());
             if (!root.path("ok").asBoolean(false)) {
-                throw new IllegalStateException("Zalo sendMessage returned ok=false");
+                throw new IllegalStateException("Zalo sendMessage returned ok=false body=" + response.body());
             }
+            log.info("Zalo message sent successfully: chatId={}, messageId={}", normalizedChatId, root.path("result").path("message_id").asText(""));
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to send Zalo Bot message", ex);
         }
