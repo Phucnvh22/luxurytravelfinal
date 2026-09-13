@@ -29,8 +29,8 @@ const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   AIRBNB_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   KAYSTAY_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   SOPHIA_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
-  CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
-  CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
+  CHECKED_IN: { label: 'Checkin', toneClass: 'checked-in' },
+  CHECKED_OUT: { label: 'Checkout', toneClass: 'checked-out' },
 }
 
 function startOfMonth(base: Date) {

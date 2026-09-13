@@ -108,8 +108,8 @@ const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   AIRBNB_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   KAYSTAY_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   SOPHIA_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
-  CHECKED_IN: { label: 'Check-in', toneClass: 'checked-in' },
-  CHECKED_OUT: { label: 'Check-out', toneClass: 'checked-out' },
+  CHECKED_IN: { label: 'Checkin', toneClass: 'checked-in' },
+  CHECKED_OUT: { label: 'Checkout', toneClass: 'checked-out' },
   CANCELLED: { label: 'Cancelled', toneClass: 'cancelled' },
 }
 const MOVABLE_BOOKING_STATUSES = new Set<VisibleRoomBookingStatus>(['CONFIRMED', 'TEMP_BLOCK', 'CHECKED_IN'])
@@ -467,23 +467,19 @@ function isImportedPlatformVisibleStatus(status: VisibleRoomBookingStatus) {
   return status === 'AIRBNB_BLOCK' || status === 'KAYSTAY_BLOCK' || status === 'SOPHIA_BLOCK'
 }
 
-function getBookingSourceDisplay(
-  source?: string | null,
-  status?: RoomBookingStatus | VisibleRoomBookingStatus | null,
-) {
-  if (status === 'CLOSED') {
-    return 'Closed'
-  }
-  if (status === 'AIRBNB_BLOCK' || status === 'KAYSTAY_BLOCK' || status === 'SOPHIA_BLOCK') {
-    return 'Reserved'
-  }
+function getVisibleStatusMeta(status?: RoomBookingStatus | VisibleRoomBookingStatus | null): StatusMeta | null {
+  if (!status) return null
+  if (status === 'PENDING') return STATUS_META.CONFIRMED
+  if (status in STATUS_META) return STATUS_META[status as VisibleRoomBookingStatus]
+  return null
+}
+
+function getBookingBarDisplay(status?: RoomBookingStatus | VisibleRoomBookingStatus | null) {
+  return getVisibleStatusMeta(status)?.label ?? 'Reserved'
+}
+
+function getBookingSourceDisplay(source?: string | null) {
   const value = source?.trim()
-  if (value) {
-    const normalizedSource = value.toLocaleLowerCase('en-US')
-    if (normalizedSource.includes('airbnb') || normalizedSource.includes('kaystay') || normalizedSource.includes('sophia')) {
-      return 'Reserved'
-    }
-  }
   return value || 'Direct'
 }
 
@@ -2793,7 +2789,7 @@ export default function AdminRoomBookingsPage() {
                                 }
                               >
                                 <div className="room-booking-bar-copy">
-                                  <div className="room-booking-bar-title">{getBookingSourceDisplay(booking.source, booking.displayStatus)}</div>
+                                  <div className="room-booking-bar-title">{getBookingBarDisplay(booking.displayStatus)}</div>
                                   {showBookingBarMeta ? (
                                     <div className="room-booking-bar-meta">
                                       <span>{booking.guestName || '—'}</span>
@@ -2971,14 +2967,14 @@ export default function AdminRoomBookingsPage() {
                     <div className="room-booking-detail-card">
                       <div className="room-booking-detail-label">Check-out</div>
                       <strong>{formatDateTime(selectedBooking.checkOutAt)}</strong>
-                      <div className="muted">{getBookingSourceDisplay(selectedBooking.source, selectedBooking.status)}</div>
+                      <div className="muted">{getBookingSourceDisplay(selectedBooking.source)}</div>
                     </div>
                   </div>
 
                   <div className="room-booking-detail-panel">
                     <div className="room-booking-detail-row">
                       <span>Source</span>
-                      <strong>{getBookingSourceDisplay(selectedBooking.source, selectedBooking.status)}</strong>
+                      <strong>{getBookingSourceDisplay(selectedBooking.source)}</strong>
                     </div>
                     <div className="room-booking-detail-row">
                       <span>Phone</span>
@@ -3911,7 +3907,7 @@ export default function AdminRoomBookingsPage() {
                   <div className="room-booking-detail-card">
                     <div className="room-booking-detail-label">Guest</div>
                     <strong>{pendingMoveConfirmation.booking.guestName || 'Guest'}</strong>
-                    <div className="muted">{getBookingSourceDisplay(pendingMoveConfirmation.booking.source, pendingMoveConfirmation.booking.status)}</div>
+                    <div className="muted">{getBookingSourceDisplay(pendingMoveConfirmation.booking.source)}</div>
                   </div>
                   <div className="room-booking-detail-card">
                     <div className="room-booking-detail-label">Current villa</div>

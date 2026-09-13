@@ -143,4 +143,49 @@ describe('AdminRoomBookingsPage date range', () => {
       expect(mockedApiFetch).toHaveBeenCalledWith('/api/admin/room-bookings?from=2026-09-10&to=2026-09-14')
     })
   })
+
+  it('shows Reserved on the schedule bar for direct confirmed bookings while keeping Direct in details', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <MemoryRouter>
+        <AdminRoomBookingsPage />
+      </MemoryRouter>,
+    )
+
+    await screen.findByText('Admin • Villa booking calendar')
+
+    expect(container.querySelector('.room-booking-bar-title')?.textContent).toBe('Reserved')
+
+    const bookingBar = container.querySelector('.room-booking-bar')
+    expect(bookingBar).not.toBeNull()
+
+    await user.click(bookingBar as HTMLElement)
+
+    expect(await screen.findByText('Booking #1 • Reserved')).toBeInTheDocument()
+    expect(screen.getByText('Source')).toBeInTheDocument()
+    expect(screen.getAllByText('Direct').length).toBeGreaterThan(0)
+  })
+
+  it('shows Checkin on the schedule bar for checked-in bookings', async () => {
+    mockedApiFetch.mockImplementation(async (endpoint: string) => {
+      if (endpoint.startsWith('/api/admin/room-bookings?')) {
+        return [{ ...baseBookings[0], status: 'CHECKED_IN' as const }]
+      }
+      if (endpoint === '/api/admin/rooms') return baseRooms
+      if (endpoint === '/api/admin/room-areas') return baseAreas
+      if (endpoint === '/api/admin/villa-settings') return baseSettings
+      if (endpoint === '/api/admin/villa-services') return baseServices
+      throw new Error(`Unexpected request: ${endpoint}`)
+    })
+
+    const { container } = render(
+      <MemoryRouter>
+        <AdminRoomBookingsPage />
+      </MemoryRouter>,
+    )
+
+    await screen.findByText('Admin • Villa booking calendar')
+
+    expect(container.querySelector('.room-booking-bar-title')?.textContent).toBe('Checkin')
+  })
 })
