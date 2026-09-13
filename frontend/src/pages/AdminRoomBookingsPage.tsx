@@ -540,6 +540,10 @@ function formatDayNumber(value: Date) {
   }).format(value)
 }
 
+function formatScheduleDayNumber(value: Date) {
+  return `T${value.getMonth() + 1} - ${formatDayNumber(value)}`
+}
+
 function formatMonthYear(value: Date) {
   return new Intl.DateTimeFormat('en-GB', {
     month: 'long',
@@ -2578,7 +2582,7 @@ export default function AdminRoomBookingsPage() {
                               data-day-key={toIsoDate(day)}
                             >
                               <span className="room-schedule-day-weekday">{formatDayLabel(day)}</span>
-                              <strong className="room-schedule-day-number">{formatDayNumber(day)}</strong>
+                              <strong className="room-schedule-day-number">{formatScheduleDayNumber(day)}</strong>
                             </div>
                           )
                         })}
