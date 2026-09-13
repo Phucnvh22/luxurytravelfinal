@@ -240,7 +240,7 @@ public class KayStayCalendarSyncService {
 
     private void applyRoomBookings(Room room, String smartRoomId, LocalDate syncFrom, LocalDate syncUntilExclusive, List<SmartOrderBooking> allOrders, SyncStats stats, List<String> logs) {
         // Gather set of blocked days occupied by ANY KayStay for this room (CI <= day < CO
-        Set<LocalDate> blockedDaysSet = new HashSet<>();
+        Map<LocalDate, RoomBookingStatus> blockedDaysMap = new HashMap<>();
         List<SmartOrderBooking> roomOrders = allOrders.stream()
                 .filter(o -> smartRoomId.equals(o.smartRoomId)).toList();
         stats.orderCount += roomOrders.size();
@@ -251,9 +251,16 @@ public class KayStayCalendarSyncService {
             if (endExclusive.isBefore(start)) {
                 continue;
             }
+            RoomBookingStatus targetStatus = order.closed() ? RoomBookingStatus.CLOSED : RoomBookingStatus.KAYSTAY_BLOCK;
             for (LocalDate d = start; d.isBefore(endExclusive); d = d.plusDays(1)) {
                 if (!d.isBefore(syncFrom) && d.isBefore(syncUntilExclusive)) {
-                    blockedDaysSet.add(d);
+                    RoomBookingStatus existingStatus = blockedDaysMap.get(d);
+                    if (existingStatus == RoomBookingStatus.CLOSED) {
+                        continue;
+                    }
+                    if (existingStatus == null || targetStatus == RoomBookingStatus.CLOSED) {
+                        blockedDaysMap.put(d, targetStatus);
+                    }
                 }
             }
             String noteRow = "KayStay Order#" + trim(order.orderId(), 10)
@@ -282,9 +289,9 @@ public class KayStayCalendarSyncService {
                 ));
 
         for (LocalDate date = syncFrom; date.isBefore(syncUntilExclusive); date = date.plusDays(1)) {
-            boolean blocked = blockedDaysSet.contains(date);
+            RoomBookingStatus blockedStatus = blockedDaysMap.get(date);
             RoomBooking existing = existingBlocksMap.get(date);
-            if (blocked) {
+            if (blockedStatus != null) {
                 // #region debug-point C:upsert-block-attempt
                 debugReport("pre-fix", "C", "KayStayCalendarSyncService:259", "[DEBUG] upsert block attempt", Map.of(
                         "roomCode", room.getCode(),
@@ -293,11 +300,11 @@ public class KayStayCalendarSyncService {
                         "ordersForRoom", roomOrders.size()
                 ));
                 // #endregion
-                upsertBlockedDate(room, date, existing, ordersNote);
+                upsertBlockedDate(room, date, existing, ordersNote, blockedStatus);
                 stats.blockedDays++;
-                appendLog(logs, room.getCode() + " " + date + " -> KAYSTAY_BLOCKED");
+                appendLog(logs, room.getCode() + " " + date + " -> " + blockedStatus);
             } else {
-                if (existing != null && existing.getStatus() == RoomBookingStatus.KAYSTAY_BLOCK) {
+                if (existing != null && (existing.getStatus() == RoomBookingStatus.KAYSTAY_BLOCK || existing.getStatus() == RoomBookingStatus.CLOSED)) {
                     existing.setStatus(RoomBookingStatus.CANCELLED);
                     existing.setNotes("Released by KayStay SmartOrder for " + date);
                     roomBookingRepository.save(existing);
@@ -308,14 +315,14 @@ public class KayStayCalendarSyncService {
         }
     }
 
-    private void upsertBlockedDate(Room room, LocalDate date, RoomBooking existing, String ordersNote) {
+    private void upsertBlockedDate(Room room, LocalDate date, RoomBooking existing, String ordersNote, RoomBookingStatus status) {
         RoomBooking booking = existing;
         if (booking == null) {
             booking = roomBookingRepository.findByExternalSystemIgnoreCaseAndExternalReservationId(SYSTEM_NAME, buildExternalReservationId(room, date))
                     .orElseGet(RoomBooking::new);
         }
         booking.setRoomCode(room.getCode().trim().toUpperCase(Locale.ROOT));
-        booking.setGuestName("KayStay Block");
+        booking.setGuestName(status == RoomBookingStatus.CLOSED ? "KayStay Closed" : "KayStay Block");
         booking.setSource(BLOCK_SOURCE);
         booking.setPhone("");
         booking.setAdults(1);
@@ -324,7 +331,7 @@ public class KayStayCalendarSyncService {
         int coHour = Math.max(0, Math.min(23, properties.getBlockCheckOutHour()));
         booking.setCheckInAt(date.atTime(ciHour, 0));
         booking.setCheckOutAt(date.plusDays(1).atTime(coHour, 0));
-        booking.setStatus(RoomBookingStatus.KAYSTAY_BLOCK);
+        booking.setStatus(status);
         booking.setVillaRate(null);
         booking.setDepositAmount(null);
         booking.setRemainingAmount(null);
@@ -396,6 +403,7 @@ public class KayStayCalendarSyncService {
             String co = text(order, "checkoutTime");
             String contactName = text(order, "contactName");
             String remark = text(order, "remark");
+            boolean isClosed = isSmartOrderClosedStatus(order);
             if (smartRoomIdFilter != null && !smartRoomIdFilter.isEmpty() && !smartRoomIdFilter.contains(smartRoomId)) {
                 continue;
             }
@@ -411,10 +419,27 @@ public class KayStayCalendarSyncService {
                     ciDt,
                     coDt,
                     contactName,
-                    remark));
+                    remark,
+                    isClosed));
         }
         appendLog(logs, "KayStay orders: kept=" + kept + " skippedBadDate=" + skippedBadDate);
         return out;
+    }
+
+    private boolean isSmartOrderClosedStatus(JsonNode node) {
+        List<String> candidates = List.of(
+                text(node, "status"),
+                text(node, "roomStatus"),
+                text(node, "roomStatusCode"),
+                text(node, "roomStatusName"),
+                text(node, "state"),
+                text(node, "stateName")
+        );
+        return candidates.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .anyMatch(s -> s.equalsIgnoreCase("closed"));
     }
 
     private JsonNode postSmartOrder(String endpoint, JsonNode body, String label) throws IOException, InterruptedException {
@@ -547,7 +572,8 @@ public class KayStayCalendarSyncService {
             LocalDateTime checkInDate,
             LocalDateTime checkOutDate,
             String contactName,
-            String remark
+            String remark,
+            boolean closed
     ) {}
 
     static class SyncStats {

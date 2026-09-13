@@ -260,6 +260,7 @@ export type RoomBookingStatus =
   | 'PENDING'
   | 'CONFIRMED'
   | 'TEMP_BLOCK'
+  | 'CLOSED'
   | 'AIRBNB_BLOCK'
   | 'KAYSTAY_BLOCK'
   | 'SOPHIA_BLOCK'

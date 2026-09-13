@@ -288,6 +288,14 @@
   border-color: #fcd34d;
 }
 
+.room-bookings-status-pill.closed,
+.room-booking-bar.closed,
+.room-bookings-list-badge.closed {
+  color: #334155;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
 .room-bookings-status-pill.checked-in,
 .room-booking-bar.checked-in,
 .room-bookings-list-badge.checked-in {
@@ -475,20 +483,44 @@ button.room-bookings-summary-pill {
 
 .room-schedule-card {
   --room-schedule-label-width: 148px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(216, 231, 221, 0.96);
   border-radius: 20px;
   background: linear-gradient(180deg, rgba(255, 254, 249, 0.98), rgba(247, 251, 248, 0.98));
   box-shadow: 0 18px 42px rgba(23, 60, 46, 0.08);
 }
 
+.room-schedule-header-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 32;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+  margin-bottom: -1px;
+}
+
 .room-schedule-scroll {
-  max-height: none;
-  overflow: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
   scroll-behavior: auto;
   overscroll-behavior: auto;
   -webkit-overflow-scrolling: touch;
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
   background:
     linear-gradient(180deg, rgba(255, 254, 249, 0.98), rgba(247, 251, 248, 0.98)),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02), transparent 120px);
@@ -510,11 +542,8 @@ button.room-bookings-summary-pill {
 }
 
 .room-schedule-header {
-  position: sticky;
-  top: 0;
-  z-index: 8;
+  min-width: calc(var(--room-schedule-label-width) + (var(--day-count) * var(--day-column-width)));
   background: #ffffff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .room-schedule-room-head,
@@ -541,12 +570,22 @@ button.room-bookings-summary-pill {
   min-width: calc(var(--day-count) * var(--day-column-width));
 }
 
+.room-schedule-days-viewport {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .room-schedule-days,
 .room-schedule-track,
 .room-schedule-host-track,
 .room-schedule-area-track {
   position: relative;
   z-index: 1;
+}
+
+.room-schedule-days {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
 .room-schedule-room-head {
@@ -1124,6 +1163,17 @@ button.room-bookings-summary-pill {
 
 .room-booking-bar.is-moving {
   opacity: 0.55;
+  pointer-events: none;
+}
+
+.room-booking-bar-copy {
+  position: sticky;
+  left: calc(var(--room-schedule-label-width) + 9px);
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  width: fit-content;
+  max-width: calc(100% - 10px);
   pointer-events: none;
 }
 

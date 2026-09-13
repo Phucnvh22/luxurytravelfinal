@@ -357,7 +357,8 @@ public class RoomBookingService {
     private boolean isExternalCalendarBlock(RoomBookingStatus status) {
         return status == RoomBookingStatus.AIRBNB_BLOCK
                 || status == RoomBookingStatus.KAYSTAY_BLOCK
-                || status == RoomBookingStatus.SOPHIA_BLOCK;
+                || status == RoomBookingStatus.SOPHIA_BLOCK
+                || status == RoomBookingStatus.CLOSED;
     }
 
     private String resolveCreatorUsername(User actor) {

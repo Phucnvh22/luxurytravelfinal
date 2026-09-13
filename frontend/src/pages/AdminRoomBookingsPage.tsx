@@ -49,6 +49,7 @@ type RoomOperationalStatus = 'READY' | 'CHECKED_IN' | 'NEEDS_CLEANING' | 'OOI'
 type VisibleRoomBookingStatus =
   | 'CONFIRMED'
   | 'TEMP_BLOCK'
+  | 'CLOSED'
   | 'AIRBNB_BLOCK'
   | 'KAYSTAY_BLOCK'
   | 'SOPHIA_BLOCK'
@@ -103,6 +104,7 @@ type FilterSummaryOption = {
 const STATUS_META: Record<VisibleRoomBookingStatus, StatusMeta> = {
   CONFIRMED: { label: 'Reserved', toneClass: 'reserved' },
   TEMP_BLOCK: { label: 'Temp lock', toneClass: 'temp-block' },
+  CLOSED: { label: 'Closed', toneClass: 'closed' },
   AIRBNB_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   KAYSTAY_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
   SOPHIA_BLOCK: { label: 'Reserved', toneClass: 'reserved' },
@@ -114,7 +116,7 @@ const MOVABLE_BOOKING_STATUSES = new Set<VisibleRoomBookingStatus>(['CONFIRMED',
 const RESERVED_FILTER_STATUSES: VisibleRoomBookingStatus[] = ['CONFIRMED', 'AIRBNB_BLOCK', 'KAYSTAY_BLOCK', 'SOPHIA_BLOCK']
 
 const ALL_STATUSES = Object.keys(STATUS_META) as VisibleRoomBookingStatus[]
-const STATUS_FILTER_PILLS: VisibleRoomBookingStatus[] = ['CONFIRMED', 'TEMP_BLOCK', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED']
+const STATUS_FILTER_PILLS: VisibleRoomBookingStatus[] = ['CONFIRMED', 'TEMP_BLOCK', 'CLOSED', 'CHECKED_IN', 'CHECKED_OUT', 'CANCELLED']
 const FALLBACK_ROOM_CODE = 'V107'
 const DAY_DURATION_MS = 24 * 60 * 60 * 1000
 const STANDARD_CHECK_IN_HOUR = 15
@@ -126,6 +128,7 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
   en: {
     CONFIRMED: 'Reserved',
     TEMP_BLOCK: 'Temp lock',
+    CLOSED: 'Closed',
     AIRBNB_BLOCK: 'Reserved',
     KAYSTAY_BLOCK: 'Reserved',
     SOPHIA_BLOCK: 'Reserved',
@@ -136,6 +139,7 @@ const CONFIRMATION_STATUS_LABELS: Record<ConfirmationLanguage, Record<VisibleRoo
   vi: {
     CONFIRMED: 'Reserved',
     TEMP_BLOCK: 'Tạm khóa',
+    CLOSED: 'Đóng phòng',
     AIRBNB_BLOCK: 'Reserved',
     KAYSTAY_BLOCK: 'Reserved',
     SOPHIA_BLOCK: 'Reserved',
@@ -432,6 +436,7 @@ function normalizeDisplayStatus(status: RoomBookingStatus): VisibleRoomBookingSt
     status === 'CHECKED_OUT' ||
     status === 'CONFIRMED' ||
     status === 'TEMP_BLOCK' ||
+    status === 'CLOSED' ||
     status === 'AIRBNB_BLOCK' ||
     status === 'KAYSTAY_BLOCK' ||
     status === 'SOPHIA_BLOCK'
@@ -466,6 +471,9 @@ function getBookingSourceDisplay(
   source?: string | null,
   status?: RoomBookingStatus | VisibleRoomBookingStatus | null,
 ) {
+  if (status === 'CLOSED') {
+    return 'Closed'
+  }
   if (status === 'AIRBNB_BLOCK' || status === 'KAYSTAY_BLOCK' || status === 'SOPHIA_BLOCK') {
     return 'Reserved'
   }
@@ -600,35 +608,13 @@ function getBookingBarLayout(booking: RoomBookingResponse, trackStartMs: number,
   }
 }
 
-function getBookingBarHiddenLeftPx(
-  layout: { left: number; width: number },
-  scrollLeft: number,
-  trackWidth: number,
-) {
-  if (scrollLeft <= 0 || trackWidth <= 0) return 0
-
-  const barStart = (layout.left / 100) * trackWidth
-  const barWidth = (Math.max(layout.width, 0.75) / 100) * trackWidth
-  return Math.max(0, Math.min(barWidth, scrollLeft - barStart))
-}
-
 function getBookingBarStyle(
   layout: { left: number; width: number },
-  hiddenLeftPx = 0,
 ): CSSProperties {
   return {
     left: `${layout.left}%`,
     width: `${Math.max(layout.width, 0.75)}%`,
-    clipPath: hiddenLeftPx > 0 ? `inset(0 0 0 ${hiddenLeftPx}px)` : undefined,
   }
-}
-
-function isBookingBarClippedByStickyColumn(
-  layout: { left: number; width: number },
-  scrollLeft: number,
-  trackWidth: number,
-) {
-  return getBookingBarHiddenLeftPx(layout, scrollLeft, trackWidth) > 0
 }
 
 function getDateRangeLayout(checkInAt: string, checkOutAt: string, trackStartMs: number, trackDurationMs: number) {
@@ -803,9 +789,12 @@ export default function AdminRoomBookingsPage() {
   const [ooiInsightRoomCode, setOoiInsightRoomCode] = useState<string | null>(null)
   const [villaCalendarRoomCode, setVillaCalendarRoomCode] = useState<string | null>(null)
   const [touchDrag, setTouchDrag] = useState<TouchDragState | null>(null)
-  const [scheduleScrollLeft, setScheduleScrollLeft] = useState(0)
+  const [scheduleStickyTop, setScheduleStickyTop] = useState(0)
   const loadingRef = useRef(false)
   const scheduleScrollRef = useRef<HTMLDivElement | null>(null)
+  const scheduleHeaderDaysRef = useRef<HTMLDivElement | null>(null)
+  const scheduleScrollFrameRef = useRef<number | null>(null)
+  const scheduleScrollLeftRef = useRef(0)
   const touchDragRef = useRef<TouchDragState | null>(null)
   const draggedBookingRef = useRef<RoomBookingResponse | null>(null)
   const dropTargetRoomCodeRef = useRef<string | null>(null)
@@ -818,6 +807,46 @@ export default function AdminRoomBookingsPage() {
   const monthEnd = useMemo(() => endOfMonth(monthCursor), [monthCursor])
   const monthValue = monthCursor.getMonth()
   const yearValue = monthCursor.getFullYear()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const STICKY_GAP_PX = 0
+    const appHeader = document.querySelector('.app-header') as HTMLElement | null
+
+    if (!appHeader) {
+      setScheduleStickyTop(0)
+      return
+    }
+
+    const updateStickyTop = () => {
+      setScheduleStickyTop(Math.ceil(appHeader.getBoundingClientRect().height) + STICKY_GAP_PX)
+    }
+
+    updateStickyTop()
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateStickyTop)
+      resizeObserver.observe(appHeader)
+    }
+
+    window.addEventListener('resize', updateStickyTop)
+
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', updateStickyTop)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (scheduleScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scheduleScrollFrameRef.current)
+      }
+    }
+  }, [])
+
   const visibleDateRange = useMemo(() => {
     const from = parseDateKey(appliedDateRange.from) ?? monthStart
     const to = parseDateKey(appliedDateRange.to) ?? monthEnd
@@ -991,7 +1020,7 @@ export default function AdminRoomBookingsPage() {
   const scrollToToday = () => {
     const container = scheduleScrollRef.current
     if (!container) return false
-    const dayHead = container.querySelector('.room-schedule-day-head') as HTMLElement | null
+    const dayHead = scheduleHeaderDaysRef.current?.querySelector('.room-schedule-day-head') as HTMLElement | null
     if (!dayHead) return false
 
     const anchorKey = toIsoDate(addDays(startOfDay(new Date()), -1))
@@ -1248,7 +1277,7 @@ export default function AdminRoomBookingsPage() {
       if (!visibleStatus) return acc
       acc[visibleStatus] = (acc[visibleStatus] ?? 0) + 1
       return acc
-    }, { CONFIRMED: 0, TEMP_BLOCK: 0, AIRBNB_BLOCK: 0, KAYSTAY_BLOCK: 0, SOPHIA_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
+    }, { CONFIRMED: 0, TEMP_BLOCK: 0, CLOSED: 0, AIRBNB_BLOCK: 0, KAYSTAY_BLOCK: 0, SOPHIA_BLOCK: 0, CHECKED_IN: 0, CHECKED_OUT: 0, CANCELLED: 0 })
     counts.CONFIRMED += counts.AIRBNB_BLOCK + counts.KAYSTAY_BLOCK + counts.SOPHIA_BLOCK
     return counts
   }, [bookings])
@@ -1376,6 +1405,7 @@ export default function AdminRoomBookingsPage() {
       const bookingTotal = booking.totalAmount ?? booking.villaRate ?? 0
       const isFinancialBooking =
         visibleStatus !== 'TEMP_BLOCK' &&
+        visibleStatus !== 'CLOSED' &&
         visibleStatus !== 'AIRBNB_BLOCK' &&
         visibleStatus !== 'KAYSTAY_BLOCK' &&
         visibleStatus !== 'SOPHIA_BLOCK' &&
@@ -1387,6 +1417,7 @@ export default function AdminRoomBookingsPage() {
       if (
         checkOutDateKey === todayDateKey &&
         visibleStatus !== 'TEMP_BLOCK' &&
+        visibleStatus !== 'CLOSED' &&
         visibleStatus !== 'AIRBNB_BLOCK' &&
         visibleStatus !== 'KAYSTAY_BLOCK' &&
         visibleStatus !== 'SOPHIA_BLOCK' &&
@@ -1406,7 +1437,7 @@ export default function AdminRoomBookingsPage() {
       if (isFinancialBooking && deposit > 0.001) {
         items.depositPaid += 1
       }
-      if (visibleStatus === 'TEMP_BLOCK') {
+      if (visibleStatus === 'TEMP_BLOCK' || visibleStatus === 'CLOSED') {
         items.tempLock += 1
       }
     })
@@ -1422,6 +1453,40 @@ export default function AdminRoomBookingsPage() {
     ] as const
   }, [filteredBookings, todayDateKey])
 
+  const syncScheduleHeader = (scrollLeft: number) => {
+    scheduleScrollLeftRef.current = scrollLeft
+    if (scheduleScrollFrameRef.current !== null) return
+
+    scheduleScrollFrameRef.current = window.requestAnimationFrame(() => {
+      scheduleScrollFrameRef.current = null
+      if (scheduleHeaderDaysRef.current) {
+        scheduleHeaderDaysRef.current.style.transform = `translateX(-${scheduleScrollLeftRef.current}px)`
+      }
+    })
+  }
+
+  useEffect(() => {
+    if (loading || rooms.length === 0) return
+    syncScheduleHeader(scheduleScrollRef.current?.scrollLeft ?? 0)
+  }, [loading, monthDays.length, rooms.length])
+
+  useEffect(() => {
+    if (loading || rooms.length === 0) return
+    const scrollElement = scheduleScrollRef.current
+    if (!scrollElement) return
+
+    const handleNativeScheduleScroll = () => {
+      syncScheduleHeader(scrollElement.scrollLeft)
+    }
+
+    handleNativeScheduleScroll()
+    scrollElement.addEventListener('scroll', handleNativeScheduleScroll, { passive: true })
+
+    return () => {
+      scrollElement.removeEventListener('scroll', handleNativeScheduleScroll)
+    }
+  }, [loading, monthDays.length, rooms.length])
+
   useEffect(() => {
     if (loading || rooms.length === 0 || !isTodayInsideMonth) return
 
@@ -1429,9 +1494,8 @@ export default function AdminRoomBookingsPage() {
     if (!scrollElement) return
 
     const frameId = window.requestAnimationFrame(() => {
-      const roomHead = scrollElement.querySelector('.room-schedule-room-head') as HTMLElement | null
-      const dayHead = scrollElement.querySelector('.room-schedule-day-head') as HTMLElement | null
-      if (!roomHead || !dayHead) return
+      const dayHead = scheduleHeaderDaysRef.current?.querySelector('.room-schedule-day-head') as HTMLElement | null
+      if (!dayHead) return
 
       const anchorDateKey = toIsoDate(addDays(startOfDay(new Date()), -1))
       const todayKey = toIsoDate(startOfDay(new Date()))
@@ -1964,7 +2028,7 @@ export default function AdminRoomBookingsPage() {
 
   const handleCancelBooking = async () => {
     if (!selectedBooking) return
-    const isTempLock = selectedBooking.status === 'TEMP_BLOCK'
+    const isTempLock = selectedBooking.status === 'TEMP_BLOCK' || selectedBooking.status === 'CLOSED'
     const ok = window.confirm(
       isTempLock
         ? `Unlock temporary lock #${selectedBooking.id}?\nThis villa will be available for sale again immediately.`
@@ -2494,32 +2558,38 @@ export default function AdminRoomBookingsPage() {
             ) : rooms.length === 0 ? (
               <div className="card detail-card muted">No villas match the current filters.</div>
             ) : (
-              <div
-                ref={scheduleScrollRef}
-                className="room-schedule-body room-schedule-scroll"
-                onScroll={(event) => setScheduleScrollLeft(event.currentTarget.scrollLeft)}
-              >
-                <div className="room-schedule-table" style={scheduleGridStyle}>
-                  <div className="room-schedule-header">
+              <>
+                <div className="room-schedule-header-shell" style={{ top: `${scheduleStickyTop}px` }}>
+                  <div className="room-schedule-header" style={scheduleGridStyle}>
                     <div className="room-schedule-room-head" aria-label="Villa column" />
-                    <div className="room-schedule-days">
-                      {monthDays.map((day) => {
-                        const isToday = toIsoDate(day) === toIsoDate(today)
-                        const isPast = toIsoDate(day) < todayDateKey
-                        return (
-                          <div
-                            key={day.toISOString()}
-                            className={`room-schedule-day-head ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}`}
-                            data-day-key={toIsoDate(day)}
-                          >
-                            <span className="room-schedule-day-weekday">{formatDayLabel(day)}</span>
-                            <strong className="room-schedule-day-number">{formatDayNumber(day)}</strong>
-                          </div>
-                        )
-                      })}
+                    <div className="room-schedule-days-viewport">
+                      <div
+                        ref={scheduleHeaderDaysRef}
+                        className="room-schedule-days"
+                      >
+                        {monthDays.map((day) => {
+                          const isToday = toIsoDate(day) === toIsoDate(today)
+                          const isPast = toIsoDate(day) < todayDateKey
+                          return (
+                            <div
+                              key={day.toISOString()}
+                              className={`room-schedule-day-head ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}`}
+                              data-day-key={toIsoDate(day)}
+                            >
+                              <span className="room-schedule-day-weekday">{formatDayLabel(day)}</span>
+                              <strong className="room-schedule-day-number">{formatDayNumber(day)}</strong>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
-
+                </div>
+                <div
+                  ref={scheduleScrollRef}
+                  className="room-schedule-body room-schedule-scroll"
+                >
+                  <div className="room-schedule-table" style={scheduleGridStyle}>
                   {groupedScheduleRows.map((row) => {
                     if (row.type === 'area') {
                       return (
@@ -2679,12 +2749,8 @@ export default function AdminRoomBookingsPage() {
                             if (!layout) return null
                             const meta = STATUS_META[booking.displayStatus]
                             const canMoveBooking = canMoveVisibleBookingStatus(booking.displayStatus) && movingBookingId !== booking.id
-                            const hiddenLeftPx = getBookingBarHiddenLeftPx(layout, scheduleScrollLeft, scheduleTrackWidth)
-                            const hideBookingBarText = isBookingBarClippedByStickyColumn(
-                              layout,
-                              scheduleScrollLeft,
-                              scheduleTrackWidth,
-                            )
+                            const bookingBarWidthPx = (Math.max(layout.width, 0.75) / 100) * scheduleTrackWidth
+                            const showBookingBarMeta = !isImportedPlatformVisibleStatus(booking.displayStatus) && bookingBarWidthPx >= 120
 
                             return (
                               <button
@@ -2693,7 +2759,7 @@ export default function AdminRoomBookingsPage() {
                                 className={`room-booking-bar ${meta.toneClass} ${selectedBookingId === booking.id ? 'selected' : ''} ${
                                   draggingBookingId === booking.id ? 'is-dragging' : ''
                                 } ${movingBookingId === booking.id ? 'is-moving' : ''} ${canMoveBooking ? 'is-movable' : 'is-static'}`}
-                                style={getBookingBarStyle(layout, hiddenLeftPx)}
+                                style={getBookingBarStyle(layout)}
                                 onClick={() => {
                                   if (ignoreNextClickBookingIdRef.current === booking.id) {
                                     ignoreNextClickBookingIdRef.current = null
@@ -2721,14 +2787,14 @@ export default function AdminRoomBookingsPage() {
                                       : 'Only Reserved, Temp lock and Check-in bookings can be moved'
                                 }
                               >
-                                {!hideBookingBarText ? (
+                                <div className="room-booking-bar-copy">
                                   <div className="room-booking-bar-title">{getBookingSourceDisplay(booking.source, booking.displayStatus)}</div>
-                                ) : null}
-                                {!hideBookingBarText && !isImportedPlatformVisibleStatus(booking.displayStatus) ? (
-                                  <div className="room-booking-bar-meta">
-                                    <span>{booking.guestName || '—'}</span>
-                                  </div>
-                                ) : null}
+                                  {showBookingBarMeta ? (
+                                    <div className="room-booking-bar-meta">
+                                      <span>{booking.guestName || '—'}</span>
+                                    </div>
+                                  ) : null}
+                                </div>
                               </button>
                             )
                           })}
@@ -2736,8 +2802,9 @@ export default function AdminRoomBookingsPage() {
                       </div>
                     )
                   })}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
 
