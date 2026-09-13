@@ -1202,10 +1202,11 @@ export default function AdminRoomBookingsPage() {
         { method: 'POST' },
       )
       await load({ silent: true })
+      const syncDetails = result.logs && result.logs.length > 0 ? `\n\n${result.logs.join('\n')}` : ''
       setCalendarFeedback({
         tone: result.success ? 'success' : 'error',
         title: result.success ? 'KayStay sync completed' : 'KayStay sync reported issues',
-        message: result.message,
+        message: `${result.message}${syncDetails}`,
       })
     } catch (e: unknown) {
       setCalendarFeedback({

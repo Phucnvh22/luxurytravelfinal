@@ -26,11 +26,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,9 +44,11 @@ public class KayStayCalendarSyncService {
     static final String SYSTEM_NAME = "KAYSTAY_SMARTORDER";
     static final String BLOCK_SOURCE = "KayStay";
     private static final Pattern ROOM_CODE_PATTERN = Pattern.compile("\\b([A-Z]-?\\d{2,6}(?:[A-Z])?)\\b");
+    private static final Pattern NON_ALPHANUMERIC_PATTERN = Pattern.compile("[^a-z0-9]+");
     private static final String H5_API_V2 = "/pms-h5-app-api/v2";
     private static final String ENDPOINT_ROOM_LIST = "/core/pro/wap/accomLink/grid/roomList/public";
     private static final String ENDPOINT_ORDER = "/core/pro/wap/accomLink/grid/order/public";
+    private static final String ENDPOINT_SOLAR = "/core/pro/wap/accomLink/grid/solar/public";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final DateTimeFormatter SMARTORDER_DATETIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String DEBUG_ENV_FILE = ".dbg/kaystay-sync-errors.env";
@@ -205,13 +205,23 @@ public class KayStayCalendarSyncService {
         }
         logs.add("Fetched " + orders.size() + " reservation(s) from KayStay SmartOrder.");
 
+        List<SmartRoomStatus> roomStatuses;
+        try {
+            roomStatuses = fetchSmartOrderRoomStatuses(reviewCode, syncFrom, inclusiveTo, targetSmartRoomIds, includeLogs ? logs : null);
+        } catch (IOException | InterruptedException ex) {
+            logs.add("Failed to fetch KayStay room statuses: " + ex.getMessage());
+            log.warn("KayStay room statuses fetch failed", ex);
+            return new KayStaySyncRunResponse(false, "KayStay room statuses fetch failed.", logs);
+        }
+        logs.add("Fetched " + roomStatuses.size() + " room status day(s) from KayStay solar.");
+
         // 3. Per matched room -> apply orders -> KAYSTAY_BLOCK for each day in range
         SyncStats stats = new SyncStats();
         for (Map.Entry<String, Room> entry : targetEntries) {
             String smartRoomId = entry.getKey();
             Room room = entry.getValue();
             try {
-                applyRoomBookings(room, smartRoomId, syncFrom, syncUntilExclusive, orders, stats, includeLogs ? logs : null);
+                applyRoomBookings(room, smartRoomId, syncFrom, syncUntilExclusive, orders, roomStatuses, stats, includeLogs ? logs : null);
             } catch (Exception ex) {
                 stats.errorCount++;
                 String msg = "Failed to apply KayStay bookings for " + room.getCode() + ": " + ex.getMessage();
@@ -238,11 +248,24 @@ public class KayStayCalendarSyncService {
         return new KayStaySyncRunResponse(stats.errorCount == 0, summary, logs);
     }
 
-    private void applyRoomBookings(Room room, String smartRoomId, LocalDate syncFrom, LocalDate syncUntilExclusive, List<SmartOrderBooking> allOrders, SyncStats stats, List<String> logs) {
+    private void applyRoomBookings(
+            Room room,
+            String smartRoomId,
+            LocalDate syncFrom,
+            LocalDate syncUntilExclusive,
+            List<SmartOrderBooking> allOrders,
+            List<SmartRoomStatus> allRoomStatuses,
+            SyncStats stats,
+            List<String> logs
+    ) {
         // Gather set of blocked days occupied by ANY KayStay for this room (CI <= day < CO
         Map<LocalDate, RoomBookingStatus> blockedDaysMap = new HashMap<>();
         List<SmartOrderBooking> roomOrders = allOrders.stream()
                 .filter(o -> smartRoomId.equals(o.smartRoomId)).toList();
+        List<SmartRoomStatus> roomStatuses = allRoomStatuses.stream()
+                .filter(status -> smartRoomId.equals(status.smartRoomId()))
+                .filter(status -> !status.date().isBefore(syncFrom) && status.date().isBefore(syncUntilExclusive))
+                .toList();
         stats.orderCount += roomOrders.size();
         StringBuilder sbNotes = new StringBuilder();
         for (SmartOrderBooking order : roomOrders) {
@@ -267,6 +290,17 @@ public class KayStayCalendarSyncService {
                     + (order.contactName() == null ? "" : " / " + order.contactName())
                     + " " + start + " -> " + endExclusive
                     + (order.remark() == null ? "" : " (" + trim(order.remark(), 60) + ")");
+            if (!sbNotes.isEmpty()) {
+                sbNotes.append("\n");
+            }
+            sbNotes.append(noteRow);
+        }
+        for (SmartRoomStatus roomStatus : roomStatuses) {
+            if (!isClosedLikeRoomStatus(roomStatus.status())) {
+                continue;
+            }
+            blockedDaysMap.put(roomStatus.date(), RoomBookingStatus.CLOSED);
+            String noteRow = "KayStay RoomStatus#" + roomStatus.status() + " " + roomStatus.date();
             if (!sbNotes.isEmpty()) {
                 sbNotes.append("\n");
             }
@@ -395,6 +429,7 @@ public class KayStayCalendarSyncService {
             return out;
         }
         int kept = 0;
+        int closedDetected = 0;
         int skippedBadDate = 0;
         for (JsonNode order : list) {
             String orderId = text(order, "orderId");
@@ -414,6 +449,9 @@ public class KayStayCalendarSyncService {
                 continue;
             }
             kept++;
+            if (isClosed) {
+                closedDetected++;
+            }
             out.add(new SmartOrderBooking(orderId == null ? "" : orderId,
                     smartRoomId == null ? "" : smartRoomId,
                     ciDt,
@@ -422,24 +460,129 @@ public class KayStayCalendarSyncService {
                     remark,
                     isClosed));
         }
-        appendLog(logs, "KayStay orders: kept=" + kept + " skippedBadDate=" + skippedBadDate);
+        appendLog(logs, "KayStay orders: kept=" + kept + " closedDetected=" + closedDetected + " skippedBadDate=" + skippedBadDate);
         return out;
     }
 
-    private boolean isSmartOrderClosedStatus(JsonNode node) {
-        List<String> candidates = List.of(
-                text(node, "status"),
-                text(node, "roomStatus"),
-                text(node, "roomStatusCode"),
-                text(node, "roomStatusName"),
-                text(node, "state"),
-                text(node, "stateName")
-        );
-        return candidates.stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .anyMatch(s -> s.equalsIgnoreCase("closed"));
+    List<SmartRoomStatus> fetchSmartOrderRoomStatuses(String reviewCode, LocalDate from, LocalDate to, Collection<String> smartRoomIdFilter, List<String> logs) throws IOException, InterruptedException {
+        List<SmartRoomStatus> out = new ArrayList<>();
+        LocalDate cursor = from.withDayOfMonth(1);
+        LocalDate lastMonth = to.withDayOfMonth(1);
+        int closedLikeDetected = 0;
+        while (!cursor.isAfter(lastMonth)) {
+            ObjectNode body = OBJECT_MAPPER.createObjectNode();
+            body.put("serialNum", reviewCode);
+            body.put("reviewCode", reviewCode);
+            body.put("date", cursor.toString());
+            JsonNode data = postSmartOrder(ENDPOINT_SOLAR, body, "solar");
+            JsonNode list = data.path("list");
+            if (!list.isArray()) {
+                cursor = cursor.plusMonths(1);
+                continue;
+            }
+            for (JsonNode item : list) {
+                String smartRoomId = text(item, "roomId");
+                Integer status = integer(item, "status");
+                LocalDate date = parseSmartOrderDate(text(item, "date"));
+                if (smartRoomId == null || smartRoomId.isBlank() || date == null || status == null) {
+                    continue;
+                }
+                if (date.isBefore(from) || date.isAfter(to)) {
+                    continue;
+                }
+                if (smartRoomIdFilter != null && !smartRoomIdFilter.isEmpty() && !smartRoomIdFilter.contains(smartRoomId)) {
+                    continue;
+                }
+                if (isClosedLikeRoomStatus(status)) {
+                    closedLikeDetected++;
+                }
+                out.add(new SmartRoomStatus(smartRoomId, date, status));
+            }
+            cursor = cursor.plusMonths(1);
+        }
+        appendLog(logs, "KayStay solar: kept=" + out.size() + " closedLikeDetected=" + closedLikeDetected);
+        return out;
+    }
+
+    static boolean isClosedLikeRoomStatus(int status) {
+        return status == 2 || status == 3 || status == 6 || status == 8;
+    }
+
+    static boolean isSmartOrderClosedStatus(JsonNode node) {
+        return findSmartOrderClosedSignal(node).isPresent();
+    }
+
+    static Optional<String> findSmartOrderClosedSignal(JsonNode node) {
+        List<String> matches = new ArrayList<>();
+        collectSmartOrderClosedSignals(node, "", matches, 0);
+        return matches.stream().findFirst();
+    }
+
+    private static void collectSmartOrderClosedSignals(JsonNode node, String path, List<String> matches, int depth) {
+        if (node == null || node.isMissingNode() || node.isNull() || depth > 8 || !matches.isEmpty()) {
+            return;
+        }
+
+        if (node.isObject()) {
+            node.fields().forEachRemaining(entry -> {
+                String childPath = path.isBlank() ? entry.getKey() : path + "." + entry.getKey();
+                JsonNode child = entry.getValue();
+                if (isSmartOrderClosedSignalValue(childPath, child)) {
+                    matches.add(childPath + "=" + child.asText());
+                    return;
+                }
+                collectSmartOrderClosedSignals(child, childPath, matches, depth + 1);
+            });
+            return;
+        }
+
+        if (node.isArray()) {
+            for (int index = 0; index < node.size() && matches.isEmpty(); index++) {
+                collectSmartOrderClosedSignals(node.get(index), path + "[" + index + "]", matches, depth + 1);
+            }
+        }
+    }
+
+    private static boolean isSmartOrderClosedSignalValue(String path, JsonNode valueNode) {
+        String normalizedPath = normalizeSmartOrderSignal(path);
+        if (normalizedPath.isBlank()) {
+            return false;
+        }
+        boolean pathLooksRelevant = normalizedPath.contains("status")
+                || normalizedPath.contains("state")
+                || normalizedPath.contains("close")
+                || normalizedPath.contains("reason")
+                || normalizedPath.contains("type");
+        if (!pathLooksRelevant) {
+            return false;
+        }
+
+        if (valueNode.isBoolean()) {
+            return valueNode.booleanValue() && normalizedPath.contains("close");
+        }
+
+        if (!valueNode.isValueNode()) {
+            return false;
+        }
+
+        String normalizedValue = normalizeSmartOrderSignal(valueNode.asText(""));
+        if (normalizedValue.isBlank()) {
+            return false;
+        }
+        return normalizedValue.equals("close")
+                || normalizedValue.equals("closed")
+                || normalizedValue.contains("closed")
+                || normalizedValue.equals("outoforder")
+                || normalizedValue.equals("outofservice")
+                || normalizedValue.equals("ooo")
+                || normalizedValue.equals("oos");
+    }
+
+    private static String normalizeSmartOrderSignal(String value) {
+        if (value == null) {
+            return "";
+        }
+        return NON_ALPHANUMERIC_PATTERN.matcher(value.trim().toLowerCase(Locale.ROOT)).replaceAll("");
     }
 
     private JsonNode postSmartOrder(String endpoint, JsonNode body, String label) throws IOException, InterruptedException {
@@ -503,6 +646,17 @@ public class KayStayCalendarSyncService {
         }
     }
 
+    static LocalDate parseSmartOrderDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     private static String text(JsonNode node, String field) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return null;
@@ -510,6 +664,20 @@ public class KayStayCalendarSyncService {
         JsonNode c = node.get(field);
         if (c == null || c.isMissingNode() || c.isNull()) return null;
         return c.asText(null);
+    }
+
+    private static Integer integer(JsonNode node, String field) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        JsonNode c = node.get(field);
+        if (c == null || c.isMissingNode() || c.isNull()) return null;
+        if (c.isInt() || c.isLong()) return c.asInt();
+        try {
+            return Integer.parseInt(c.asText(""));
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static String trim(String value, int max) {
@@ -574,6 +742,12 @@ public class KayStayCalendarSyncService {
             String contactName,
             String remark,
             boolean closed
+    ) {}
+
+    record SmartRoomStatus(
+            String smartRoomId,
+            LocalDate date,
+            int status
     ) {}
 
     static class SyncStats {
