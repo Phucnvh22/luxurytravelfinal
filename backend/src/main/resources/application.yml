@@ -101,7 +101,7 @@ application:
     zalo-bot:
       enabled: ${APPLICATION_INTEGRATIONS_ZALO_BOT_ENABLED:true}
       api-base-url: ${APPLICATION_INTEGRATIONS_ZALO_BOT_API_BASE_URL:https://bot-api.zaloplatforms.com}
-      token: ${APPLICATION_INTEGRATIONS_ZALO_BOT_TOKEN:OuUsuF-Kou4-GxyB1h}
+      token: ${APPLICATION_INTEGRATIONS_ZALO_BOT_TOKEN:339887809107915799:fGTqoBFeRuXXsCwYtqwaxkMHVEloKyHYYzekecYZSsfEHGOVaqFreThWgwXIMhZP}
       webhook-secret-token: ${APPLICATION_INTEGRATIONS_ZALO_BOT_WEBHOOK_SECRET_TOKEN:luxurytravel-zalo-2026}
     lazhost:
       enabled: ${APPLICATION_INTEGRATIONS_LAZHOST_ENABLED:false}

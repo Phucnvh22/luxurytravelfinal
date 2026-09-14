@@ -1951,17 +1951,25 @@ export default function AdminRoomBookingsPage() {
   }
 
   const handleDelete = async () => {
-    if (!editingId) return
-    if (!window.confirm('Delete this booking?')) return
+    const bookingId = editingId ?? selectedBooking?.id
+    if (!bookingId) return
+    const bookingLabel = selectedBooking?.guestName || 'Guest'
+    const roomLabel = selectedBooking?.roomCode || 'villa'
+    if (!window.confirm(`Delete booking #${bookingId} - ${bookingLabel}?\nThis action cannot be undone.`)) return
 
     setDeleting(true)
     setFormError(null)
     try {
-      await apiFetch<void>(`/api/admin/room-bookings/${editingId}`, { method: 'DELETE' })
+      await apiFetch<void>(`/api/admin/room-bookings/${bookingId}`, { method: 'DELETE' })
       resetForm()
       setSelectedBookingId(null)
       closeBookingModal()
       await load({ silent: true })
+      setCalendarFeedback({
+        tone: 'success',
+        title: 'Booking deleted',
+        message: `Deleted ${bookingLabel} at ${roomLabel}.`,
+      })
     } catch (e: unknown) {
       setFormError(getErrorMessage(e, 'Could not delete booking'))
     } finally {
@@ -2924,6 +2932,15 @@ export default function AdminRoomBookingsPage() {
                   selectedBooking.status !== 'CANCELLED' ? (
                     <button className="btn" type="button" onClick={() => editBooking(selectedBooking)}>
                       Edit
+                    </button>
+                  ) : null}
+                  {bookingModalMode === 'details' &&
+                  selectedBooking &&
+                  selectedBooking.status !== 'AIRBNB_BLOCK' &&
+                  selectedBooking.status !== 'KAYSTAY_BLOCK' &&
+                  selectedBooking.status !== 'SOPHIA_BLOCK' ? (
+                    <button className="btn danger" type="button" onClick={() => void handleDelete()} disabled={deleting || actionLoading !== null}>
+                      {deleting ? 'Deleting...' : 'Delete'}
                     </button>
                   ) : null}
                   <button className="btn" type="button" onClick={closeBookingModal}>

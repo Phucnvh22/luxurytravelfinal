@@ -92,6 +92,7 @@ const baseBookings: RoomBookingResponse[] = [
 function setupApi() {
   mockedApiFetch.mockImplementation(async (endpoint: string) => {
     if (endpoint.startsWith('/api/admin/room-bookings?')) return baseBookings
+    if (endpoint === '/api/admin/room-bookings/1') return {}
     if (endpoint === '/api/admin/rooms') return baseRooms
     if (endpoint === '/api/admin/room-areas') return baseAreas
     if (endpoint === '/api/admin/villa-settings') return baseSettings
@@ -187,5 +188,31 @@ describe('AdminRoomBookingsPage date range', () => {
     await screen.findByText('Admin • Villa booking calendar')
 
     expect(container.querySelector('.room-booking-bar-title')?.textContent).toBe('Checkin')
+  })
+
+  it('allows admin to delete a booking from the details modal', async () => {
+    const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { container } = render(
+      <MemoryRouter>
+        <AdminRoomBookingsPage />
+      </MemoryRouter>,
+    )
+
+    await screen.findByText('Admin • Villa booking calendar')
+
+    const bookingBar = container.querySelector('.room-booking-bar')
+    expect(bookingBar).not.toBeNull()
+
+    await user.click(bookingBar as HTMLElement)
+    await screen.findByText('Booking #1 • Reserved')
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(mockedApiFetch).toHaveBeenCalledWith('/api/admin/room-bookings/1', { method: 'DELETE' })
+    })
+
+    confirmSpy.mockRestore()
   })
 })
