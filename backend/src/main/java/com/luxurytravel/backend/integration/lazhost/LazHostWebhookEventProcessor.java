@@ -18,15 +18,18 @@ import java.util.Optional;
 public class LazHostWebhookEventProcessor {
     private final LazHostWebhookEventRepository eventRepository;
     private final RoomBookingRepository roomBookingRepository;
+    private final LazHostCatalogService catalogService;
     private final ObjectMapper objectMapper;
 
     public LazHostWebhookEventProcessor(
             LazHostWebhookEventRepository eventRepository,
             RoomBookingRepository roomBookingRepository,
+            LazHostCatalogService catalogService,
             ObjectMapper objectMapper
     ) {
         this.eventRepository = eventRepository;
         this.roomBookingRepository = roomBookingRepository;
+        this.catalogService = catalogService;
         this.objectMapper = objectMapper;
     }
 
@@ -42,14 +45,23 @@ public class LazHostWebhookEventProcessor {
     private void processOne(LazHostWebhookEvent event) {
         try {
             ParsedWebhook payload = parse(event.getPayload());
-            if (payload.externalBookingId() != null && payload.status() != null) {
+            if (isCatalogUpdatedEvent(payload.eventType())) {
+                catalogService.refreshCache("WEBHOOK");
+            }
+
+            String resolvedStatus = payload.status();
+            if ((resolvedStatus == null || resolvedStatus.isBlank()) && payload.externalBookingId() != null && isBookingEvent(payload.eventType())) {
+                resolvedStatus = loadBookingStatus(payload.externalBookingId());
+            }
+
+            if (payload.externalBookingId() != null && resolvedStatus != null) {
                 Optional<RoomBooking> maybeBooking = roomBookingRepository.findByExternalSystemIgnoreCaseAndExternalReservationId(
                         LazHostSyncService.SYSTEM_NAME,
                         payload.externalBookingId()
                 );
                 if (maybeBooking.isPresent()) {
                     RoomBooking booking = maybeBooking.get();
-                    RoomBookingStatus next = mapStatus(payload.status());
+                      RoomBookingStatus next = mapStatus(resolvedStatus);
                     if (next != null && booking.getStatus() != next) {
                         booking.setStatus(next);
                         roomBookingRepository.save(booking);
@@ -90,11 +102,33 @@ public class LazHostWebhookEventProcessor {
                     "data.status",
                     "data.booking.status"
             );
-            return new ParsedWebhook(externalBookingId, status);
+              String eventType = firstText(
+                      root,
+                      "type",
+                      "eventType",
+                      "event.type",
+                      "data.type"
+              );
+              return new ParsedWebhook(eventType, externalBookingId, status);
         } catch (Exception ex) {
-            return new ParsedWebhook(null, null);
+              return new ParsedWebhook(null, null, null);
         }
     }
+
+      private String loadBookingStatus(String externalBookingId) {
+          try {
+              JsonNode booking = catalogService.getBookingLive(externalBookingId);
+              return firstText(
+                      booking,
+                      "status",
+                      "data.status",
+                      "booking.status",
+                      "data.booking.status"
+              );
+          } catch (Exception ignored) {
+              return null;
+          }
+      }
 
     private String firstText(JsonNode root, String... paths) {
         if (paths == null) return null;
@@ -137,7 +171,21 @@ public class LazHostWebhookEventProcessor {
         };
     }
 
-    private record ParsedWebhook(String externalBookingId, String status) {
+      private boolean isCatalogUpdatedEvent(String eventType) {
+          if (eventType == null || eventType.isBlank()) {
+              return false;
+          }
+          return eventType.trim().equalsIgnoreCase("catalog.updated");
+      }
+
+      private boolean isBookingEvent(String eventType) {
+          if (eventType == null || eventType.isBlank()) {
+              return false;
+          }
+          String normalized = eventType.trim().toLowerCase(Locale.ROOT);
+          return normalized.startsWith("booking.") || normalized.startsWith("bookings.");
+      }
+
+      private record ParsedWebhook(String eventType, String externalBookingId, String status) {
     }
 }
-

@@ -1,13 +1,16 @@
 package com.luxurytravel.backend.integration.lazhost;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -23,6 +26,10 @@ public class LazHostClient {
     }
 
     public String createHold(LazHostCreateHoldRequest request, String idempotencyKey, String requestId) {
+        return createHoldResponse(request, idempotencyKey, requestId).holdId();
+    }
+
+    public LazHostHoldResponse createHoldResponse(LazHostCreateHoldRequest request, String idempotencyKey, String requestId) {
         Map<?, ?> body = exchange("POST", "/holds", request.toPayload(), idempotencyKey, requestId, Map.class);
         if (body == null) {
             throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, "LazHost hold response empty");
@@ -34,7 +41,7 @@ public class LazHostClient {
         if (!(holdId instanceof String holdIdString) || holdIdString.isBlank()) {
             throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_GATEWAY, "LazHost hold response missing holdId");
         }
-        return holdIdString;
+        return new LazHostHoldResponse(holdIdString, body);
     }
 
     public Map<?, ?> createBooking(LazHostCreateBookingRequest request, String idempotencyKey, String requestId) {
@@ -66,6 +73,39 @@ public class LazHostClient {
         return exchangeNoBody("GET", path, requestId, Map.class);
     }
 
+    public JsonNode getProperty(String requestId) {
+        return exchangeNoBody("GET", "/property", requestId, JsonNode.class);
+    }
+
+    public JsonNode getRooms(String cursor, Integer limit, String requestId) {
+        return exchangeNoBody("GET", buildUrl("/rooms", Map.of(
+                "cursor", cursor,
+                "limit", limit == null ? 100 : limit
+        )), null, requestId, JsonNode.class, true);
+    }
+
+    public JsonNode getRatePlans(String cursor, Integer limit, String requestId) {
+        return exchangeNoBody("GET", buildUrl("/rate-plans", Map.of(
+                "cursor", cursor,
+                "limit", limit == null ? 100 : limit
+        )), null, requestId, JsonNode.class, true);
+    }
+
+    public JsonNode getAvailability(String roomCode, String ratePlanCode, LocalDate checkIn, LocalDate checkOut, Integer adults, String requestId) {
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("roomCode", roomCode);
+        params.put("ratePlanCode", ratePlanCode);
+        params.put("checkIn", checkIn);
+        params.put("checkOut", checkOut);
+        params.put("adults", adults == null ? 1 : adults);
+        params.put("quantity", 1);
+        return exchangeNoBody("GET", buildUrl("/availability", params), null, requestId, JsonNode.class, true);
+    }
+
+    public JsonNode getBooking(String externalBookingId, String requestId) {
+        return exchangeNoBody("GET", "/bookings/" + externalBookingId, requestId, JsonNode.class);
+    }
+
     private <T> T exchange(String method, String path, Object payload, String idempotencyKey, String requestId, Class<T> bodyType) {
         requireConfigured();
         String url = buildUrl(path);
@@ -85,8 +125,12 @@ public class LazHostClient {
     }
 
     private <T> T exchangeNoBody(String method, String path, String idempotencyKey, String requestId, Class<T> bodyType) {
+        return exchangeNoBody(method, path, idempotencyKey, requestId, bodyType, false);
+    }
+
+    private <T> T exchangeNoBody(String method, String pathOrUrl, String idempotencyKey, String requestId, Class<T> bodyType, boolean absoluteUrl) {
         requireConfigured();
-        String url = buildUrl(path);
+        String url = absoluteUrl ? pathOrUrl : buildUrl(pathOrUrl);
         try {
             return doExchangeNoBody(method, url, idempotencyKey, requestId, bodyType, false);
         } catch (RestClientResponseException ex) {
@@ -158,6 +202,22 @@ public class LazHostClient {
         return baseUrl + normalizedPath;
     }
 
+    private String buildUrl(String path, Map<String, ?> queryParams) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(buildUrl(path));
+        if (queryParams != null) {
+            queryParams.forEach((key, value) -> {
+                if (key == null || key.isBlank() || value == null) {
+                    return;
+                }
+                if (value instanceof String stringValue && stringValue.isBlank()) {
+                    return;
+                }
+                builder.queryParam(key, value);
+            });
+        }
+        return builder.build(true).toUriString();
+    }
+
     public record LazHostCreateHoldRequest(
             String roomCode,
             String ratePlanCode,
@@ -197,5 +257,11 @@ public class LazHostClient {
                     "note", note == null ? "" : note
             );
         }
+    }
+
+    public record LazHostHoldResponse(
+            String holdId,
+            Map<?, ?> body
+    ) {
     }
 }
